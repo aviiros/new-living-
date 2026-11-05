@@ -1,0 +1,37 @@
+[
+ {
+  "title": "شبكة المعتقد",
+  "author": "كواين وأوليان",
+  "titleEn": "The Web of Belief",
+  "authorEn": "W. V. Quine & J. S. Ullian",
+  "file": "1-wob.html"
+ },
+ {
+  "title": "مشكلات الفلسفة",
+  "author": "برتراند راسل",
+  "titleEn": "The Problems of Philosophy",
+  "authorEn": "Bertrand Russell",
+  "file": "2-pop.html"
+ },
+ {
+  "title": "ماذا يعني كل هذا؟",
+  "author": "توماس ناجل",
+  "titleEn": "What Does It All Mean?",
+  "authorEn": "Thomas Nagel",
+  "file": "3-nagel.html"
+ },
+ {
+  "title": "حكمة الحياة",
+  "author": "آرتور شوبنهاور",
+  "titleEn": "The Wisdom of Life (Arabic edition)",
+  "authorEn": "Arthur Schopenhauer",
+  "file": "4-sch-ar.html"
+ },
+ {
+  "title": "The Wisdom of Life",
+  "author": "Arthur Schopenhauer",
+  "titleEn": "The Wisdom of Life",
+  "authorEn": "Arthur Schopenhauer",
+  "file": "5-sch-en.html"
+ }
+]

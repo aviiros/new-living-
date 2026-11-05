@@ -1,0 +1,9 @@
+{
+  "appId": "com.livingideas.library",
+  "appName": "Living Ideas",
+  "webDir": "www",
+  "backgroundColor": "#f0e8d3",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
+  "plugins": { "LocalNotifications": { "iconColor": "#c3714c" } }
+}

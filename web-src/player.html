@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>__TITLE__</title>
+<style>
+:root{--bg:#f0e8d3;--card:#fbf7ec;--tx:#14262e;--mu:#6b6a58;--ac:#c3714c;--ol:#918e61;--ln:#d9cdb0}
+@media(prefers-color-scheme:dark){:root{--bg:#121e24;--card:#1a2a32;--tx:#f0e8d3;--mu:#a8a58f;--ac:#d9825c;--ol:#a5a36f;--ln:#2c3f48}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,sans-serif}
+.p{width:min(560px,92vw);padding:28px;background:var(--card);border:1px solid var(--ln);border-radius:20px;box-shadow:0 12px 40px rgba(0,0,0,.18);text-align:center}
+.cv{width:min(260px,60vw);aspect-ratio:1;margin:0 auto 18px;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.28);background:linear-gradient(160deg,#2c4a52,#14262e);display:grid;place-items:center;color:#f0e8d3;font:700 20px Amiri,Georgia,serif;padding:14px}
+.cv img{width:100%;height:100%;object-fit:cover}h1{font:700 24px Amiri,Georgia,serif;margin:6px 0 2px}.a{color:var(--mu);font-size:14px;margin-bottom:16px}
+input[type=range]{width:100%;accent-color:var(--ac)}.t{display:flex;justify-content:space-between;color:var(--mu);font-size:12px;direction:ltr}
+.r{display:flex;justify-content:center;align-items:center;gap:10px;margin:14px 0}button{font:inherit;color:var(--tx);background:none;border:1px solid var(--ln);border-radius:12px;padding:8px 12px;cursor:pointer}button:hover{background:rgba(195,113,76,.12)}
+.play{width:62px;height:62px;border-radius:50%;background:var(--ac);color:#fff;border:0;font-size:24px}.small{font-size:13px}.bm{text-align:start;margin-top:14px;max-height:150px;overflow:auto;border-top:1px solid var(--ln);padding-top:8px}.bm div{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}.bm b{cursor:pointer;color:var(--ac);direction:ltr}.bm span{flex:1}.bm i{cursor:pointer;color:var(--mu);font-style:normal}
+</style></head><body><div class="p">
+<div class="cv" id="cv">__TITLE__</div><h1>__TITLE__</h1><div class="a">__AUTHOR__</div>
+<input type="range" id="sk" min="0" max="1000" value="0" aria-label="موضع التشغيل"><div class="t"><span id="cu">0:00</span><span id="du">0:00</span></div>
+<div class="r"><button id="b30" class="small">⟲ ٣٠</button><button id="b15" class="small">⟲ ١٥</button><button id="pl" class="play" aria-label="تشغيل">▶</button><button id="f15" class="small">١٥ ⟳</button><button id="f30" class="small">٣٠ ⟳</button></div>
+<div class="r"><button id="sp">السرعة ١×</button><button id="sl">مؤقّت النوم: إيقاف</button><button id="bk">＋ إشارة هنا</button></div><div class="bm" id="bm"></div>
+<audio id="au" src="book://__ID__/__file" preload="metadata"></audio></div>
+<script>
+(function(){var EN='__LANG__'==='en',X=function(a,e){return EN?e:a},NL=EN?'en':'ar';if(EN){document.documentElement.dir='ltr';document.documentElement.lang='en'}var au=document.getElementById('au'),$=function(s){return document.getElementById(s)},bm=[],rates=[.75,1,1.25,1.5,1.75,2],ri=1,sleepAt=0,sleeps=[0,15,30,45,60],si=0,init=false;
+if(EN){$('pl').setAttribute('aria-label','Play');$('sk').setAttribute('aria-label','Position');$('b30').textContent='⟲ 30';$('b15').textContent='⟲ 15';$('f15').textContent='15 ⟳';$('f30').textContent='30 ⟳';$('sp').textContent='Speed 1×';$('sl').textContent='Sleep timer: off';$('bk').textContent='+ Bookmark here'}
+if('__HASCOVER__'==='1')$('cv').innerHTML='<img alt="" src="book://__ID__/__cover">';
+function f(t){t=Math.max(0,t|0);var h=t/3600|0,m=(t%3600)/60|0,s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')}
+function P(m){m.liBook=1;parent.postMessage(m,'*')}
+function rep(){P({type:'audio',pos:au.currentTime||0,dur:isFinite(au.duration)?au.duration:0,bm:bm})}
+function rb(){$('bm').innerHTML=bm.map(function(b,i){return '<div><b data-t="'+b.t+'">'+f(b.t)+'</b><span>'+(b.note||X('إشارة','Bookmark'))+'</span><i data-d="'+i+'" title="'+X('حذف','Delete')+'">✕</i></div>'}).join('')}
+$('pl').onclick=function(){au.paused?au.play():au.pause()};au.onplay=function(){$('pl').textContent='❚❚'};au.onpause=function(){$('pl').textContent='▶';rep()};
+au.ontimeupdate=function(){if(au.duration){$('sk').value=au.currentTime/au.duration*1000;$('cu').textContent=f(au.currentTime);$('du').textContent=f(au.duration)}if(sleepAt&&Date.now()>sleepAt){au.pause();sleepAt=0;si=0;$('sl').textContent=X('مؤقّت النوم: إيقاف','Sleep timer: off')}};
+au.onloadedmetadata=function(){$('du').textContent=f(au.duration);rep()};au.onended=function(){rep();P({type:'audio-end'})};
+$('sk').oninput=function(){if(au.duration)au.currentTime=$('sk').value/1000*au.duration};
+[['b30',-30],['b15',-15],['f15',15],['f30',30]].forEach(function(x){$(x[0]).onclick=function(){au.currentTime=Math.max(0,Math.min(au.duration||1e9,au.currentTime+x[1]))}});
+$('sp').onclick=function(){ri=(ri+1)%rates.length;au.playbackRate=rates[ri];$('sp').textContent=X('السرعة ','Speed ')+rates[ri].toLocaleString(NL)+'×';rep()};
+$('sl').onclick=function(){si=(si+1)%sleeps.length;sleepAt=sleeps[si]?Date.now()+sleeps[si]*60000:0;$('sl').textContent=sleeps[si]?X('مؤقّت النوم: ','Sleep timer: ')+sleeps[si].toLocaleString(NL)+X(' د',' min'):X('مؤقّت النوم: إيقاف','Sleep timer: off')};
+$('bk').onclick=function(){bm.push({t:au.currentTime,note:'',date:new Date().toISOString().slice(0,10)});rb();rep()};
+$('bm').onclick=function(e){var t=e.target;if(t.dataset.t)au.currentTime=+t.dataset.t;if(t.dataset.d){bm.splice(+t.dataset.d,1);rb();rep()}};
+document.addEventListener('keydown',function(e){if(e.code==='Space'){e.preventDefault();$('pl').click()}else if(e.key==='ArrowLeft')au.currentTime+=15;else if(e.key==='ArrowRight')au.currentTime-=15;else if((e.ctrlKey&&(e.key==='l'||e.key==='L'))||(e.altKey&&e.key==='ArrowLeft'))P({type:'back'});else if(e.key==='F11'){P({type:'fs'});e.preventDefault()}});
+setInterval(function(){if(!au.paused){P({type:'act'});rep()}},4000);
+addEventListener('message',function(e){var d=e.data;if(!d||d.liCmd!=='init'||init)return;init=true;var a=d.audio||{};bm=a.bm||[];rb();if(a.rate){ri=Math.max(0,rates.indexOf(a.rate));au.playbackRate=rates[ri];$('sp').textContent=X('السرعة ','Speed ')+rates[ri].toLocaleString(NL)+'×'}var s=function(){if(a.pos>1&&a.pos<(au.duration||1e9)-5)au.currentTime=a.pos};if(au.readyState>0)s();else au.addEventListener('loadedmetadata',s,{once:true})});
+P({type:'ready'});})();
+</script></body></html>
