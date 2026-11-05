@@ -5,3 +5,4 @@
 - Amiri font — SIL Open Font License 1.1
 - EB Garamond font — SIL Open Font License 1.1
 Living Ideas logo and starter-book texts belong to their respective owners; the starter books are included for the owner's personal use.
+- foliate-js (mobi.js, fflate bundle) — MIT, © John Factotum — MOBI/AZW3 parsing (web-src/lib/, license in FOLIATE-LICENSE.txt)
