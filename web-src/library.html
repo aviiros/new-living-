@@ -21,7 +21,7 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
 header.top{display:flex;align-items:center;gap:12px;padding:20px 32px 10px}header.top h1{font:700 32px var(--ser);margin:0;flex:1}
 .tool{display:flex;align-items:center;gap:8px}.tool select,.seg button,.btn{height:32px;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:0 11px}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}.btn.danger{background:#b3402a;border-color:#b3402a;color:#fff}.seg{display:flex}.seg button{border-radius:0;width:36px;padding:0;display:grid;place-items:center}.seg button:first-child{border-radius:0 9px 9px 0}.seg button:last-child{border-radius:9px 0 0 9px}.seg button.on{background:var(--sel);color:var(--acc)}.seg svg{width:16px;height:16px}input[type=range]{width:90px;accent-color:var(--acc)}
-#scroller{flex:1;overflow:auto;padding:6px 32px 44px}
+#scroller{flex:1;overflow:auto;overflow-x:hidden;padding:6px 32px 44px}
 #grid,.hrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--w,170px),1fr));gap:30px 26px;align-items:start}
 .tile{display:flex;flex-direction:column;gap:9px;cursor:pointer;min-width:0;border-radius:6px;outline:none}.tile.drag{opacity:.4}.tile.over .cv{outline:3px dashed var(--acc)}
 .cv{position:relative;aspect-ratio:2/3;border-radius:4px;overflow:hidden;box-shadow:var(--shadow);background:#444;transition:transform .15s}.tile:hover .cv,.tile:focus-visible .cv{transform:translateY(-3px)}.tile:focus-visible .cv{outline:3px solid var(--acc)}
@@ -34,7 +34,7 @@ header.top{display:flex;align-items:center;gap:12px;padding:20px 32px 10px}heade
 .bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:2px}.bar i{display:block;height:100%;background:var(--acc)}
 #list{display:none;flex-direction:column}.lrow{display:flex;align-items:center;gap:14px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.lrow:hover{background:var(--sel)}.lrow .cv{width:38px;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.3)}.lrow .gen{padding:8%}.lrow .gen b{font-size:6px}.lrow .gen small,.lrow .gen:before,.lrow .badge{display:none}.lrow .tt{flex:1;min-width:0}.lrow .pr{width:130px}.lrow .dt{width:100px;color:var(--mute);font-size:12px}
 .empty{display:none;text-align:center;margin:10vh auto 0;max-width:440px;color:var(--mute)}.empty img{width:150px;opacity:.95;border-radius:18px}.empty h2{color:var(--text);font:700 24px var(--ser)}
-.home{display:none;flex-direction:column;gap:26px}.cards{display:grid;grid-template-columns:minmax(260px,1fr) minmax(300px,1.5fr);gap:18px}
+.home{display:none;flex-direction:column;gap:26px;min-width:0}.cards>*{min-width:0}.card,.hero h2,.gst{overflow-wrap:anywhere}#langBtn{display:none}.cards{display:grid;grid-template-columns:minmax(260px,1fr) minmax(300px,1.5fr);gap:18px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}.card h3{margin:0 0 10px;font:700 17px var(--ser)}
 .goal{display:flex;align-items:center;gap:16px}.ring{position:relative;width:96px;height:96px;flex:none}.ring svg{width:96px;height:96px;transform:rotate(-90deg)}.ring .c{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font:700 22px var(--ser);line-height:1.1}.ring .c small{display:block;font:12px "Segoe UI";color:var(--mute);font-weight:400}
 .gst{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mute)}.gst b{color:var(--text);font-size:15px}.week{display:flex;gap:4px;margin-top:6px}.week i{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:10px;font-style:normal;color:var(--mute)}.week i.d{background:var(--acc2);border-color:var(--acc2);color:#fff}.week i.t{border-color:var(--acc)}
@@ -73,12 +73,14 @@ html[data-platform=android] #rfs,html[data-platform=android] #drop{display:none!
  #tool{width:100%;overflow-x:auto;padding-bottom:2px}#size{display:none}
  #scroller{padding:4px 14px calc(90px + env(safe-area-inset-bottom))}
  #grid,.hrow{gap:20px 14px;grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
- .dots{opacity:1}.cards{grid-template-columns:1fr}.hero .cv{width:84px}
+ .dots{opacity:1}.cards{grid-template-columns:minmax(0,1fr)}.hero .cv{width:84px}
+ .card{padding:14px}.goal{flex-wrap:wrap;gap:12px}.week{flex-wrap:wrap}.hero{gap:12px}.hero h2{font-size:19px}.hero .a{white-space:normal;overflow:visible;text-overflow:clip}
+ #langBtn{display:inline-flex!important;align-items:center;justify-content:center;height:38px;min-width:44px;padding:0 10px;font-weight:700}
  #rbar{padding-top:env(safe-area-inset-top);height:calc(44px + env(safe-area-inset-top))}#reader.fix #stage{margin-top:calc(44px + env(safe-area-inset-top))}
  #rbar button{padding:5px 8px}#panel{position:absolute;inset:0;width:100%!important;z-index:8}#pop{inset-inline:8px;width:auto}#find{left:8px;right:8px}#find input{flex:1;width:auto}
  .lrow .pr,.lrow .dt{display:none}.box{padding:16px}#endcard{bottom:calc(20px + env(safe-area-inset-bottom))}#toast{bottom:calc(24px + env(safe-area-inset-bottom))}
 }
-@media(max-width:980px){aside{width:208px}.cards{grid-template-columns:1fr}}
+@media(max-width:980px){aside{width:208px}.cards{grid-template-columns:minmax(0,1fr)}}
 </style></head>
 <body>
 <div id="app">
@@ -93,7 +95,7 @@ html[data-platform=android] #rfs,html[data-platform=android] #drop{display:none!
  <div class="foot"><button class="item" id="themeBtn"></button><button class="item" id="addBtn2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>إضافة كتاب</button><button class="item" id="moreBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>المزيد</button></div>
 </aside>
 <main>
- <header class="top"><button class="btn" id="menuBtn" aria-label="القائمة" style="display:none;width:38px;padding:0;font-size:18px">☰</button><h1 id="title"></h1><div class="tool" id="tool"><input type="range" id="size" min="120" max="260" step="10" title="حجم الأغلفة">
+ <header class="top"><button class="btn" id="menuBtn" aria-label="القائمة" style="display:none;width:38px;padding:0;font-size:18px">☰</button><h1 id="title"></h1><button class="btn" id="langBtn" data-noloc="1" aria-label="Language / اللغة"></button><div class="tool" id="tool"><input type="range" id="size" min="120" max="260" step="10" title="حجم الأغلفة">
   <div class="seg"><button id="vg" title="شبكة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button><button id="vl" title="قائمة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div>
   <select id="sort"><option value="recent">الأحدث قراءة</option><option value="title">العنوان</option><option value="author">المؤلف</option><option value="added">تاريخ الإضافة</option><option value="rating">التقييم</option><option value="manual">ترتيبي (بالسحب)</option></select>
   <button class="btn primary" id="addBtn">إضافة كتاب</button></div></header>
@@ -218,7 +220,7 @@ function loc(n){
 var mo=new MutationObserver(function(recs){recs.forEach(function(r){if(r.type==='childList')r.addedNodes.forEach(loc);else if(r.type==='characterData')loc(r.target);else if(r.type==='attributes')loc(r.target)});mo.takeRecords()});
 mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTRS});
 function setLang(l,persist){LANG=l==='en'?'en':'ar';var h=document.documentElement;h.lang=LANG;h.dir=LANG==='en'?'ltr':'rtl';
-  [].forEach.call(document.querySelectorAll('.lang button'),function(b){b.classList.toggle('on',b.dataset.lang===LANG)});
+  [].forEach.call(document.querySelectorAll('.lang button'),function(b){b.classList.toggle('on',b.dataset.lang===LANG)});var lb=document.getElementById('langBtn');if(lb)lb.textContent=LANG==='en'?'ع':'EN';
   loc(document.body);document.title=LANG==='en'?'Living Ideas':'Living Ideas';mo.takeRecords();if(persist)window.api.settings({lang:LANG}).then(function(s){S=s;render();loc(document.body)});else render()}
 function untranslated(){var out=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);var n;while((n=w.nextNode())){if(n.parentElement&&n.parentElement.closest('[data-noloc],script,style,#frame,#pframe'))continue;if(/[\u0600-\u06FF]/.test(n.nodeValue))out.push(n.nodeValue.trim())}
   [].forEach.call(document.querySelectorAll('[title],[placeholder],[aria-label],[alt]'),function(e){if(e.closest('[data-noloc]'))return;ATTRS.forEach(function(a){var v=e.getAttribute(a);if(v&&/[\u0600-\u06FF]/.test(v))out.push('@'+a+':'+v)})});return out}
@@ -335,6 +337,7 @@ var dc=0;addEventListener('dragenter',function(e){if(dragId)return;if(e.dataTran
 addEventListener('drop',function(e){e.preventDefault();if(dragId)return;dc=0;$('#drop').style.display='none';var fs=[].slice.call(e.dataTransfer.files||[]).map(function(f){return window.api.pathOf(f)}).filter(Boolean);if(fs.length)window.api.addPaths(fs).then(setState)});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
 window.api.onState(keep);window.api.onToast(toast);window.api.onOpen(function(id){window.api.state().then(function(s){S=s;openBook(id)})});
+$('#langBtn').addEventListener('click',function(){setLang(LANG==='en'?'ar':'en',true)});
 $('.lang').addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.lang!==LANG)setLang(b.dataset.lang,true)});
 window.api.state().then(function(s){S=s;LANG=s.settings.lang==='en'?'en':'ar';setLang(LANG,false);applyTheme()});
 window.__li={onBack:function(){if($('#modal').classList.contains('on')){closeModal();return true}if($('#menu').style.display==='block'){hideMenu();return true}if(document.body.classList.contains('drawer')){document.body.classList.remove('drawer');return true}if($('#endcard').classList.contains('on')){$('#endcard').classList.remove('on');return true}if($('#pop').classList.contains('on')){$('#pop').classList.remove('on');return true}if($('#find').classList.contains('on')){$('#find').classList.remove('on');return true}if($('#panel').classList.contains('on')){closePanel();return true}if($('#reader').classList.contains('on')){closeBook();return true}if(view!=='home'||query){view='home';query='';$('#q').value='';render();return true}return false},setLang:setLang,untranslated:untranslated,open:openBook,state:function(){return S},refresh:function(){return window.api.state().then(setState)}};
