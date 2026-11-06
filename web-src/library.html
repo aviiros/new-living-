@@ -142,12 +142,33 @@ body.reading #dock{display:none}:root[data-t=dark] .chip.on,:root[data-t=dark] .
 .tile:active .cv,.lrow:active,.btn:active,.hero:active{transform:scale(.975)}.btn,.hero,.lrow{transition:transform .15s var(--ease)}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}#splash .w1,#splash .w2,#splash .sp,#splash .rays{display:none}}
 @media(max-width:760px){#home{gap:22px}.thought{padding:18px 16px 14px}.thought q{font-size:21px}.hgreet{text-align:start}.hgreet h2{font-size:21px}}
+
+/* v3.1 */
+header.top #langBtn{display:none!important}
+.ib.sm{height:32px;padding:0 12px;font-size:12px}.ib.sm svg{width:15px;height:15px}.tact.t2{margin-top:8px}
+#sheet textarea,#sheet input{font-size:14px;outline:none}#sheet input{width:100%;height:38px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:0 10px}
+.thought.pulse{animation:swap .5s var(--ease)}
+@keyframes swap{0%{opacity:.2;transform:translateY(10px) scale(.985)}100%{opacity:1;transform:none}}
+@keyframes vin{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes bob{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-5px) scale(1.12)}100%{transform:none}}
+@keyframes boxin{from{opacity:0;transform:translateY(26px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#scroller.enter{animation:vin .45s var(--ease)}
+#dock button.on svg{animation:bob .5s var(--ease)}
+#dock button.on{background:var(--sel)}
+#dock button.on:after{animation:fadein .3s .1s both}
+.modal.on{animation:fadein .2s}.modal.on .box{animation:boxin .32s var(--ease)}
+#reader.on{animation:fadein .28s ease}
+.tile,.lrow,.card,.thought{transition:transform .2s var(--ease),box-shadow .2s}
+@media(max-width:760px){.modal.on{place-items:end center}.modal.on .box{border-radius:22px 22px 0 0;width:100vw;max-width:560px;max-height:88vh;padding-bottom:calc(22px + env(safe-area-inset-bottom));animation:sheetin .38s var(--ease)}}
+@keyframes sheetin{from{transform:translateY(100%)}to{transform:none}}
+.lang{display:grid;grid-template-columns:1fr 1fr 1fr}.lang button{height:30px}
 </style></head>
 <body>
 <div id="app">
 <aside>
  <div class="brand"><img src="assets/emblem.png" alt=""><div><b>LIVING IDEAS</b><small>كتاب · فكرة · حياة</small></div></div>
- <div class="lang" data-noloc="1" role="group" aria-label="Language"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div>
+ <div class="lang" data-noloc="1" role="group" aria-label="Language"><button data-lang="ar">العربية</button><button data-lang="en">English</button><button data-lang="fr">Français</button><button data-lang="es">Español</button><button data-lang="it">Italiano</button><button data-lang="id">Indonesia</button></div>
  <div class="search"><input id="q" type="search" placeholder="بحث في المكتبة" aria-label="بحث"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></div>
  <nav class="nav" id="nav"></nav>
  <div class="sec"><span>الأنواع</span></div><nav class="nav" id="fmts"></nav>
@@ -156,7 +177,7 @@ body.reading #dock{display:none}:root[data-t=dark] .chip.on,:root[data-t=dark] .
  <div class="foot"><button class="item" id="themeBtn"></button><button class="item" id="addBtn2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>إضافة كتاب</button><button class="item" id="moreBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>المزيد</button></div>
 </aside>
 <main>
- <header class="top"><button class="btn" id="menuBtn" aria-label="القائمة" style="display:none;width:38px;padding:0;font-size:18px">☰</button><h1 id="title"></h1><button class="btn" id="langBtn" data-noloc="1" aria-label="Language / اللغة"></button><div class="tool" id="tool"><input type="range" id="size" min="120" max="260" step="10" title="حجم الأغلفة">
+ <header class="top"><button class="btn" id="menuBtn" aria-label="القائمة" style="display:none;width:38px;padding:0;font-size:18px">☰</button><h1 id="title"></h1><button class="btn" id="langBtn" hidden data-noloc="1" aria-label="Language / اللغة"></button><div class="tool" id="tool"><input type="range" id="size" min="120" max="260" step="10" title="حجم الأغلفة">
   <div class="seg"><button id="vg" title="شبكة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button><button id="vl" title="قائمة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div>
   <select id="sort"><option value="recent">الأحدث قراءة</option><option value="title">العنوان</option><option value="author">المؤلف</option><option value="added">تاريخ الإضافة</option><option value="rating">التقييم</option><option value="manual">ترتيبي (بالسحب)</option></select>
   <button class="btn primary" id="addBtn">إضافة كتاب</button></div></header>
@@ -169,7 +190,7 @@ body.reading #dock{display:none}:root[data-t=dark] .chip.on,:root[data-t=dark] .
  <div id="hot"></div><div id="endcard"><h4>أنهيتَ هذا الكتاب 🎉</h4><p>ما رأيك أن تعود إلى مكتبتك وتختار كتابك التالي؟</p><div class="acts"><button class="btn primary" id="ecBack">العودة إلى المكتبة</button><button class="btn" id="ecFin">وضع علامة «أنهيتُه»</button><button class="btn" id="ecClose">إكمال القراءة</button></div></div>
  <div id="find"><input id="fq" placeholder="ابحث في الكتاب" aria-label="بحث"><button class="btn" id="fprev">‹</button><button class="btn" id="fnext">›</button><button class="btn" id="fx">✕</button></div>
  <div id="pop"></div></section>
-<nav id="dock" aria-label="التنقل الرئيسي"><button id="dAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h9a2 2 0 012 2V20H7a2 2 0 01-2-2z"/><path d="M5 17.5a2 2 0 012-2h9"/><path d="M19 2.5v6M16 5.5h6"/></svg><span>إضافة كتاب</span></button><button id="dReads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5c3-1 6-.5 9 1.5 3-2 6-2.5 9-1.5V18c-3-1-6-.5-9 1.5C9 17.5 6 17 3 18z"/><path d="M12 7v12.5"/><path d="M15.5 10.5l2 2 2.5-3"/></svg><span>قراءاتي</span></button><button id="dSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M8 10.5a2.5 2.5 0 012.5-2.5"/></svg><span>بحث</span></button><button id="dSet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg><span>الإعدادات</span></button><button id="dLang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c3 3 3 14 0 17M12 3.5c-3 3-3 14 0 17"/></svg><span>اللغة</span></button></nav><div id="splash" role="img" aria-label="Living Ideas"><svg viewBox="0 0 240 200" aria-hidden="true"><g class="st">
+<nav id="dock" aria-label="التنقل الرئيسي"><button id="dHome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.2L12 4l8.5 7.2"/><path d="M6 10v9.5h12V10"/><path d="M10 19.5v-5h4v5"/><path d="M12 8.5v2"/></svg><span>الرئيسية</span></button><button id="dReads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5c3-1 6-.5 9 1.5 3-2 6-2.5 9-1.5V18c-3-1-6-.5-9 1.5C9 17.5 6 17 3 18z"/><path d="M12 7v12.5"/><path d="M15.5 10.5l2 2 2.5-3"/></svg><span>قراءاتي</span></button><button id="dSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M8 10.5a2.5 2.5 0 012.5-2.5"/></svg><span>بحث</span></button><button id="dSet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg><span>الإعدادات</span></button><button id="dLang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c3 3 3 14 0 17M12 3.5c-3 3-3 14 0 17"/></svg><span>اللغة</span></button></nav><div id="splash" role="img" aria-label="Living Ideas"><svg viewBox="0 0 240 200" aria-hidden="true"><g class="st">
 <path class="bk" pathLength="1" d="M120 142C100 130 70 128 44 136V80C70 72 100 74 120 86Z"/><path class="bk bk2" pathLength="1" d="M120 142C140 130 170 128 196 136V80C170 72 140 74 120 86Z"/>
 <circle class="sp" cx="120" cy="56" r="9"/><g class="rays"><path d="M120 36v-8M120 76v8M100 56h-8M140 56h8M106 42l-5-5M134 42l5-5M106 70l-5 5M134 70l5 5"/></g>
 <path class="stem" pathLength="1" d="M120 86V34" style="stroke:var(--olive)"/></g>
@@ -177,22 +198,23 @@ body.reading #dock{display:none}:root[data-t=dark] .chip.on,:root[data-t=dark] .
 <text class="w w1" x="120" y="186">BOOK</text><text class="w w2" x="120" y="186">IDEA</text><text class="w w3" x="120" y="186">LIFE</text></svg>
 <div class="wm"><b>LIVING IDEAS</b><small>كتاب · فكرة · حياة</small></div><button class="sk" type="button">تخطي</button></div><div id="scrim"></div><div id="menu"></div><div class="modal" id="modal"><div class="box" id="box"></div></div><div id="drop">أفلت الملفات لإضافتها</div><div id="toast"></div>
 <script src="i18n.js"></script>
+<script src="i18n-x.js"></script>
 <script>
 (function(){'use strict';
 var LANG='ar',S={books:[],collections:[],settings:{},goals:{days:{}}},view='home',query='',cur=null,lastAct=0,secAcc=0,fixBar=false,pending=null,curNotesFilter={t:'all',b:''};
-var $=function(s){return document.querySelector(s)},AR=function(n){return Number(n).toLocaleString(LANG==='en'?'en-US':'ar-EG')};
+var $=function(s){return document.querySelector(s)},AR=function(n){return Number(n).toLocaleString(LANG==='ar'?'ar-EG':'en-US')};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var IC={home:'<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',want:'<path d="M6 3h12v18l-6-4-6 4z"/>',all:'<rect x="4" y="4" width="4" height="16"/><rect x="10" y="4" width="4" height="16"/><path d="M16 6l4 1-3 13-4-1z"/>',fin:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',notes:'<path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>',book:'<path d="M2 5h6a4 4 0 014 4v11a3 3 0 00-3-3H2zM22 5h-6a4 4 0 00-4 4v11a3 3 0 013-3h7z"/>',audio:'<path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/>',pdf:'<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/>',series:'<path d="M4 6h16M4 12h16M4 18h10"/>',col:'<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>'};
 var ic=function(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+IC[k]+'</svg>'};
 var PAL=[['#c3714c','#6e2f1b'],['#918e61','#3d4a2c'],['#2c4a52','#0f1d24'],['#b8975a','#5b4420'],['#7a4b55','#2d1a22']];
 function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h}
-function dt(b){return LANG==='en'&&b.titleEn?b.titleEn:b.title}
-function da(b){return LANG==='en'&&b.authorEn?b.authorEn:(b.author||'')}
+function dt(b){return LANG!=='ar'&&b.titleEn?b.titleEn:b.title}
+function da(b){return LANG!=='ar'&&b.authorEn?b.authorEn:(b.author||'')}
 function isFin(b){return b.finished||b.progress>=98}
 function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){t.classList.remove('on')},2600)}
 function setState(s){S=s;applyTheme();render()}function keep(s){S=s;if(!$('#reader').classList.contains('on'))render()}
 function applyTheme(){var t=S.settings.theme,dark=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-t',dark?'dark':'light');$('#themeBtn').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>'+({system:'المظهر: تلقائي',light:'المظهر: فاتح',dark:'المظهر: داكن'}[t])}
-function fmtMin(m){m=Math.round(m);var en=LANG==='en';if(m<1)return en?'under a minute':'أقل من دقيقة';var h=m/60|0,r=m%60;return (h?AR(h)+(en?' h ':' س '):'')+(r?AR(r)+(en?' min':' د'):'')}
+function fmtMin(m){m=Math.round(m);var en=LANG!=='ar';if(m<1)return en?T('','under a minute'):'أقل من دقيقة';var h=m/60|0,r=m%60;return (h?AR(h)+(en?' h ':' س '):'')+(r?AR(r)+(en?' min':' د'):'')}
 function left(b){if(b.format==='audio'&&b.audio&&b.audio.dur)return fmtMin((b.audio.dur-b.audio.pos)/60/(1));if((b.format==='html'||b.format==='epub')&&b.words>0)return fmtMin(b.words/200*(1-b.progress/100));return ''}
 function cover(b){var inner;
   if(b.cover)inner='<img alt="" loading="lazy" src="'+esc(window.api.coverUrl(b))+'">';
@@ -240,7 +262,7 @@ function render(){
   if(!L.length){$('#et').textContent=S.books.length?'لا توجد كتب هنا':'مكتبتك فارغة';$('#ep').textContent=S.books.length?(searching?'جرّب كلمات بحث أخرى.':'أضف كتباً إلى هذا القسم من القائمة (⋯) على أي كتاب.'):'اسحب كتبك وأفلتها هنا (EPUB · PDF · MOBI · FB2 · CBZ · TXT · HTML · صوتي) أو اضغط «إضافة كتاب».'}
   var man=S.settings.sort==='manual';
   if(S.settings.view==='grid'){li.style.display='none';g.style.display='grid';g.innerHTML=L.map(function(b){return tile(b,man)}).join('')}
-  else{g.style.display='none';li.style.display='flex';li.innerHTML=L.map(function(b){var lf=left(b);return '<div class="lrow" tabindex="0" data-id="'+b.id+'">'+cover(b)+'<div class="tt"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+(b.series?' · '+esc(b.series):'')+'</div></div><div class="pr"><div class="row">'+status(b)+stars(b)+'</div><div class="bar"><i style="width:'+(isFin(b)?100:b.progress)+'%"></i></div></div><div class="dt">'+(lf&&!isFin(b)?lf:(b.lastRead?new Date(b.lastRead).toLocaleDateString(LANG==='en'?'en-GB':'ar-EG'):'—'))+'</div><button class="dots" data-dots="'+b.id+'" style="opacity:1" aria-label="المزيد">⋯</button></div>'}).join('')}
+  else{g.style.display='none';li.style.display='flex';li.innerHTML=L.map(function(b){var lf=left(b);return '<div class="lrow" tabindex="0" data-id="'+b.id+'">'+cover(b)+'<div class="tt"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+(b.series?' · '+esc(b.series):'')+'</div></div><div class="pr"><div class="row">'+status(b)+stars(b)+'</div><div class="bar"><i style="width:'+(isFin(b)?100:b.progress)+'%"></i></div></div><div class="dt">'+(lf&&!isFin(b)?lf:(b.lastRead?new Date(b.lastRead).toLocaleDateString(LOC[LANG]):'—'))+'</div><button class="dots" data-dots="'+b.id+'" style="opacity:1" aria-label="المزيد">⋯</button></div>'}).join('')}
 }
 function tile(b,drag){return '<div class="tile" tabindex="0" data-id="'+b.id+'"'+(drag?' draggable="true"':'')+' title="'+esc(dt(b))+'">'+cover(b)+'<div class="meta"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+'</div><div class="row">'+status(b)+stars(b)+'<button class="dots" data-dots="'+b.id+'" aria-label="المزيد">⋯</button></div></div></div>'}
 // ---------- daily quote ----------
@@ -256,7 +278,7 @@ function quoteCard(){var q=curQuote(false);
   var t=q.text.trim().replace(/\s+/g,' ');if(t.length>380)t=t.slice(0,380).replace(/\s+\S*$/,'')+'…';
   return '<div class="card qcard"><h3>اقتباس اليوم</h3><q dir="auto">'+esc(t)+'</q>'+(q.note?'<p class="qn" dir="auto">'+esc(q.note)+'</p>':'')+'<div class="qsrc" dir="auto">— '+esc(dt(q.b))+(da(q.b)?' · '+esc(da(q.b)):'')+'</div><div class="acts qa"><button class="btn primary" id="qShare">مشاركة كصورة</button><button class="btn" id="qNext">اقتباس آخر</button><button class="btn" data-open="'+q.b.id+'">فتح الكتاب</button></div></div>'}
 // Shareable image with the Living Ideas seal (emblem, wordmark, tagline, intro line and a short fingerprint code).
-function shareQuote(q){if(!q)return;var en=LANG==='en',cs=getComputedStyle(document.documentElement),C=function(v,d){return (cs.getPropertyValue(v)||'').trim()||d};
+function shareQuote(q){if(!q)return;var en=LANG!=='ar',cs=getComputedStyle(document.documentElement),C=function(v,d){return (cs.getPropertyValue(v)||'').trim()||d};
   var bg=C('--bg','#f0e8d3'),tx=C('--text','#14262e'),mute=C('--mute','#6b6a58'),acc=C('--acc','#c3714c');
   var text=q.text.trim().replace(/\s+/g,' '),W=1080,H=1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;var x=cv.getContext('2d');
   var ar=/[؀-ۿ]/.test(text),fam=ar?'Amiri, serif':'"EB Garamond", Georgia, serif',AM='Amiri, "EB Garamond", serif',GA='"EB Garamond", Georgia, serif';
@@ -278,10 +300,10 @@ function shareQuote(q){if(!q)return;var en=LANG==='en',cs=getComputedStyle(docum
     var tar=/[؀-ۿ]/.test(title);x.direction=tar?'rtl':'ltr';x.fillStyle=tx;var tf='700 38px '+(tar?AM:GA);x.font=tf;x.fillText(fit(title,tf,W-240),W/2,1092);
     if(author){var aar=/[؀-ۿ]/.test(author);x.direction=aar?'rtl':'ltr';x.fillStyle=mute;var af='400 32px '+(aar?AM:GA);x.font=af;x.fillText(fit(author,af,W-240),W/2,1140)}
     x.globalAlpha=.4;x.fillStyle=acc;x.fillRect(150,1186,W-300,1.5);x.globalAlpha=1;
-    x.direction=en?'ltr':'rtl';x.fillStyle=acc;x.font='700 30px '+(en?GA:AM);x.fillText(en?'Book · Idea · Life':'كتاب · فكرة · حياة',W/2,1236);
-    x.fillStyle=mute;x.font='400 26px '+(en?GA:AM);x.fillText(en?'Living Ideas — a reading library that turns books into living ideas':'Living Ideas — مكتبة قراءة تحوّل الكتب إلى أفكار حيّة',W/2,1274);
+    x.direction=en?'ltr':'rtl';x.fillStyle=acc;x.font='700 30px '+(en?GA:AM);x.fillText(T('كتاب · فكرة · حياة','Book · Idea · Life'),W/2,1236);
+    x.fillStyle=mute;x.font='400 26px '+(en?GA:AM);x.fillText(T('Living Ideas — مكتبة قراءة تحوّل الكتب إلى أفكار حيّة','Living Ideas — a reading library that turns books into living ideas'),W/2,1274);
     x.direction='ltr';x.fillStyle=mute;x.globalAlpha=.7;x.font='400 20px '+GA;try{x.letterSpacing='3px'}catch(e){}x.fillText(code,W/2,1318);try{x.letterSpacing='0px'}catch(e){}x.globalAlpha=1;
-    cv.toBlob(function(bl){if(!bl)return toast(en?'Could not create the image':'تعذر إنشاء الصورة');var nm='Living-Ideas-quote.png';if(window.api.shareFile)window.api.shareFile(nm,bl);else{var a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=nm;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},3000)}},'image/png')})}
+    cv.toBlob(function(bl){if(!bl)return toast(T('تعذر إنشاء الصورة','Could not create the image'));var nm='Living-Ideas-quote.png';if(window.api.shareFile)window.api.shareFile(nm,bl);else{var a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=nm;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},3000)}},'image/png')})}
 function renderNotes(){
   var all=notesAll(),f=curNotesFilter,q=query.trim().toLowerCase();var bs=S.books.filter(function(b){return all.some(function(x){return x.b===b})});
   var tabs=[['all','الكل'],['hl','التظليلات'],['note','الملاحظات'],['ex','تجاربي'],['bm','الإشارات']];
@@ -294,28 +316,30 @@ function renderNotes(){
 
 // ---------- i18n ----------
 var I18N=window.__I18N||{exact:{},pat:[]},orig=new WeakMap(),last=new WeakMap(),oa=new WeakMap(),ATTRS=['title','placeholder','aria-label','alt'];
-Object.assign(I18N.exact,{'إضافة كتاب':'Add Book','قراءاتي':'My Reads','بحث':'Search','الإعدادات':'Settings','اللغة':'Language','تخطي':'Skip','التنقل الرئيسي':'Main navigation','ابحث في مكتبتك...':'Search your library...'});
+Object.assign(I18N.exact,{'إضافة كتاب':'Add Book','قراءاتي':'My Reads','بحث':'Search','الإعدادات':'Settings','اللغة':'Language','تخطي':'Skip','التنقل الرئيسي':'Main navigation','ابحث في مكتبتك...':'Search your library...','الرئيسية':'Home'});
 function norm(t){return t.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c)}).replace(/٫/g,'.').replace(/٪/g,'%')}
-function trText(s){
+function trEn(s){
   var core=s.trim();if(!/[\u0600-\u06FF]/.test(core))return s;var lead=s.slice(0,s.indexOf(core)),trail=s.slice(s.indexOf(core)+core.length),nums=[];
   var nc=norm(core),key=nc.replace(/\d+(?:\.\d+)?/g,function(m){nums.push(m);return '#'}),out=I18N.exact[key],i=0;
   if(out!=null){out=out.replace(/#/g,function(){return nums[i++]!=null?nums[i-1]:'#'});return lead+out+trail}
   for(var k=0;k<I18N.pat.length;k++){var m=I18N.pat[k][0].exec(nc);if(m){return lead+nc.replace(I18N.pat[k][0],I18N.pat[k][1])+trail}}
   return s}
+function trText(s){var r=trEn(s);if(LANG==='en'||r===s)return r;var c=r.trim(),i=r.indexOf(c);return r.slice(0,i)+xl(c)+r.slice(i+c.length)}
 function loc(n){
   if(n.nodeType===3){var v=n.nodeValue;if(!n.parentNode)return;
-    if(LANG==='en'){var o=orig.get(n);if(o===undefined||v!==last.get(n)){o=v;orig.set(n,o)}var t=trText(o);if(t!==v)n.nodeValue=t;last.set(n,t)}
+    if(LANG!=='ar'){var o=orig.get(n);if(o===undefined||v!==last.get(n)){o=v;orig.set(n,o)}var t=trText(o);if(t!==v)n.nodeValue=t;last.set(n,t)}
     else if(orig.has(n)){if(v===last.get(n))n.nodeValue=orig.get(n);orig.delete(n);last.delete(n)}return}
   if(n.nodeType!==1||/^(SCRIPT|STYLE)$/.test(n.tagName)||(n.hasAttribute&&n.hasAttribute('data-noloc'))||n.id==='frame'||n.id==='pframe')return;
   ATTRS.forEach(function(a){if(!n.hasAttribute(a))return;var rec=oa.get(n)||{},cur=n.getAttribute(a);
-    if(LANG==='en'){if(!rec[a]||cur!==rec[a].t){rec[a]={o:cur,t:cur}}var t=trText(rec[a].o);if(t!==cur)n.setAttribute(a,t);rec[a].t=t;oa.set(n,rec)}
+    if(LANG!=='ar'){if(!rec[a]||cur!==rec[a].t){rec[a]={o:cur,t:cur}}var t=trText(rec[a].o);if(t!==cur)n.setAttribute(a,t);rec[a].t=t;oa.set(n,rec)}
     else if(rec[a]){if(cur===rec[a].t)n.setAttribute(a,rec[a].o);delete rec[a]}});
   for(var c=n.firstChild;c;c=c.nextSibling)loc(c)}
 var mo=new MutationObserver(function(recs){recs.forEach(function(r){if(r.type==='childList')r.addedNodes.forEach(loc);else if(r.type==='characterData')loc(r.target);else if(r.type==='attributes')loc(r.target)});mo.takeRecords()});
 mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTRS});
-function setLang(l,persist){LANG=l==='en'?'en':'ar';var h=document.documentElement;h.lang=LANG;h.dir=LANG==='en'?'ltr':'rtl';
-  [].forEach.call(document.querySelectorAll('.lang button'),function(b){b.classList.toggle('on',b.dataset.lang===LANG)});var lb=document.getElementById('langBtn');if(lb)lb.textContent=LANG==='en'?'ع':'EN';
-  loc(document.body);document.title=LANG==='en'?'Living Ideas':'Living Ideas';mo.takeRecords();if(persist)window.api.settings({lang:LANG}).then(function(s){S=s;render();loc(document.body)});else render()}
+var LANGS=[['ar','العربية'],['en','English'],['fr','Français'],['es','Español'],['it','Italiano'],['id','Bahasa Indonesia']],LOC={ar:'ar-EG',en:'en-GB',fr:'fr-FR',es:'es-ES',it:'it-IT',id:'id-ID'};
+function setLang(l,persist){LANG=LANGS.some(function(x){return x[0]===l})?l:'ar';var h=document.documentElement;h.lang=LANG;h.dir=LANG==='ar'?'rtl':'ltr';
+  [].forEach.call(document.querySelectorAll('.lang button'),function(b){b.classList.toggle('on',b.dataset.lang===LANG)});
+  loc(document.body);document.title='Living Ideas';mo.takeRecords();if(persist)window.api.settings({lang:LANG}).then(function(s){S=s;render();loc(document.body)});else render()}
 function untranslated(){var out=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);var n;while((n=w.nextNode())){if(n.parentElement&&n.parentElement.closest('[data-noloc],script,style,#frame,#pframe'))continue;if(/[\u0600-\u06FF]/.test(n.nodeValue))out.push(n.nodeValue.trim())}
   [].forEach.call(document.querySelectorAll('[title],[placeholder],[aria-label],[alt]'),function(e){if(e.closest('[data-noloc]'))return;ATTRS.forEach(function(a){var v=e.getAttribute(a);if(v&&/[\u0600-\u06FF]/.test(v))out.push('@'+a+':'+v)})});return out}
 // ---------- reader ----------
@@ -394,7 +418,9 @@ function kbDlg(){modal('<h3>اختصارات لوحة المفاتيح</h3><div 
 function aboutDlg(){modal('<div style="text-align:center"><img src="assets/logo.png" alt="Living Ideas" style="width:210px;border-radius:18px"><h3 style="margin-top:12px;letter-spacing:.14em;font-family:\'EB Garamond\',serif">LIVING IDEAS</h3><p style="color:var(--mute);margin:0 0 6px;font-family:var(--ser);font-size:18px">كتاب · فكرة · حياة</p><p style="font-size:14px;line-height:1.8;margin:8px 0">Living Ideas مكتبة قراءة ثنائية اللغة (العربية والإنجليزية) تجمع كتبك وتظليلاتك وملاحظاتك في مكان واحد، وتعيد إليك كل يوم فكرة من قراءاتك لتبقى الأفكار حيّة.</p><p style="color:var(--mute);font-size:12px">EPUB · PDF · MOBI · AZW3 · FB2 · CBZ · TXT · HTML · صوتي</p><p style="color:var(--mute);font-size:12px">الإصدار ٢٫١ — يعمل كاملاً دون إنترنت، وبياناتك على جهازك.</p></div><div class="acts" style="justify-content:center"><button class="btn primary" id="no">إغلاق</button></div>');$('#no').onclick=closeModal}
 function moreMenu(){var r=$('#moreBtn').getBoundingClientRect();menu(r.right,r.top-8,[{t:'نسخة احتياطية للمكتبة…',f:function(){window.api.backup()}},{t:'استعادة نسخة احتياطية…',f:function(){window.api.restore().then(setState)}},'-',{t:'تصدير كل الملاحظات (Markdown)',f:function(){window.api.exportAllNotes()}},{t:'أهداف القراءة…',f:goalDlg},{t:'إظهار الكتب المخفية',ck:!!S.settings.showHidden,f:function(){window.api.settings({showHidden:!S.settings.showHidden}).then(setState)}},'-',{t:'اختصارات لوحة المفاتيح (F1)',f:kbDlg},{t:'عن Living Ideas',f:aboutDlg}]);var m=$('#menu');m.style.top=Math.max(6,r.top-m.offsetHeight-8)+'px';m.style.left='12px'}
 // ---------- v3: identity, Today's Thought, dock, settings, splash ----------
-var T=function(a,e){return LANG==='en'?e:a};
+var XD=window.__I18X||{};
+function xl(e){if(LANG==='ar'||LANG==='en')return e;var d=XD[LANG];if(!d)return e;var nums=[],k=e.replace(/\d+/g,function(m){nums.push(m);return '#'}),o=d[k],i=0;if(o==null)return e;return o.replace(/#/g,function(){return nums[i++]!=null?nums[i-1]:'#'})}
+var T=function(a,e){return LANG==='ar'?a:(LANG==='en'?e:xl(e))};
 var BQ=[
 {id:'ma-v16',en:'Such as are thy habitual thoughts, such also will be the character of thy mind; for the soul is dyed by the thoughts.',ar:'على قدر أفكارك المعتادة يكون طبع عقلك، فالنفس تصطبغ بما تفكر فيه.',au:'Marcus Aurelius',auAr:'ماركوس أوريليوس',work:'Meditations',workAr:'التأملات',loc:'V.16',locAr:'الكتاب الخامس، ١٦',tr:'trans. George Long',trAr:'ترجمة جورج لونغ'},
 {id:'ma-vi6',en:'The best way of avenging thyself is not to become like the wrong doer.',ar:'أفضل طريقة للانتقام ألّا تصير مثل من أساء إليك.',au:'Marcus Aurelius',auAr:'ماركوس أوريليوس',work:'Meditations',workAr:'التأملات',loc:'VI.6',locAr:'الكتاب السادس، ٦',tr:'trans. George Long',trAr:'ترجمة جورج لونغ'},
@@ -406,44 +432,67 @@ var BQ=[
 {id:'jm-liberty',en:'He who knows only his own side of the case, knows little of that.',ar:'من لا يعرف إلا جانبه من القضية لا يعرف منها إلا القليل.',au:'John Stuart Mill',auAr:'جون ستيوارت مل',work:'On Liberty',workAr:'عن الحرية',loc:'ch. 2',locAr:'الفصل ٢',tr:'',trAr:''},
 {id:'mt-diwan',arOrig:1,en:'The noblest place in the world is the saddle of a swift steed, and the best companion in any age is a book.',ar:'أعزُّ مكانٍ في الدُّنى سرجُ سابحٍ وخيرُ جليسٍ في الأنامِ كتابُ',au:'Al-Mutanabbi',auAr:'المتنبي',work:'Diwan',workAr:'الديوان',loc:'',locAr:'',tr:'',trAr:''}
 ];
-function thoughtItems(){var en=LANG==='en',out=BQ.map(function(q){
-  var text,orig='',apx='';if(q.arOrig){text=en?q.en:q.ar;if(en)apx='English translation (approximate)'}else{text=en?q.en:q.ar;if(!en){orig=q.en;apx='ترجمة تقريبية'}}
-  var a=en?q.au:q.auAr,w=en?q.work:q.workAr,l=en?q.loc:q.locAr,tr=en?q.tr:q.trAr;
-  var line='— '+a+(en?', ':'، ')+(en?'':'«')+w+(en?'':'»')+(l?(en?' '+l:' · '+l):'')+(tr&&!q.arOrig?(en?' ('+tr+')':' (الأصل الإنجليزي: '+tr+')'):'');
+var BQX={'ma-v16':{fr:"Telles sont tes pensées habituelles, tel sera le caractère de ton esprit ; car l'âme est teinte par les pensées.",it:"Quali sono i tuoi pensieri abituali, tale sarà il carattere della tua mente; perché l'anima si tinge dei pensieri.",es:"Cuales sean tus pensamientos habituales, tal será el carácter de tu mente; pues el alma se tiñe con los pensamientos.",id:"Seperti pikiran yang biasa kamu pikirkan, begitulah watak pikiranmu; sebab jiwa diwarnai oleh pikiran."},
+'ma-vi6':{fr:"La meilleure façon de se venger est de ne pas devenir semblable à celui qui a fait le mal.",it:"Il modo migliore di vendicarti è non diventare simile a chi ti ha fatto torto.",es:"La mejor manera de vengarte es no volverte como quien te hizo daño.",id:"Cara terbaik membalas dendam adalah tidak menjadi seperti orang yang berbuat salah kepadamu."},
+'ep-ench':{fr:"Ce ne sont pas les choses qui troublent les hommes, mais les principes et les opinions qu'ils s'en forment.",it:"Gli uomini non sono turbati dalle cose, ma dai principi e dalle idee che si formano su di esse.",es:"Los hombres no se perturban por las cosas, sino por los principios y nociones que se forman acerca de ellas.",id:"Manusia terganggu bukan oleh hal-hal itu sendiri, melainkan oleh prinsip dan anggapan yang mereka bentuk tentangnya."},
+'bc-studies':{fr:"La lecture fait l'homme complet ; la conversation, l'homme prompt ; et l'écriture, l'homme exact.",it:"La lettura rende un uomo completo; la conversazione, pronto; e la scrittura, preciso.",es:"La lectura hace al hombre completo; la conversación, ágil; y la escritura, exacto.",id:"Membaca membuat orang utuh; berdiskusi membuatnya tangkas; dan menulis membuatnya cermat."},
+'br-value':{fr:"La valeur de la philosophie doit être cherchée, en grande partie, dans son incertitude même.",it:"Il valore della filosofia va cercato in gran parte proprio nella sua incertezza.",es:"El valor de la filosofía ha de buscarse en gran medida en su misma incertidumbre.",id:"Nilai filsafat sebenarnya sebagian besar harus dicari dalam ketidakpastiannya itu sendiri."},
+'ht-reading':{fr:"Les livres sont la richesse thésaurisée du monde et l'héritage naturel des générations et des nations.",it:"I libri sono la ricchezza accumulata del mondo e la giusta eredità delle generazioni e delle nazioni.",es:"Los libros son la riqueza atesorada del mundo y la herencia digna de generaciones y naciones.",id:"Buku adalah kekayaan dunia yang tersimpan dan warisan yang layak bagi generasi dan bangsa."},
+'re-trust':{fr:"Aie confiance en toi : tout cœur vibre à cette corde de fer.",it:"Abbi fiducia in te stesso: ogni cuore vibra a quella corda di ferro.",es:"Confía en ti mismo: todo corazón vibra con esa cuerda de hierro.",id:"Percayalah pada dirimu: setiap hati bergetar pada dawai besi itu."},
+'jm-liberty':{fr:"Celui qui ne connaît que son propre côté de la question n'en connaît que peu.",it:"Chi conosce solo il proprio lato della questione ne sa poco.",es:"Quien solo conoce su propio lado de la cuestión sabe poco de ella.",id:"Orang yang hanya mengetahui sisinya sendiri dari suatu perkara, hanya sedikit mengetahuinya."},
+'mt-diwan':{fr:"Le lieu le plus noble du monde est la selle d'un coursier rapide, et le meilleur compagnon de tous les temps est un livre.",it:"Il luogo più nobile del mondo è la sella di un destriero veloce, e il miglior compagno di ogni tempo è un libro.",es:"El lugar más noble del mundo es la silla de un corcel veloz, y el mejor compañero de todos los tiempos es un libro.",id:"Tempat paling mulia di dunia ialah pelana kuda yang gesit, dan sahabat terbaik sepanjang masa ialah sebuah buku."}};
+var WX={'Meditations':{fr:'Pensées pour moi-même',it:'Pensieri',es:'Meditaciones',id:'Meditasi'},'Enchiridion':{fr:'Manuel',it:'Manuale',es:'Enquiridión',id:'Enchiridion'},'Of Studies':{fr:'Des études',it:'Degli studi',es:'De los estudios',id:'Tentang Belajar'},'The Problems of Philosophy':{fr:'Problèmes de philosophie',it:'I problemi della filosofia',es:'Los problemas de la filosofía',id:'Masalah-Masalah Filsafat'},'Walden':{fr:'Walden',it:'Walden',es:'Walden',id:'Walden'},'Self-Reliance':{fr:'La Confiance en soi',it:'Fiducia in se stessi',es:'Confianza en uno mismo',id:'Percaya pada Diri Sendiri'},'On Liberty':{fr:'De la liberté',it:'Sulla libertà',es:'Sobre la libertad',id:'Tentang Kebebasan'},'Diwan':{fr:'Diwan',it:'Diwan',es:'Diván',id:'Diwan'}};
+var AUX={fr:{cp:'trad.',ch:'chap.'},it:{cp:'trad.',ch:'cap.'},es:{cp:'trad.',ch:'cap.'},id:{cp:'terj.',ch:'bab'}};
+function myQ(){try{return JSON.parse(localStorage.getItem('li-myq')||'[]')}catch(e){return []}}
+function setMyQ(L){try{localStorage.setItem('li-myq',JSON.stringify(L))}catch(e){}}
+function hidQ(){try{return JSON.parse(localStorage.getItem('li-hidq')||'[]')}catch(e){return []}}
+function setHidQ(L){try{localStorage.setItem('li-hidq',JSON.stringify(L))}catch(e){}}
+function thoughtItems(){var en=LANG==='en',lg=LANG!=='ar'&&!en,hid=hidQ(),out=BQ.map(function(q){
+  var text,orig='',apx='',tx=BQX[q.id]&&BQX[q.id][LANG];
+  if(LANG==='ar'){text=q.ar;if(!q.arOrig){orig=q.en;apx='ترجمة تقريبية'}}
+  else if(en){text=q.en;if(q.arOrig)apx='English translation (approximate)'}
+  else{text=tx||q.en;orig=q.arOrig?q.ar:q.en;apx=xl('Approximate translation')}
+  var a=LANG==='ar'?q.auAr:q.au,w=LANG==='ar'?q.workAr:(lg&&WX[q.work]?WX[q.work][LANG]:q.work),l=LANG==='ar'?q.locAr:(lg?q.loc.replace('ch.',AUX[LANG].ch):q.loc),tr=LANG==='ar'?q.trAr:(lg&&q.tr?q.tr.replace('trans.',AUX[LANG].cp):q.tr);
+  var ar=LANG==='ar',line='— '+a+(ar?'، ':', ')+(ar?'«':'')+w+(ar?'»':'')+(l?(ar?' · '+l:' '+l):'')+(tr&&!q.arOrig?(ar?' (الأصل الإنجليزي: '+tr+')':' ('+tr+')'):'');
   return {key:q.id,kind:'built',text:text,orig:orig,apx:apx,line:line,title:w,author:a+(apx&&!en?' · '+apx:'')}});
+  myQ().forEach(function(m){out.push({key:m.id,kind:'mine',text:m.text,orig:'',apx:'',line:(m.author||m.work)?'— '+[m.author,m.work].filter(Boolean).join(LANG==='ar'?'، ':', '):'',title:m.work||'',author:m.author||''})});
   quotePool().forEach(function(x){var t=x.text.trim().replace(/\s+/g,' ');if(t.length>380)t=t.slice(0,380).replace(/\s+\S*$/,'')+'…';
-    out.push({key:qKey(x),kind:'user',text:t,orig:'',apx:'',note:x.note||'',line:'— '+dt(x.b)+(da(x.b)?' · '+da(x.b):''),title:dt(x.b),author:da(x.b),bid:x.b.id,b:x.b})});return out}
-function curThought(){var P=thoughtItems(),d=dayKey(0),st={};try{st=JSON.parse(localStorage.getItem('li-thought')||'{}')}catch(e){}
-  var k=st.day===d?st.key:null,it=null;if(k)it=P.filter(function(x){return x.key===k})[0];
-  if(!it){it=P[hashStr('t'+d)%P.length];try{localStorage.setItem('li-thought',JSON.stringify({day:d,key:it.key}))}catch(e){}}
-  return P.filter(function(x){return x.key===it.key})[0]||it}
+    out.push({key:qKey(x),kind:'user',text:t,orig:'',apx:'',note:x.note||'',line:'— '+dt(x.b)+(da(x.b)?' · '+da(x.b):''),title:dt(x.b),author:da(x.b),bid:x.b.id,b:x.b})});
+  return out.filter(function(x){return hid.indexOf(x.key)<0})}
+function curThought(next){var P=thoughtItems(),d=dayKey(0),st={};try{st=JSON.parse(localStorage.getItem('li-thought')||'{}')}catch(e){}
+  if(!P.length)return null;var it=null;
+  if(next){var pool=P.filter(function(x){return x.key!==st.key});it=pool[Math.floor(Math.random()*pool.length)]||P[0]}
+  else if(st.day===d&&st.key)it=P.filter(function(x){return x.key===st.key})[0];
+  if(!it)it=P[hashStr('t'+d)%P.length];
+  try{localStorage.setItem('li-thought',JSON.stringify({day:d,key:it.key}))}catch(e){}return it}
 function savedList(){try{return JSON.parse(localStorage.getItem('li-saved')||'[]')}catch(e){return []}}
 function saveSet(L){try{localStorage.setItem('li-saved',JSON.stringify(L))}catch(e){}}
 function isSaved(k){return savedList().some(function(x){return x.key===k})}
 function toggleSave(it){var L=savedList(),i=-1;L.forEach(function(x,n){if(x.key===it.key)i=n});
-  if(i>=0)L.splice(i,1);else L.push({key:it.key,text:it.text,orig:it.orig,line:it.line,en:LANG==='en'});saveSet(L);return i<0}
+  if(i>=0)L.splice(i,1);else L.push({key:it.key,text:it.text,orig:it.orig,line:it.line});saveSet(L);return i<0}
 function shareThought(it){shareQuote({key:it.key,text:it.text,b:it.b||null,title:it.title,author:it.author})}
+function removeThought(it){if(it.kind==='mine'){setMyQ(myQ().filter(function(m){return m.id!==it.key}))}else{var h=hidQ();h.push(it.key);setHidQ(h)}}
 var BOT='<svg class="bot" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M18 90C34 62 50 40 82 12"/><path d="M30 70c-10-1-16-7-17-15 9 0 16 5 17 15zM40 56c-9-2-13-9-13-17 8 1 14 7 13 17zM52 42c-8-3-11-10-10-18 8 2 12 9 10 18zM40 74c8-5 17-3 22 3-8 5-17 3-22-3zM52 58c7-5 16-4 21 2-7 5-16 4-21-2zM64 44c7-5 15-4 20 1-6 5-14 5-20-1z"/></svg>';
-var SI={srch:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',grid:'<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',mark:'<path d="M6 3.5h12v17l-6-4.2-6 4.2z"/>',share:'<circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'};
+var SI={next:'<path d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"/>',plus:'<path d="M12 5v14M5 12h14"/>',trash:'<path d="M5 7h14M10 4h4M7 7l1 13h8l1-13M10 11v6M14 11v6"/>',srch:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',grid:'<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',mark:'<path d="M6 3.5h12v17l-6-4.2-6 4.2z"/>',share:'<circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'};
 var si=function(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+SI[k]+'</svg>'};
-function greeting(){var h=new Date().getHours(),en=LANG==='en';
-  if(h>=5&&h<12)return en?'Good morning':'صباح الخير';if(h<17)return en?'Good afternoon':'نهارك سعيد';if(h<22)return en?'Good evening':'مساء الخير';return en?'A quiet night':'ليلة هادئة'}
-function lrowHtml(b){var lf=left(b);return '<div class="lrow" tabindex="0" data-id="'+b.id+'">'+cover(b)+'<div class="tt"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+(b.series?' · '+esc(b.series):'')+'</div></div><div class="pr"><div class="row">'+status(b)+stars(b)+'</div><div class="bar"><i style="width:'+(isFin(b)?100:b.progress)+'%"></i></div></div><div class="dt">'+(lf&&!isFin(b)?lf:(b.lastRead?new Date(b.lastRead).toLocaleDateString(LANG==='en'?'en-GB':'ar-EG'):'—'))+'</div><button class="dots" data-dots="'+b.id+'" style="opacity:1" aria-label="'+T('المزيد','More')+'">⋯</button></div>'}
+function greeting(){var h=new Date().getHours();if(h>=5&&h<12)return T('صباح الخير','Good morning');if(h<17)return T('نهارك سعيد','Good afternoon');if(h<22)return T('مساء الخير','Good evening');return T('ليلة هادئة','A quiet night')}
+function lrowHtml(b){var lf=left(b);return '<div class="lrow" tabindex="0" data-id="'+b.id+'">'+cover(b)+'<div class="tt"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+(b.series?' · '+esc(b.series):'')+'</div></div><div class="pr"><div class="row">'+status(b)+stars(b)+'</div><div class="bar"><i style="width:'+(isFin(b)?100:b.progress)+'%"></i></div></div><div class="dt">'+(lf&&!isFin(b)?lf:(b.lastRead?new Date(b.lastRead).toLocaleDateString(LOC[LANG]):'—'))+'</div><button class="dots" data-dots="'+b.id+'" style="opacity:1" aria-label="'+T('المزيد','More')+'">⋯</button></div>'}
 function emptyArt(){return '<svg viewBox="0 0 130 110" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="22" y="40" width="16" height="52" rx="2" stroke="var(--brass)"/><rect x="42" y="30" width="16" height="62" rx="2" stroke="var(--acc)"/><path d="M64 92L58 40l15-3 10 52z" stroke="var(--brass)"/><path d="M12 94h106" stroke="var(--line)"/><path d="M98 90V62M98 74c-8-1-12-6-12-13 8 0 12 5 12 13zM98 66c7-1 11-6 11-12-7 0-11 5-11 12z"/></svg>'}
 function renderHome(){
-  var g=S.goals,need=g.daily*60,td=g.days[dayKey(0)]||0,p=Math.min(1,td/need),R=42,C=2*Math.PI*R,wk='',en=LANG==='en';
+  var g=S.goals,need=g.daily*60,td=g.days[dayKey(0)]||0,p=Math.min(1,td/need),R=42,C=2*Math.PI*R,wk='',en=LANG!=='ar';
   var wd=en?['S','M','T','W','T','F','S']:['ح','ن','ث','ر','خ','ج','س'];
   for(var i=6;i>=0;i--){var s=g.days[dayKey(i)]||0,d=new Date();d.setDate(d.getDate()-i);wk+='<i class="'+(s>=need?'d ':'')+(i===0?'t':'')+'" title="'+AR(Math.round(s/60))+' '+T('د','min')+'">'+wd[d.getDay()]+'</i>'}
   var goalCard=g.enabled?'<div class="card"><h3>'+T('هدف القراءة','Reading goal')+'</h3><div class="goal"><div class="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="'+R+'" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="50" cy="50" r="'+R+'" fill="none" stroke="var(--olive)" stroke-width="9" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-p))+'"/></svg><div class="c"><div>'+AR(Math.floor(td/60))+'<small>'+T('من '+AR(g.daily)+' د','of '+g.daily+' min')+'</small></div></div></div><div class="gst"><div>'+T('سلسلة الأيام: <b>'+AR(streak())+'</b> يوم','Day streak: <b>'+streak()+'</b>')+'</div><div>'+T('أنهيتَ هذا العام: <b>'+AR(yearCount())+'</b> من '+AR(g.yearly)+' كتاب','Finished this year: <b>'+yearCount()+'</b> of '+g.yearly)+'</div><div class="week">'+wk+'</div><button class="link" id="goalSet" style="text-align:start;padding:0">'+T('تعديل الهدف','Edit goal')+'</button></div></div></div>'
     :'<div class="card"><h3>'+T('هدف القراءة','Reading goal')+'</h3><p style="color:var(--mute);font-size:14px">'+T('أهداف القراءة متوقفة.','Reading goals are off.')+'</p><button class="btn" id="goalSet">'+T('تفعيل وتعديل','Turn on and edit')+'</button></div>';
   var all=S.books.filter(vis),rd=all.filter(function(b){return b.progress>0&&!isFin(b)}).sort(function(a,b){return (b.lastRead||0)-(a.lastRead||0)}),hero=rd[0],hc='';
-  var h='<div class="hhead"><div class="hlogo"><img src="assets/emblem.png" alt=""><div><b>LIVING IDEAS</b><small>'+T('كتاب · فكرة · حياة','Book · Idea · Life')+'</small></div></div><div class="hgreet"><h2>'+greeting()+'</h2><p>'+new Date().toLocaleDateString(en?'en-GB':'ar-EG',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</p></div></div>';
-  var it=curThought(),sv=isSaved(it.key),ns=savedList().length;
-  h+='<div class="thought" id="thought">'+BOT+'<p class="lbl">'+T('فكرة اليوم','Today’s Thought')+'</p><q dir="auto">'+esc(it.text)+'</q>'+(it.orig?'<p class="orig">'+esc(it.orig)+'</p>':'')+(it.note?'<p class="src" dir="auto">'+esc(it.note)+'</p>':'')+'<p class="src" dir="auto">'+esc(it.line)+'</p>'+(it.apx?'<span class="apx">'+esc(it.apx)+'</span>':'')+'<div class="tact"><button class="ib'+(sv?' on':'')+'" id="tSave" aria-pressed="'+sv+'">'+si('mark')+(sv?T('محفوظة','Saved'):T('حفظ','Save'))+'</button><button class="ib" id="tShare">'+si('share')+T('مشاركة','Share')+'</button>'+(ns?'<button class="ib" id="tList">'+T('المحفوظة','Saved')+' ('+AR(ns)+')</button>':'')+'</div></div>';
+  var h='<div class="hhead"><div class="hlogo"><img src="assets/emblem.png" alt=""><div><b>LIVING IDEAS</b><small>'+T('كتاب · فكرة · حياة','Book · Idea · Life')+'</small></div></div><div class="hgreet"><h2>'+greeting()+'</h2><p>'+new Date().toLocaleDateString(LOC[LANG],{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</p></div></div>';
+  var it=curThought(false),sv=it&&isSaved(it.key),ns=savedList().length;
+  if(it){h+='<div class="thought" id="thought">'+BOT+'<p class="lbl">'+T('فكرة اليوم','Today’s Thought')+'</p><q dir="auto">'+esc(it.text)+'</q>'+(it.orig?'<p class="orig" dir="auto">'+esc(it.orig)+'</p>':'')+(it.note?'<p class="src" dir="auto">'+esc(it.note)+'</p>':'')+(it.line?'<p class="src" dir="auto">'+esc(it.line)+'</p>':'')+(it.apx?'<span class="apx">'+esc(it.apx)+'</span>':'')+'<div class="tact"><button class="ib'+(sv?' on':'')+'" id="tSave" aria-pressed="'+sv+'">'+si('mark')+(sv?T('محفوظة','Saved'):T('حفظ','Save'))+'</button><button class="ib" id="tShare">'+si('share')+T('مشاركة','Share')+'</button><button class="ib" id="tNext">'+si('next')+T('اقتباس آخر','Another quote')+'</button></div><div class="tact t2"><button class="ib sm" id="tAdd">'+si('plus')+T('إضافة اقتباسي','Add my quote')+'</button><button class="ib sm" id="tDel">'+si('trash')+(it.kind==='mine'?T('حذف','Delete'):T('إخفاء','Hide'))+'</button><button class="ib sm" id="tList">'+T('اقتباساتي','My quotes')+(ns?' ('+AR(ns)+')':'')+'</button></div></div>'}
+  else h+='<div class="thought" id="thought">'+BOT+'<p class="lbl">'+T('فكرة اليوم','Today’s Thought')+'</p><q>'+T('لا توجد اقتباسات حالياً.','No quotes right now.')+'</q><div class="tact"><button class="ib" id="tAdd">'+si('plus')+T('إضافة اقتباسي','Add my quote')+'</button><button class="ib" id="tList">'+T('اقتباساتي','My quotes')+'</button></div></div>';
   if(!all.length){h+='<div class="hempty">'+emptyArt()+'<h3>'+T('مكتبتك تنتظر أول كتاب','Your library awaits its first book')+'</h3><p>'+T('أضف كتاباً من هاتفك لتبدأ: EPUB أو PDF أو MOBI أو غيرها.','Add a book from your phone to begin: EPUB, PDF, MOBI and more.')+'</p><button class="btn primary" id="hAdd">'+T('إضافة كتاب','Add Book')+'</button></div>'}
   else{
     var gridOn=S.settings.view!=='list';
-    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
+    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><button class="ib sm" id="hAdd2" style="margin-inline-start:auto">'+si('plus')+T('إضافة كتاب','Add Book')+'</button><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
     h+='<label class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'+SI.srch+'</svg><input id="hs" type="search" placeholder="'+T('ابحث في مكتبتك...','Search your library...')+'" aria-label="'+T('بحث','Search')+'"></label>';
     if(hero){var lf=left(hero);hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero" data-id="'+hero.id+'" style="cursor:pointer">'+cover(hero)+'<div class="info"><h2>'+esc(dt(hero))+'</h2><div class="a">'+esc(da(hero))+'</div><div class="bar"><i style="width:'+hero.progress+'%"></i></div><div class="a">'+AR(hero.progress)+'٪'+(lf?T(' · متبقٍ نحو '+lf,' · about '+lf+' left'):'')+'</div><button class="btn primary" data-open="'+hero.id+'">'+T('متابعة','Continue')+'</button></div></div></div></div>'}
     else hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero"><img src="assets/emblem.png" alt="" style="width:84px;border-radius:12px"><div class="info"><h2>'+T('لا كتاب قيد القراءة','Nothing in progress')+'</h2><div class="a">'+T('اختر كتاباً لتبدأ.','Pick a book to begin.')+'</div><button class="btn primary" data-v="all">'+T('تصفح كل الكتب','Browse all books')+'</button></div></div></div></div>';
@@ -459,17 +508,33 @@ function renderHome(){
   $('#home').innerHTML=h;
   var q=function(id,f){var e=document.getElementById(id);if(e)e.onclick=f};
   q('goalSet',goalDlg);q('hAdd',function(){window.api.add().then(setState)});
-  q('tSave',function(){var on=toggleSave(it);toast(on?T('حُفظت الفكرة','Saved'):T('أُزيلت من المحفوظة','Removed from saved'));renderHome()});
-  q('tShare',function(){shareThought(it)});q('tList',savedDlg);
+  q('tSave',function(){if(!it)return;var on=toggleSave(it);toast(on?T('حُفظت الفكرة','Saved'):T('أُزيلت من المحفوظة','Removed from saved'));renderHome()});
+  q('tShare',function(){if(it)shareThought(it)});q('tList',quotesDlg);q('tAdd',function(){quotesDlg(true)});q('hAdd2',function(){window.api.add().then(setState)});
+  q('tNext',function(){curThought(true);renderHome();pulse('#thought')});
+  q('tDel',function(){if(!it)return;var m=it.kind==='mine';confirmBox(m?T('حذف اقتباسك؟','Delete your quote?'):T('إخفاء هذا الاقتباس؟','Hide this quote?'),m?T('يُحذف نهائياً.','It will be deleted for good.'):T('لن يظهر بعد الآن، ويمكنك استعادته من «اقتباساتي».','It will no longer appear. You can restore it from “My quotes”.'),m?T('حذف','Delete'):T('إخفاء','Hide'),function(){removeThought(it);curThought(true);renderHome()})});
   q('hvg',function(){window.api.settings({view:'grid'}).then(setState)});q('hvl',function(){window.api.settings({view:'list'}).then(setState)});
   var hs=document.getElementById('hs');if(hs)hs.oninput=function(){query=hs.value;if(query.trim()){view='all';render();var sb=$('#sb');sb.focus();try{sb.setSelectionRange(sb.value.length,sb.value.length)}catch(e){}}}}
-function savedDlg(){var L=savedList();modal('<div id="sheet"><h3>'+T('الأفكار المحفوظة','Saved thoughts')+'</h3>'+(L.length?L.map(function(x,i){return '<div class="svq"><q dir="auto">'+esc(x.text)+'</q><div class="s" dir="auto">'+esc(x.line)+'</div><button class="link" data-rm="'+i+'">'+T('إزالة','Remove')+'</button></div>'}).join(''):'<p style="color:var(--mute)">'+T('لا شيء محفوظ بعد.','Nothing saved yet.')+'</p>')+'<div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
-  $('#no').onclick=closeModal;$('#box').onclick=function(e){var r=e.target.closest('[data-rm]');if(!r)return;var L2=savedList();L2.splice(+r.dataset.rm,1);saveSet(L2);savedDlg();if(view==='home')renderHome()}}
+function quotesDlg(focusAdd){var L=savedList(),M=myQ(),H=hidQ();
+  modal('<div id="sheet"><h3>'+T('اقتباساتي','My quotes')+'</h3>'
+  +'<div class="sh">'+T('أضف اقتباساً','ADD A QUOTE')+'</div><textarea id="nqT" rows="3" dir="auto" placeholder="'+T('نص الاقتباس','Quote text')+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px"></textarea><input id="nqA" dir="auto" placeholder="'+T('القائل (اختياري)','Author (optional)')+'" style="margin-top:8px"><input id="nqW" dir="auto" placeholder="'+T('المصدر (اختياري)','Source (optional)')+'" style="margin-top:8px"><div class="acts"><button class="btn primary" id="nqOk">'+T('إضافة','Add')+'</button></div>'
+  +(M.length?'<div class="sh">'+T('اقتباساتي','MY QUOTES')+'</div>'+M.map(function(m,i){return '<div class="svq"><q dir="auto">'+esc(m.text)+'</q><div class="s" dir="auto">'+esc([m.author,m.work].filter(Boolean).join(' · '))+'</div><button class="link" data-dm="'+i+'">'+T('حذف','Delete')+'</button></div>'}).join(''):'')
+  +'<div class="sh">'+T('المحفوظة','SAVED')+'</div>'+(L.length?L.map(function(x,i){return '<div class="svq"><q dir="auto">'+esc(x.text)+'</q><div class="s" dir="auto">'+esc(x.line)+'</div><button class="link" data-rm="'+i+'">'+T('إزالة','Remove')+'</button></div>'}).join(''):'<p style="color:var(--mute);margin:0">'+T('لا شيء محفوظ بعد.','Nothing saved yet.')+'</p>')
+  +(H.length?'<div class="sh">'+T('المخفية','HIDDEN')+'</div><button class="btn" data-rh="1">'+T('استعادة المخفية','Restore hidden')+' ('+AR(H.length)+')</button>':'')
+  +'<div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
+  $('#no').onclick=closeModal;if(focusAdd===true)setTimeout(function(){$('#nqT').focus()},60);
+  $('#nqOk').onclick=function(){var t=$('#nqT').value.trim();if(t.length<3){toast(T('اكتب نص الاقتباس','Write the quote text'));return}var l=myQ();l.push({id:'my-'+Date.now().toString(36),text:t,author:$('#nqA').value.trim(),work:$('#nqW').value.trim()});setMyQ(l);var id=l[l.length-1].id;try{localStorage.setItem('li-thought',JSON.stringify({day:dayKey(0),key:id}))}catch(e){}toast(T('أُضيف اقتباسك','Quote added'));closeModal();if(view==='home')renderHome()};
+  $('#box').onclick=function(e){var r=e.target.closest('[data-rm]'),d=e.target.closest('[data-dm]'),h=e.target.closest('[data-rh]');
+    if(r){var L2=savedList();L2.splice(+r.dataset.rm,1);saveSet(L2)}else if(d){var M2=myQ();M2.splice(+d.dataset.dm,1);setMyQ(M2)}else if(h){setHidQ([])}else return;
+    quotesDlg();if(view==='home')renderHome()}}
+function savedDlg(){quotesDlg()}
+function pulse(sel){var e=$(sel);if(!e)return;e.classList.remove('pulse');void e.offsetWidth;e.classList.add('pulse')}
+function langDlg(){modal('<div id="sheet"><h3>'+T('اللغة','Language')+'</h3><div class="chips" style="margin-top:12px">'+LANGS.map(function(x){return '<button class="chip'+(LANG===x[0]?' on':'')+'" data-lg="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
+  $('#no').onclick=closeModal;$('#box').onclick=function(e){var b=e.target.closest('[data-lg]');if(!b)return;closeModal();setLang(b.dataset.lg,true)}}
 function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'always';
   var ch=function(k,v,cur,lab){return '<button class="chip'+(cur===v?' on':'')+'" data-sa="'+k+'" data-v2="'+v+'">'+lab+'</button>'};
   modal('<div id="sheet"><h3>'+T('الإعدادات','Settings')+'</h3>'
    +'<div class="sh">'+T('المظهر','APPEARANCE')+'</div><div class="chips">'+ch('theme','system',th,T('تلقائي','Auto'))+ch('theme','light',th,T('فاتح','Light'))+ch('theme','dark',th,T('داكن','Dark'))+'</div>'
-   +'<div class="sh">'+T('اللغة','LANGUAGE')+'</div><div class="chips">'+ch('lang','ar',LANG,'العربية')+ch('lang','en',LANG,'English')+'</div>'
+   +'<div class="sh">'+T('اللغة','LANGUAGE')+'</div><div class="chips">'+LANGS.map(function(x){return ch('lang',x[0],LANG,x[1])}).join('')+'</div>'
    +'<div class="sh">'+T('شاشة البداية','SPLASH SCREEN')+'</div><div class="chips">'+ch('splash','always',sp,T('كل مرة','Every launch'))+ch('splash','once',sp,T('مرة واحدة','Once'))+ch('splash','off',sp,T('إيقاف','Off'))+'</div>'
    +'<div class="sh">'+T('القراءة','READING')+'</div>'
    +'<button class="srow" data-sa="goals">'+T('أهداف القراءة والتذكير بالاقتباس','Reading goals and quote reminders')+'<small>›</small></button>'
@@ -492,13 +557,13 @@ function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'alway
     else if(k==='notes'){closeModal();window.api.exportAllNotes()}else if(k==='about'){closeModal();aboutDlg()}}}
 // dock
 function dockGo(id){document.body.classList.remove('drawer');
-  if(id==='dAdd'){window.api.add().then(setState)}
-  else if(id==='dReads'){view='reads';query='';$('#q').value='';render();$('#scroller').scrollTop=0}
+  if(id==='dReads'){view='reads';query='';$('#q').value='';render();$('#scroller').scrollTop=0}
   else if(id==='dSearch'){if(view==='home'||view==='notes'||view==='reads')view='all';render();$('#scroller').scrollTop=0;$('#sb').focus()}
   else if(id==='dSet'){settingsDlg()}
-  else if(id==='dLang'){setLang(LANG==='en'?'ar':'en',true)}}
+  else if(id==='dHome'){view='home';query='';$('#q').value='';render();$('#scroller').scrollTop=0}
+  else if(id==='dLang'){langDlg()}}
 $('#dock').addEventListener('click',function(e){var b=e.target.closest('button');if(b)dockGo(b.id)});
-function dockSync(){var r=$('#dReads');if(r)r.classList.toggle('on',view==='reads'&&!query.trim());var s=$('#dSearch');if(s)s.classList.toggle('on',document.activeElement===$('#sb'))}
+function dockSync(){var hm=$('#dHome');if(hm)hm.classList.toggle('on',view==='home'&&!query.trim());var r=$('#dReads');if(r)r.classList.toggle('on',view==='reads'&&!query.trim());var s=$('#dSearch');if(s)s.classList.toggle('on',document.activeElement===$('#sb'))}
 $('#sb').addEventListener('focus',dockSync);$('#sb').addEventListener('blur',dockSync);
 $('#sb').addEventListener('input',function(e){query=e.target.value;if(query&&(view==='home'||view==='notes'||view==='reads'))view='all';render();$('#q').value=query});
 var _sorted=sorted;sorted=function(L){if(view==='reads'&&!query.trim())return L.sort(function(a,b){return (b.lastRead||b.added||0)-(a.lastRead||a.added||0)});return _sorted(L)};
@@ -560,9 +625,8 @@ var dc=0;addEventListener('dragenter',function(e){if(dragId)return;if(e.dataTran
 addEventListener('drop',function(e){e.preventDefault();if(dragId)return;dc=0;$('#drop').style.display='none';var fs=[].slice.call(e.dataTransfer.files||[]).map(function(f){return window.api.pathOf(f)}).filter(Boolean);if(fs.length)window.api.addPaths(fs).then(setState)});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
 window.api.onState(keep);window.api.onToast(toast);window.api.onOpen(function(id){window.api.state().then(function(s){S=s;openBook(id)})});
-$('#langBtn').addEventListener('click',function(){setLang(LANG==='en'?'ar':'en',true)});
 $('.lang').addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.lang!==LANG)setLang(b.dataset.lang,true)});
-window.api.state().then(function(s){S=s;LANG=s.settings.lang==='en'?'en':'ar';setLang(LANG,false);applyTheme();splashInit()});
+window.api.state().then(function(s){S=s;setLang(s.settings.lang||'ar',false);applyTheme();splashInit()});
 window.__li={onBack:function(){if($('#modal').classList.contains('on')){closeModal();return true}if($('#menu').style.display==='block'){hideMenu();return true}if(document.body.classList.contains('drawer')){document.body.classList.remove('drawer');return true}if($('#endcard').classList.contains('on')){$('#endcard').classList.remove('on');return true}if($('#pop').classList.contains('on')){$('#pop').classList.remove('on');return true}if($('#find').classList.contains('on')){$('#find').classList.remove('on');return true}if($('#panel').classList.contains('on')){closePanel();return true}if($('#reader').classList.contains('on')){closeBook();return true}if(view!=='home'||query){view='home';query='';$('#q').value='';render();return true}return false},setLang:setLang,untranslated:untranslated,open:openBook,state:function(){return S},refresh:function(){return window.api.state().then(setState)}};
 })();
 </script></body></html>
