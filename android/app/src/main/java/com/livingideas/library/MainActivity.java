@@ -1,9 +1,7 @@
 package com.livingideas.library;
 
+import android.os.Build;
 import android.view.ActionMode;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -11,7 +9,7 @@ import com.getcapacitor.BridgeActivity;
 
 /**
  * While a book is open the page shows its own highlight/note popup, so the system's text
- * selection menu (Copy, Select all, Share, Web search…) is emptied to avoid a double menu.
+ * selection menu (Copy, Select all, Share, Web search...) is hidden to avoid a double menu.
  * Everywhere else (search boxes, forms) the normal system menu is untouched.
  */
 public class MainActivity extends BridgeActivity {
@@ -26,14 +24,15 @@ public class MainActivity extends BridgeActivity {
       @JavascriptInterface
       public void blockMenu(boolean on) { blockMenu = on; }
     }, "LiNative");
-    wv.setCustomSelectionActionModeCallback(new ActionMode.Callback2() {
-      @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) { if (blockMenu) menu.clear(); return true; }
-      @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) { if (blockMenu) menu.clear(); return true; }
-      @Override public boolean onActionItemClicked(ActionMode mode, MenuItem item) { return false; }
-      @Override public void onDestroyActionMode(ActionMode mode) {}
-      @Override public void onGetContentRect(ActionMode mode, View view, android.graphics.Rect outRect) {
-        super.onGetContentRect(mode, view, outRect);
-      }
-    });
+  }
+
+  @Override
+  public void onActionModeStarted(ActionMode mode) {
+    super.onActionModeStarted(mode);
+    if (!blockMenu || mode == null) return;
+    try { mode.getMenu().clear(); } catch (Exception ignored) {}
+    if (Build.VERSION.SDK_INT >= 23) {
+      try { mode.hide(Long.MAX_VALUE / 4); } catch (Exception ignored) {}
+    }
   }
 }
