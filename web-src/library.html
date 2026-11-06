@@ -578,7 +578,7 @@ render=function(){_render();var searching=!!query.trim(),isHome=view==='home'&&!
   dockSync();
   if(lastView!==view){lastView=view;var sc=$('#scroller');['#home','#grid','#list','#notes'].forEach(function(s){[].slice.call($(s).children,0,14).forEach(function(c,i){c.style.setProperty('--i',i)})});sc.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(function(){sc.classList.remove('enter')},1100)}};
 // hide the dock while a book is open; soft transition on return (does not touch the reader itself)
-new MutationObserver(function(){var on=$('#reader').classList.contains('on'),was=document.body.classList.contains('reading');document.body.classList.toggle('reading',on);
+new MutationObserver(function(){var on=$('#reader').classList.contains('on'),was=document.body.classList.contains('reading');document.body.classList.toggle('reading',on);try{if(window.LiNative)window.LiNative.blockMenu(on)}catch(e){}
   if(was&&!on){var sc=$('#scroller');sc.classList.remove('ret');void sc.offsetWidth;sc.classList.add('ret');setTimeout(function(){sc.classList.remove('ret')},450)}}).observe($('#reader'),{attributes:true,attributeFilter:['class']});
 // splash
 var splashEl=$('#splash'),splashDone=false;
