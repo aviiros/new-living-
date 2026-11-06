@@ -146,7 +146,48 @@
   // ---------- book frames ----------
   var INJECT_JS = null;
   function getText(url) { if (textCache[url]) return Promise.resolve(textCache[url]); return fetch(url).then(function (r) { return r.text(); }).then(function (t) { return (textCache[url] = t); }); }
-  var SHIM = function (id) { return '<script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>'; };
+
+
+  window.__liTts = function (id, type, a, b) { var f = document.getElementById('frame'); try { f.contentWindow.postMessage({ liTts: 1, id: id, type: type, a: a, b: b }, '*'); } catch (e) {} };
+  // Runs INSIDE every book page: (1) saves/shares files the book creates (quote images, backups),
+  // (2) rebuilds speechSynthesis on top of the phone's own text-to-speech.
+  function SHIMX() {
+    function send(name, mime, blob) { var r = new FileReader(); r.onload = function () { parent.postMessage({ liBook: 1, type: 'save-file', name: name || 'file', mime: mime || blob.type || '', data: r.result }, '*'); }; r.readAsDataURL(blob); }
+    function grab(a) { var h = a.href; fetch(h).then(function (r) { return r.blob(); }).then(function (b) { send(a.getAttribute('download'), b.type, b); }).catch(function () {}); }
+    var isDl = function (a) { return a && a.hasAttribute && a.hasAttribute('download') && /^(blob:|data:)/.test(a.href || ''); };
+    try { var oc = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (isDl(this)) { grab(this); return; } return oc.apply(this, arguments); }; } catch (e) {}
+    document.addEventListener('click', function (e) { var a = e.target && e.target.closest && e.target.closest('a[download]'); if (isDl(a)) { e.preventDefault(); e.stopPropagation(); grab(a); } }, true);
+    try {
+      navigator.canShare = function (d) { return !!(d && ((d.files && d.files.length) || d.text || d.url || d.title)); };
+      navigator.share = function (d) {
+        if (d && d.files && d.files.length) { [].forEach.call(d.files, function (f) { send(f.name, f.type, f); }); return Promise.resolve(); }
+        if (d && (d.text || d.url)) { parent.postMessage({ liBook: 1, type: 'share-text', text: [d.title, d.text, d.url].filter(Boolean).join('\n') }, '*'); return Promise.resolve(); }
+        return Promise.reject(new TypeError('Nothing to share'));
+      };
+    } catch (e) {}
+    var N = window.LiNative; if (!N || !N.speak) return;
+    var seq = 0, live = {}, q = [], vc = null, ls = [];
+    function voices() { if (vc) return vc; var a = []; try { a = JSON.parse(N.voices() || '[]'); } catch (e) {} if (!a.length) return []; vc = a.map(function (v) { return { name: v[0], lang: v[1], voiceURI: v[0], localService: true, default: false }; }); return vc; }
+    function U(t) { this.text = t === undefined ? '' : String(t); this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1; this.voice = null; this.onstart = this.onend = this.onerror = this.onboundary = this.onpause = this.onresume = null; }
+    function issue(ent, from) { var id = 'u' + (++seq); live[id] = ent; ent.id = id; var u = ent.u; ent.base = from || 0; N.speak(id, u.text.slice(ent.base), u.lang || (u.voice && u.voice.lang) || '', u.voice ? u.voice.name : '', +u.rate || 1, +u.pitch || 1); }
+    var S = { speaking: false, pending: false, paused: false, onvoiceschanged: null, getVoices: voices,
+      speak: function (u) { var ent = { u: u, base: 0, off: 0 }; q.push(ent); S.speaking = true; if (!S.paused) issue(ent, 0); },
+      cancel: function () { live = {}; q = []; S.speaking = false; S.paused = false; try { N.stop(); } catch (e) {} },
+      pause: function () { if (!S.speaking || S.paused) return; S.paused = true; live = {}; try { N.stop(); } catch (e) {} q.forEach(function (e) { if (e.u.onpause && e === q[0]) try { e.u.onpause({}); } catch (x) {} }); },
+      resume: function () { if (!S.paused) return; S.paused = false; var first = true; q.forEach(function (e) { issue(e, first ? e.off : 0); first = false; }); if (q[0] && q[0].u.onresume) try { q[0].u.onresume({}); } catch (x) {} },
+      addEventListener: function (n, f) { if (n === 'voiceschanged') ls.push(f); }, removeEventListener: function (n, f) { ls = ls.filter(function (x) { return x !== f; }); }, dispatchEvent: function () { return true; } };
+    try { Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: U }); Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: function () { return S; } }); } catch (e) { window.SpeechSynthesisUtterance = U; window.speechSynthesis = S; }
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || !d.liTts) return;
+      if (d.type === 'voices') { vc = null; var ev = { type: 'voiceschanged' }; if (S.onvoiceschanged) try { S.onvoiceschanged(ev); } catch (x) {} ls.slice().forEach(function (f) { try { f(ev); } catch (x) {} }); return; }
+      var ent = live[d.id]; if (!ent) return; var u = ent.u;
+      if (d.type === 'start') { if (u.onstart) try { u.onstart({}); } catch (x) {} }
+      else if (d.type === 'boundary') { ent.off = d.a + ent.base; if (u.onboundary) try { u.onboundary({ charIndex: d.a + ent.base, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
+      else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) S.speaking = false; var h = d.type === 'end' ? u.onend : u.onerror; if (h) try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} }
+    });
+    try { N.init(); } catch (e) {}
+  }
+  var SHIM = function (id) { return '<script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>'; };
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
     revokeLive(); var lang = (lib.settings.lang || 'ar') === 'ar' ? 'ar' : 'en';

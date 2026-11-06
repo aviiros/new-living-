@@ -368,6 +368,8 @@ function setFin(b,f){window.api.update(b.id,{finished:f,progress:f?100:(b.format
 window.addEventListener('message',function(e){
   var fr=$('#frame').contentWindow;if(e.source!==fr||!e.data||!e.data.liBook||!cur)return;var d=e.data,b=cur;
   if(d.type==='ready'){post({liCmd:'init',annots:b.annots||[],pct:b.progress,prefs:{fs:S.settings.fs||100,theme:S.settings.rtheme||'original'},audio:b.audio&&Object.assign({rate:1},b.audio),pdf:b.pdf});if(pending){var g=pending;pending=null;setTimeout(function(){post({liCmd:'goto',section:g.section,hlId:g.hlId,annot:g.annot})},700)}}
+  else if(d.type==='save-file'){try{var m=/^data:([^;,]*)(;base64)?,(.*)$/.exec(d.data||'');var bin=atob(decodeURIComponent(m[3])),u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);var bl=new Blob([u8],{type:d.mime||m[1]||'application/octet-stream'});if(window.api.shareFile)window.api.shareFile(d.name,bl);toast(T('جاهز: اختر «حفظ» أو تطبيقاً للمشاركة','Ready: choose Save or an app to share'))}catch(err){toast(T('تعذر حفظ الملف','Could not save the file'))}}
+  else if(d.type==='share-text'){var P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Share;if(P)P.share({text:d.text}).catch(function(){});else if(navigator.clipboard)navigator.clipboard.writeText(d.text)}
   else if(d.type==='act')lastAct=Date.now();
   else if(d.type==='bar'){if(!fixBar)$('#reader').classList.toggle('bar',!!d.show||hoverBar)}
   else if(d.type==='progress'&&!b.tpl){var p=Math.max(0,Math.min(100,d.pct|0));if(p>=98)showEnd();if(p!==b.progress){b.progress=p;var fin=p>=98&&!b.finishedAt;window.api.update(b.id,{progress:p,lastRead:Date.now()+0,finishedAt:fin?Date.now():b.finishedAt})}}
@@ -578,7 +580,7 @@ render=function(){_render();var searching=!!query.trim(),isHome=view==='home'&&!
   dockSync();
   if(lastView!==view){lastView=view;var sc=$('#scroller');['#home','#grid','#list','#notes'].forEach(function(s){[].slice.call($(s).children,0,14).forEach(function(c,i){c.style.setProperty('--i',i)})});sc.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(function(){sc.classList.remove('enter')},1100)}};
 // hide the dock while a book is open; soft transition on return (does not touch the reader itself)
-new MutationObserver(function(){var on=$('#reader').classList.contains('on'),was=document.body.classList.contains('reading');document.body.classList.toggle('reading',on);try{if(window.LiNative)window.LiNative.blockMenu(on)}catch(e){}
+new MutationObserver(function(){var on=$('#reader').classList.contains('on'),was=document.body.classList.contains('reading');document.body.classList.toggle('reading',on);try{if(window.LiNative){window.LiNative.blockMenu(on);if(!on)window.LiNative.stop()}}catch(e){}
   if(was&&!on){var sc=$('#scroller');sc.classList.remove('ret');void sc.offsetWidth;sc.classList.add('ret');setTimeout(function(){sc.classList.remove('ret')},450)}}).observe($('#reader'),{attributes:true,attributeFilter:['class']});
 // splash
 var splashEl=$('#splash'),splashDone=false;
