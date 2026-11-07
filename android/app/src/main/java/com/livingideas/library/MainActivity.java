@@ -104,6 +104,8 @@ public class MainActivity extends BridgeActivity {
     super.onStart();
     if (getBridge() == null || getBridge().getWebView() == null) return;
     web = getBridge().getWebView();
+    // Keep the layout stable: the system font scale must not blow text out of fixed boxes.
+    try { web.getSettings().setTextZoom(100); } catch (Exception ignored) {}
     web.addJavascriptInterface(new Object() {
       @JavascriptInterface public void blockMenu(boolean on) { blockMenu = on; }
       @JavascriptInterface public void init() { runOnUiThread(new Runnable() { public void run() { ensureTts(); } }); }

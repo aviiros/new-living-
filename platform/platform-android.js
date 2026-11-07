@@ -165,6 +165,18 @@
         return Promise.reject(new TypeError('Nothing to share'));
       };
     } catch (e) {}
+    // In-page links (#section, relative links) must never navigate the book away to the app itself.
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented) return;
+      var a = e.target && e.target.closest && e.target.closest('a[href]'); if (!a) return;
+      var raw = a.getAttribute('href') || '';
+      if (/^(blob:|data:|mailto:|tel:|javascript:|https?:)/i.test(raw)) return;
+      e.preventDefault();
+      var h = raw.indexOf('#') >= 0 ? raw.slice(raw.indexOf('#') + 1) : ''; if (!h) return;
+      try { h = decodeURIComponent(h); } catch (x) {}
+      var el = document.getElementById(h) || document.getElementsByName(h)[0];
+      if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (x) { el.scrollIntoView(); } try { history.replaceState(null, '', '#' + encodeURIComponent(h)); } catch (x) {} }
+    }, false);
     var N = window.LiNative; if (!N || !N.speak) return;
     var seq = 0, live = {}, q = [], vc = null, ls = [];
     function voices() { if (vc) return vc; var a = []; try { a = JSON.parse(N.voices() || '[]'); } catch (e) {} if (!a.length) return []; vc = a.map(function (v) { return { name: v[0], lang: v[1], voiceURI: v[0], localService: true, default: false }; }); return vc; }
