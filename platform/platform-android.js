@@ -148,7 +148,7 @@
   function getText(url) { if (textCache[url]) return Promise.resolve(textCache[url]); return fetch(url).then(function (r) { return r.text(); }).then(function (t) { return (textCache[url] = t); }); }
 
 
-  window.__liTr = function (id, kind, text) { var f = document.getElementById('frame'); try { f.contentWindow.postMessage({ liTr: 1, id: id, kind: kind, text: text }, '*'); } catch (e) {} };
+  window.__liTr = function (id, kind, text) { ['frame', 'pframe'].forEach(function (n) { var f = document.getElementById(n); try { f.contentWindow.postMessage({ liTr: 1, id: id, kind: kind, text: text }, '*'); } catch (e) {} }); };
   window.__liTts = function (id, type, a, b) { var f = document.getElementById('frame'); try { f.contentWindow.postMessage({ liTts: 1, id: id, type: type, a: a, b: b }, '*'); } catch (e) {} };
   // Runs INSIDE every book page: (1) saves/shares files the book creates (quote images, backups),
   // (2) rebuilds speechSynthesis on top of the phone's own text-to-speech.
@@ -201,19 +201,23 @@
     try { N.init(); } catch (e) {}
   }
 
+  var TRS = (function () {
+    var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', id: 'Indonesia' };
+    var TX = {
+      ar: { tr: 'ترجمة', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
+      en: { tr: 'Translate', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
+      fr: { tr: 'Traduire', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
+      es: { tr: 'Traducir', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
+      it: { tr: 'Traduci', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
+      id: { tr: 'Terjemahkan', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
+    };
+    return { NAMES: NAMES, TX: TX };
+  })();
   // Runs INSIDE every book page: translates the visible text in place (markup, links and layout stay as they are).
   function TRX() {
     var N = window.LiNative; if (!N || !N.translate) return;
     var UI = (window.__LI && window.__LI.ui) || 'ar';
-    var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', id: 'Indonesia' };
-    var TX = {
-      ar: { tr: 'ترجمة', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', hl: 'التظليل متاح على النص الأصلي فقط' },
-      en: { tr: 'Translate', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', hl: 'Highlighting works on the original text only' },
-      fr: { tr: 'Traduire', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', hl: 'Le surlignage ne fonctionne que sur le texte original' },
-      es: { tr: 'Traducir', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', hl: 'El subrayado solo funciona en el texto original' },
-      it: { tr: 'Traduci', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', hl: 'L’evidenziazione funziona solo sul testo originale' },
-      id: { tr: 'Terjemahkan', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', hl: 'Penyorotan hanya berfungsi pada teks asli' }
-    };
+    var NAMES = window.__TRS.NAMES, TX = window.__TRS.TX;
     var L = function (k) { return (TX[UI] || TX.en)[k]; };
     var STOP = { id: [' yang ', ' dan ', ' di ', ' untuk ', ' dengan ', ' ini ', ' itu ', ' dari '], fr: [' le ', ' la ', ' les ', ' des ', ' et ', ' est ', ' une ', ' que '], es: [' el ', ' los ', ' las ', ' que ', ' una ', ' por ', ' con ', ' para '], it: [' il ', ' che ', ' della ', ' una ', ' per ', ' non ', ' sono ', ' con '], en: [' the ', ' and ', ' of ', ' to ', ' is ', ' in ', ' that ', ' with '] };
     function skip(p) { return !p || p.closest('script,style,noscript,pre,code,svg,textarea,input,select,option,#li-tr-ui,[translate="no"],[data-notranslate]'); }
@@ -306,7 +310,115 @@
     if (saved && NAMES[saved]) setTimeout(function () { SRC = detect(); if (SRC !== saved) start(saved); }, 900);
     window.__liTrAPI = { start: start, revert: revert, state: state };
   }
-  var SHIM = function (id) { return '<script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>(' + TRX.toString() + ')();<\/script>'; };
+
+  // Runs INSIDE the PDF viewer page: translates page text and paints it over the original text, in place.
+  function PDFX() {
+    var N = window.LiNative; if (!N || !N.translate) return;
+    var lib = window['pdfjs-dist/build/pdf']; if (!lib) return;
+    var T = window.__TRS, NAMES = T.NAMES, UI = (window.__LI && window.__LI.ui) || 'ar', L = function (k) { return (T.TX[UI] || T.TX.en)[k]; };
+    var doc = null, own = null; try { var og = lib.getDocument; lib.getDocument = function () { var t = og.apply(lib, arguments); try { t.promise.then(function (d) { doc = d; }); } catch (e) {} return t; }; } catch (e) {}
+    // pdf.js may not allow patching its exports; then open the file a second time ourselves.
+    function getDoc() { if (doc) return Promise.resolve(doc); if (!own) { var I = window.__LI || {}; own = lib.getDocument({ url: I.url, cMapUrl: I.base + 'cmaps/', cMapPacked: true, standardFontDataUrl: I.base + 'standard_fonts/' }).promise.then(function (d) { doc = d; return d; }); } return own; }
+    var SRC = null, tgt = null, run = 0, store = {}, pend = {}, seq = 0, busy = 0, noText = 0, asked = {};
+    var db = null, dbq = [];
+    try { var rq = indexedDB.open('li-pdftr', 1); rq.onupgradeneeded = function () { rq.result.createObjectStore('c'); }; rq.onsuccess = function () { db = rq.result; dbq.forEach(function (f) { f(); }); dbq = []; }; rq.onerror = function () { db = false; dbq.forEach(function (f) { f(); }); dbq = []; }; } catch (e) { db = false; }
+    function h(s) { var x = 5381; for (var i = 0; i < s.length; i++) x = ((x << 5) + x + s.charCodeAt(i)) | 0; return (x >>> 0).toString(36) + '.' + s.length; }
+    function cget(k, cb) { var go = function () { if (!db) return cb(null); try { var r = db.transaction('c').objectStore('c').get(k); r.onsuccess = function () { cb(r.result || null); }; r.onerror = function () { cb(null); }; } catch (e) { cb(null); } }; db === null ? dbq.push(go) : go(); }
+    function cput(k, v) { if (!db) return; try { db.transaction('c', 'readwrite').objectStore('c').put(v, k); } catch (e) {} }
+    var STOP = { id: [' yang ', ' dan ', ' di ', ' untuk ', ' dengan ', ' ini ', ' itu '], fr: [' le ', ' la ', ' les ', ' des ', ' et ', ' est ', ' une '], es: [' el ', ' los ', ' las ', ' que ', ' una ', ' por ', ' con '], it: [' il ', ' che ', ' della ', ' una ', ' per ', ' non ', ' sono '], en: [' the ', ' and ', ' of ', ' to ', ' is ', ' in ', ' that '] };
+    function detect(s) { var ar = (s.match(/[؀-ۿ]/g) || []).length, lt = (s.match(/[A-Za-z]/g) || []).length; if (ar > lt) return 'ar'; var low = ' ' + s.toLowerCase().replace(/[^a-zàâçéèêëîïôûùüÿñáíóúäöß\s]/g, ' ').replace(/\s+/g, ' ') + ' ', best = 'en', bs = -1; Object.keys(STOP).forEach(function (k) { var c = 0; STOP[k].forEach(function (w) { c += low.split(w).length - 1; }); if (c > bs) { bs = c; best = k; } }); return best; }
+    // ---- UI
+    var st = document.createElement('style'); st.textContent = '.tro{position:absolute;inset:0;pointer-events:none;overflow:hidden}body.night .tro{filter:invert(.92) hue-rotate(180deg)}body.sepia .tro{filter:sepia(.45) contrast(.95)}.tro .c{position:absolute}.tro .t{position:absolute;overflow:visible;line-height:1.18;font-family:system-ui,"Noto Naskh Arabic","Noto Sans",sans-serif;word-break:break-word}';
+    document.head.appendChild(st);
+    var ui = document.createElement('div'); ui.setAttribute('translate', 'no'); ui.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;font:600 13px/1.2 system-ui,sans-serif;direction:ltr';
+    var btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'A文'; btn.style.cssText = 'min-width:42px;height:42px;padding:0 12px;border-radius:21px;border:1px solid rgba(176,141,87,.8);background:rgba(29,43,51,.88);color:#f5eedd;font:700 15px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:.85'; ui.appendChild(btn);
+    var menu = document.createElement('div'); menu.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;min-width:150px;background:#fbf7ec;color:#1d2b33;border:1px solid #d9cdb0;border-radius:14px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.25)'; ui.appendChild(menu);
+    var tip = document.createElement('div'); tip.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;max-width:78vw;background:rgba(29,43,51,.92);color:#f5eedd;border-radius:10px;padding:7px 11px;font:600 12px/1.4 system-ui,sans-serif'; ui.appendChild(tip);
+    var tt = 0; function say(t, ms) { tip.textContent = t; tip.style.display = 'block'; clearTimeout(tt); if (ms) tt = setTimeout(function () { tip.style.display = 'none'; }, ms); }
+    document.body.appendChild(ui);
+    function label() { btn.textContent = busy > 0 ? '…' : 'A文'; }
+    // ---- extract text blocks of one page
+    function blocksOf(items, vp) {
+      var its = items.filter(function (i) { return i.str && i.str.trim(); }).map(function (i) { var fs = Math.hypot(i.transform[0], i.transform[1]) || i.height || 10; return { s: i.str, x: i.transform[4], y: vp.height - i.transform[5], w: i.width || 0, fs: fs }; });
+      its.sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+      var lines = [], cur = null;
+      its.forEach(function (i) { if (cur && Math.abs(i.y - cur.y) < Math.max(i.fs, cur.fs) * 0.45) cur.it.push(i); else { cur = { y: i.y, it: [i] }; lines.push(cur); } });
+      var segs = [];
+      lines.forEach(function (ln) {
+        ln.it.sort(function (a, b) { return a.x - b.x; });
+        var g = [ln.it[0]];
+        for (var k = 1; k <= ln.it.length; k++) { var a = ln.it[k - 1], b = ln.it[k]; if (b && b.x - (a.x + a.w) <= Math.max(a.fs, b.fs) * 2.2) { g.push(b); continue; } if (g.length) { segs.push(mkSeg(g)); } g = b ? [b] : []; }
+      });
+      function mkSeg(g) { var raw = g.map(function (i) { return i.s; }).join(''), rtl = (raw.match(/[؀-ۿ]/g) || []).length > raw.length / 3, arr = rtl ? g.slice().reverse() : g, txt = ''; arr.forEach(function (i, n) { var p = arr[n - 1]; if (n) { var gap = rtl ? (p.x - (i.x + i.w)) : (i.x - (p.x + p.w)); if (gap > i.fs * 0.15 && !/^\s/.test(i.s) && !/\s$/.test(p.s)) txt += ' '; } txt += i.s; }); var fs = 0, l = 1e9, r = -1e9; g.forEach(function (i) { fs = Math.max(fs, i.fs); l = Math.min(l, i.x); r = Math.max(r, i.x + i.w); }); return { text: txt.replace(/\s+/g, ' ').trim(), l: l, r: r, t: g[0].y - fs * 0.85, b: g[0].y + fs * 0.25, fs: fs, rtl: rtl }; }
+      segs.sort(function (a, b) { return a.t - b.t || a.l - b.l; });
+      var bl = [];
+      segs.forEach(function (s) {
+        var best = null;
+        for (var i = bl.length - 1; i >= 0 && i > bl.length - 40; i--) { var b = bl[i], ov = Math.min(b.r, s.r) - Math.max(b.l, s.l), minw = Math.min(b.r - b.l, s.r - s.l);
+          if (s.t - b.b <= s.fs * 0.9 && s.t >= b.t && ov > minw * 0.4 && Math.abs(b.fs - s.fs) <= s.fs * 0.2 && (Math.abs(b.l - s.l) < s.fs * 3 || Math.abs(b.r - s.r) < s.fs * 3)) { best = b; break; } }
+        if (best) { var j = /-$/.test(best.text) && /^[a-zà-ÿ]/.test(s.text) ? '' : ' '; best.text = (j ? best.text : best.text.slice(0, -1)) + j + s.text; best.l = Math.min(best.l, s.l); best.r = Math.max(best.r, s.r); best.b = s.b; }
+        else bl.push({ text: s.text, l: s.l, r: s.r, t: s.t, b: s.b, fs: s.fs, rtl: s.rtl });
+      });
+      return bl.filter(function (b) { return /\p{L}{2}/u.test(b.text); });
+    }
+    function pageEl(n) { return document.querySelectorAll('.pg')[n - 1]; }
+    function rect(n) { var el = pageEl(n); return el && el.clientWidth ? el : null; }
+    // ---- paint translated blocks of page n
+    function paint(n) {
+      var d = store[n]; if (!d || !d.done || !tgt) return; var el = rect(n), cv = el && el.querySelector('canvas'); if (!el || !cv) return;
+      var old = el.querySelector('.tro'); if (old) old.remove();
+      var box = document.createElement('div'); box.className = 'tro'; el.appendChild(box); var k = el.clientWidth / d.w, kv = el.clientHeight / d.h, ctx = null; try { ctx = cv.getContext('2d'); } catch (e) {}
+      var sx = cv.width / d.w, sy = cv.height / d.h, rtlT = tgt === 'ar';
+      d.blocks.forEach(function (b, bi) {
+        if (!b.tr) return; var pad = b.fs * 0.15, L0 = b.l - pad, T0 = b.t - pad * 0.6, W0 = b.r - b.l + pad * 2, H0 = b.b - b.t + pad * 1.2, bg = '#fff', fg = '#111';
+        try { var px = ctx.getImageData(Math.max(0, Math.floor(L0 * sx) - 1), Math.max(0, Math.floor(T0 * sy) - 1), 1, 1).data; if (px[3]) { bg = 'rgb(' + px[0] + ',' + px[1] + ',' + px[2] + ')'; var lum = (px[0] * 299 + px[1] * 587 + px[2] * 114) / 1000; fg = lum > 140 ? '#111' : '#f5f5f5'; } } catch (e) {}
+        var c = document.createElement('div'); c.className = 'c'; c.style.cssText = 'left:' + L0 * k + 'px;top:' + T0 * kv + 'px;width:' + W0 * k + 'px;height:' + H0 * kv + 'px;background:' + bg; box.appendChild(c);
+        var nxt = d.blocks.reduce(function (m, o) { return (o !== b && o.t >= b.b - 1 && Math.min(o.r, b.r) - Math.max(o.l, b.l) > 0 && o.t < m) ? o.t : m; }, d.h);
+        var maxH = Math.max(H0, nxt - T0 - b.fs * 0.3) * kv, t = document.createElement('div'); t.className = 't'; t.textContent = b.tr; t.dir = rtlT ? 'rtl' : 'ltr';
+        var fs = b.fs * k * 0.97, minfs = fs * 0.5; t.style.cssText = 'left:' + L0 * k + 'px;top:' + T0 * kv + 'px;width:' + W0 * k + 'px;color:' + fg + ';text-align:' + (rtlT ? 'right' : 'left') + ';font-size:' + fs + 'px';
+        box.appendChild(t); var guard = 0; while (t.scrollHeight > maxH && fs > minfs && guard++ < 30) { fs *= 0.93; t.style.fontSize = fs + 'px'; }
+        t.style.background = 'transparent';
+      });
+    }
+    // ---- translate one page
+    function ensure(n) {
+      if (!tgt) return; var s = store[n]; if (s) { if (s.done) paint(n); return; }
+      s = store[n] = { done: false, blocks: [], w: 1, h: 1 }; var myRun = run; busy++; label();
+      getDoc().then(function (dd) { return dd.getPage(n); }).then(function (pg) { var vp = pg.getViewport({ scale: 1 }); s.w = vp.width; s.h = vp.height; return pg.getTextContent().then(function (tc) { return blocksOf(tc.items, vp); }); }).then(function (bl) {
+        if (myRun !== run) { busy--; label(); return; } s.blocks = bl;
+        if (!bl.length) { noText++; s.done = true; busy--; label(); if (noText >= 2 && !asked.scan) { asked.scan = 1; say(L('scan'), 6000); } return; }
+        if (!SRC) { SRC = detect(bl.map(function (b) { return b.text; }).join(' ').slice(0, 4000)); if (SRC === tgt) { busy--; label(); revert(true); return; } }
+        var left = bl.length; function one() { left--; if (left <= 0) { s.done = true; busy--; label(); if (myRun === run) { paint(n); say(L('mt') + ' · ' + NAMES[tgt], 2200); } } }
+        bl.forEach(function (b) { var core = b.text, k = tgt + '|' + SRC + '|' + h(core); cget(k, function (c) { if (myRun !== run) return; if (c && c.t === core) { b.tr = c.v; one(); return; } var id = 'p' + (++seq); pend[id] = { b: b, core: core, k: k, run: myRun, one: one }; N.translate(id, core, SRC, tgt); }); });
+      }).catch(function () { busy--; label(); delete store[n]; });
+    }
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || !d.liTr) return;
+      if (!d.id) { if (d.kind === 'prep') say(L('prep'), 0); else if (d.kind === 'ready') say(L('work') + '…', 1500); else if (d.kind === 'nomodel' || d.kind === 'err-all') say(L('fail'), 6000); return; }
+      var p = pend[d.id]; if (!p) return; delete pend[d.id]; if (p.run !== run) return;
+      if (d.kind === 'ok' && d.text) { p.b.tr = d.text; cput(p.k, { t: p.core, v: d.text }); } else p.b.tr = p.core;
+      p.one();
+    });
+    function visible() { var sc = document.getElementById('sc'); if (!sc) return []; var t = sc.scrollTop, b = t + sc.clientHeight, out = []; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { var top = el.offsetTop - sc.offsetTop, bot = top + el.offsetHeight; if (bot > t - 400 && top < b + 400) out.push(i + 1); }); return out; }
+    function refresh() { if (!tgt) return; var v = visible(); v.forEach(ensure); if (v.length) ensure(v[v.length - 1] + 1); }
+    var rt = 0; function later() { clearTimeout(rt); rt = setTimeout(refresh, 160); }
+    var sc0 = document.getElementById('sc'); if (sc0) sc0.addEventListener('scroll', later, { passive: true });
+    new MutationObserver(function (ms) { if (!tgt) return; for (var i = 0; i < ms.length; i++) { var m = ms[i]; if ([].some.call(m.addedNodes, function (x) { return x.nodeType === 1 && x.tagName === 'CANVAS'; })) { later(); break; } } }).observe(document.getElementById('pages') || document.body, { childList: true, subtree: true });
+    function start(t) { revert(true); tgt = t; run++; SRC = null; store = {}; noText = 0; asked = {}; btn.style.background = 'rgba(93,101,64,.95)'; say(L('work') + '…', 0); try { localStorage.setItem('li-pdf-tr:' + (window.__LI && window.__LI.id), t); } catch (e) {} refresh(); }
+    function revert(quiet) { run++; pend = {}; tgt = null; store = {}; busy = 0; label(); [].forEach.call(document.querySelectorAll('.tro'), function (x) { x.remove(); }); btn.style.background = 'rgba(29,43,51,.88)'; tip.style.display = 'none'; try { localStorage.removeItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {} if (!quiet) say(L('orig'), 1500); }
+    function sample() { return getDoc().then(function (dd) { return dd.getPage(Math.min(dd.numPages, 2)); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { return tc.items.map(function (i) { return i.str; }).join(' ').slice(0, 3000); }).catch(function () { return ''; }); }
+    function showMenu() { menu.innerHTML = ''; var items = []; if (tgt) items.push(['', L('orig')]); Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); }); items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); }); menu.style.display = 'block'; }
+    var lp = 0, longp = false;
+    btn.addEventListener('touchstart', function () { longp = false; lp = setTimeout(function () { longp = true; sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); }, 550); }, { passive: true });
+    btn.addEventListener('touchend', function () { clearTimeout(lp); }, { passive: true });
+    btn.addEventListener('click', function (e) { e.stopPropagation(); if (longp) { longp = false; return; } if (menu.style.display === 'block') { menu.style.display = 'none'; return; } if (tgt) { revert(); return; }
+      sample().then(function (s) { SRC = SRC || detect(s); if (SRC !== UI) start(UI); else showMenu(); }); });
+    document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
+    var saved = null; try { saved = localStorage.getItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {}
+    if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) start(saved); }); }, 1500);
+    window.__liPdfTr = { start: start, revert: revert, store: function () { return store; } };
+  }
+  var SHIM = function (id) { return '<script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
     revokeLive(); var lang = (lib.settings.lang || 'ar') === 'ar' ? 'ar' : 'en';
@@ -314,7 +426,7 @@
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
-    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang) }; });
+    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>window.__TRS=' + JSON.stringify(TRS) + ';window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------
