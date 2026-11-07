@@ -56,7 +56,7 @@
   }
   function createAnnot(sp, type, color, note) { var a = { id: uid(), type: type, color: color, quote: sp.idx.text.slice(sp.s, sp.e).slice(0, 3000), prefix: sp.idx.text.slice(Math.max(0, sp.s - 24), sp.s), note: note || '', pct: Math.round(pct() * 10) / 10, date: new Date().toISOString().slice(0, 10) }; annots.push(a); getSelection().removeAllRanges(); applyAnnots(); commit(); return a; }
   function onSel(e) {
-    if (TPL || (e && e.target && e.target.closest && e.target.closest('.li-ui'))) return;
+    if (window.__LI_TR || TPL || (e && e.target && e.target.closest && e.target.closest('.li-ui'))) return;
     setTimeout(function () {
       var sp = selPos(); hideBar(); if (!sp) return;
       bar = ui(dots() + '<button data-u="1" style="' + btn + ';text-decoration:underline;text-decoration-color:#C3714C;text-decoration-thickness:2px">'+X('تسطير','Underline')+'</button><button data-n="1" style="' + btn + '">'+X('ملاحظة','Note')+'</button><button data-cp="1" style="' + btn + '">'+X('نسخ','Copy')+'</button>'); place(bar, sp.rect);

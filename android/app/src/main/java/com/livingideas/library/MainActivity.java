@@ -10,9 +10,17 @@ import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.nl.translate.Translation;
+import com.google.mlkit.nl.translate.Translator;
+import com.google.mlkit.nl.translate.TranslatorOptions;
+
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
 
@@ -29,6 +37,51 @@ public class MainActivity extends BridgeActivity {
   private boolean ttsReady = false, ttsFailed = false;
   private final ArrayList<Object[]> pending = new ArrayList<>();
   private WebView web;
+  // ---- offline translation (Google ML Kit, models download once, then work without internet)
+  private final HashMap<String, Translator> translators = new HashMap<>();
+  private final HashMap<String, Integer> modelState = new HashMap<>(); // 1 = downloading, 2 = ready
+  private final HashMap<String, ArrayList<Runnable>> modelWaiters = new HashMap<>();
+
+  private void trEmit(String id, String kind, String text) {
+    js("window.__liTr&&window.__liTr(" + q(id) + "," + q(kind) + "," + JSONObject.quote(text == null ? "" : text) + ")");
+  }
+
+  private void doTranslate(final String id, final String text, final String src, final String tgt) {
+    final String key = src + ">" + tgt;
+    try {
+      final String s = TranslateLanguage.fromLanguageTag(src), t = TranslateLanguage.fromLanguageTag(tgt);
+      if (s == null || t == null) { trEmit(id, "err", ""); return; }
+      Translator tr = translators.get(key);
+      if (tr == null) {
+        tr = Translation.getClient(new TranslatorOptions.Builder().setSourceLanguage(s).setTargetLanguage(t).build());
+        translators.put(key, tr);
+      }
+      final Translator trf = tr;
+      final Runnable run = new Runnable() { public void run() {
+        trf.translate(text)
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { trEmit(id, "ok", r); } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { trEmit(id, "err", ""); } });
+      } };
+      Integer st = modelState.get(key);
+      if (st != null && st == 2) { run.run(); return; }
+      ArrayList<Runnable> w = modelWaiters.get(key);
+      if (w == null) { w = new ArrayList<>(); modelWaiters.put(key, w); }
+      w.add(run);
+      if (st == null) {
+        modelState.put(key, 1);
+        trEmit("", "prep", "");
+        trf.downloadModelIfNeeded(new DownloadConditions.Builder().build())
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) {
+            modelState.put(key, 2); trEmit("", "ready", "");
+            ArrayList<Runnable> ws = modelWaiters.remove(key); if (ws != null) for (Runnable r : ws) r.run();
+          } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) {
+            modelState.remove(key); trEmit("", "nomodel", "");
+            ArrayList<Runnable> ws = modelWaiters.remove(key); if (ws != null) trEmit("", "err-all", "");
+          } });
+      }
+    } catch (Exception e) { trEmit(id, "err", ""); }
+  }
 
   private void js(final String code) {
     final WebView w = web;
@@ -127,6 +180,9 @@ public class MainActivity extends BridgeActivity {
           else pending.add(new Object[]{id, text, lang, voice, rate, pitch});
         } });
       }
+      @JavascriptInterface public void translate(final String id, final String text, final String src, final String tgt) {
+        runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
+      }
       @JavascriptInterface public void stop() { runOnUiThread(new Runnable() { public void run() { pending.clear(); if (tts != null) try { tts.stop(); } catch (Exception ignored) {} } }); }
     }, "LiNative");
   }
@@ -140,6 +196,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onDestroy() {
     if (tts != null) try { tts.stop(); tts.shutdown(); } catch (Exception ignored) {}
+    for (Translator t : translators.values()) try { t.close(); } catch (Exception ignored) {}
     super.onDestroy();
   }
 
