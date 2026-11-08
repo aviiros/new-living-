@@ -5,7 +5,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'];
 let tf = null; const pipes = new Map(); let chain = Promise.resolve();
 const post = (id, kind, text, engine) => parentPort.postMessage({ id, kind, text: text == null ? '' : String(text), engine: engine || '' });
-const why = (e) => String((e && e.message) || e || 'error').slice(0, 90);
+const why = (e) => String((e && e.message) || e || 'error').slice(0, 400);
 
 async function lib() {
   if (!tf) { tf = await import('@huggingface/transformers'); tf.env.cacheDir = workerData.cache; tf.env.allowLocalModels = false; }
@@ -36,12 +36,12 @@ async function hop(text, a, b) {
 // Best quality first: one multilingual model (NLLB-200, about 900 MB, downloaded once). If it cannot be loaded
 // the small per-language Marian models above are used instead.
 const NLLB = { ar: 'arb_Arab', en: 'eng_Latn', fr: 'fra_Latn', es: 'spa_Latn', it: 'ita_Latn', id: 'ind_Latn' };
-let nllb = null, nllbBad = false;
+let nllb = null, nllbBad = false, nllbWhy = '';
 function nllbPipe() {
   if (!nllb) nllb = (async () => {
     const t = await lib(); post('', 'prep');
     try { const p = await t.pipeline('translation', 'Xenova/nllb-200-distilled-600M', { dtype: 'q8' }); post('', 'ready'); return p; }
-    catch (e) { nllb = null; nllbBad = true; throw e; }
+    catch (e) { nllb = null; nllbBad = true; nllbWhy = why(e); throw e; }
   })();
   return nllb;
 }
@@ -57,7 +57,7 @@ async function go(m) {
   if (src === tgt) return post(id, 'ok', text);
   try {
     let r = null, eng = 'nllb', why1 = '';
-    if (!nllbBad) { try { r = await viaNllb(text, src, tgt); } catch (e) { r = null; why1 = why(e); } }
+    if (!nllbBad) { try { r = await viaNllb(text, src, tgt); } catch (e) { r = null; why1 = why(e); } } else why1 = nllbWhy;
     if (r == null) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
     post(id, 'ok', r, eng);
   } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
