@@ -536,21 +536,36 @@ function savedDlg(){quotesDlg()}
 function pulse(sel){var e=$(sel);if(!e)return;e.classList.remove('pulse');void e.offsetWidth;e.classList.add('pulse')}
 // Options shown when a PDF or Word file is added: open as a book (HTML) or as-is, and an optional translation language.
 window.__liImportOpts=function(name,ext){return new Promise(function(res){
-  var canTr=!!(window.LiNative&&window.LiNative.translate),mode='html',tr='',done=false;
-  var fin=function(v){if(done)return;done=true;try{ob.disconnect()}catch(e){}res(v)};
-  var draw=function(){
-    var h='<div id="sheet"><h3 style="word-break:break-word">'+esc(name)+'</h3>';
-    if(ext==='pdf')h+='<div class="sh">'+T('طريقة الفتح','OPEN AS')+'</div><div class="chips"><button class="chip'+(mode==='html'?' on':'')+'" data-m="html">'+T('كتاب HTML بكل المميزات','HTML book, all features')+'</button><button class="chip'+(mode==='pdf'?' on':'')+'" data-m="pdf">'+T('PDF كما هو','PDF as is')+'</button></div><p style="margin:8px 2px 0;font-size:13px;color:var(--mute)">'+(mode==='html'?T('نص يعاد تنسيقه ليناسب الشاشة، مع التظليل والملاحظات والاقتباسات وترجمة أدق.','Text reflowed for the screen, with highlights, notes, quotes and more accurate translation.'):T('يحافظ على شكل الصفحات كما هو.','Keeps the original page layout.'))+'</p>';
-    if(canTr)h+='<div class="sh">'+T('ترجمة إلى','TRANSLATE TO')+'</div><div class="chips"><button class="chip'+(tr===''?' on':'')+'" data-t="">'+T('بدون ترجمة','No translation')+'</button>'+LANGS.map(function(x){return '<button class="chip'+(tr===x[0]?' on':'')+'" data-t="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div>';
-    h+='<div class="acts"><button class="btn" id="ioNo">'+T('تخطي','Skip')+'</button><button class="btn primary" id="ioGo">'+T('متابعة','Continue')+'</button></div></div>';
+  var canTr=!!(window.LiNative&&window.LiNative.translate),mode=ext==='pdf'?'html':'html',tr='',done=false,ob=null;
+  var fin=function(v){if(done)return;done=true;try{ob&&ob.disconnect()}catch(e){}try{closeModal()}catch(e){}res(v)};
+  var head='<div id="sheet"><h3 style="word-break:break-word">'+esc(name)+'</h3>';
+  var cardTr=function(){
+    var h=head+'<div class="sh">'+T('ترجمة إلى','TRANSLATE TO')+'</div><div class="chips"><button class="chip'+(tr===''?' on':'')+'" data-t="">'+T('بدون ترجمة','No translation')+'</button>'+LANGS.map(function(x){return '<button class="chip'+(tr===x[0]?' on':'')+'" data-t="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div>'
+     +'<div class="acts"><button class="btn" id="ioNo">'+T('تخطي','Skip')+'</button><button class="btn primary" id="ioGo">'+T('ابدأ','Start')+'</button></div></div>';
     modal(h);
-    $('#ioNo').onclick=function(){closeModal();fin({skip:true})};
-    $('#ioGo').onclick=function(){closeModal();fin({mode:mode,tr:tr})};
-    $('#box').onclick=function(e){var b=e.target.closest('[data-m],[data-t]');if(!b)return;if(b.dataset.m)mode=b.dataset.m;else tr=b.dataset.t;draw()};
+    $('#ioNo').onclick=function(){fin({skip:true})};
+    $('#ioGo').onclick=function(){fin({mode:mode,tr:tr})};
+    $('#box').onclick=function(e){var c=e.target.closest('[data-t]');if(!c)return;tr=c.dataset.t;cardTr()};
   };
-  var ob=new MutationObserver(function(){if(!$('#modal').classList.contains('on'))fin({skip:true})});
-  draw();ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
+  var cardMode=function(){
+    var h=head+'<div class="sh">'+T('طريقة الفتح','OPEN AS')+'</div><div class="chips"><button class="chip'+(mode==='html'?' on':'')+'" data-m="html">'+T('كتاب HTML بكل المميزات','HTML book, all features')+'</button><button class="chip'+(mode==='pdf'?' on':'')+'" data-m="pdf">'+T('PDF كما هو','PDF as is')+'</button></div><p style="margin:8px 2px 0;font-size:13px;color:var(--mute)">'+(mode==='html'?T('نص يعاد تنسيقه ليناسب الشاشة، مع التظليل والملاحظات والاقتباسات وترجمة أدق.','Text reflowed for the screen, with highlights, notes, quotes and more accurate translation.'):T('يحافظ على شكل الصفحات كما هو.','Keeps the original page layout.'))+'</p>'
+     +'<div class="acts"><button class="btn" id="ioNo">'+T('تخطي','Skip')+'</button><button class="btn primary" id="ioGo">'+T('متابعة','Continue')+'</button></div></div>';
+    modal(h);
+    $('#ioNo').onclick=function(){fin({skip:true})};
+    $('#ioGo').onclick=function(){if(canTr)cardTr();else fin({mode:mode,tr:''})};
+    $('#box').onclick=function(e){var c=e.target.closest('[data-m]');if(!c)return;mode=c.dataset.m;cardMode()};
+  };
+  ob=new MutationObserver(function(){if(!$('#modal').classList.contains('on'))fin({skip:true})});
+  if(ext==='pdf')cardMode();else if(canTr)cardTr();else{fin({mode:'html',tr:''});return}
+  ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
 })};
+window.__liBusy=function(msg,pct){
+  var m=$('#modal');
+  if(msg===false){if(window.__liBusyOn){window.__liBusyOn=false;closeModal()}return}
+  window.__liBusyOn=true;
+  var h='<div id="sheet" style="text-align:center"><h3>'+esc(msg)+'</h3><div style="height:8px;border-radius:6px;background:var(--line);margin:18px 4px 6px;overflow:hidden"><div style="height:100%;width:'+(pct==null?35:pct)+'%;background:var(--acc);transition:width .3s"></div></div><p style="font-size:13px;color:var(--mute)">'+(pct==null?'':pct+'%')+'</p></div>';
+  $('#box').innerHTML=h;m.classList.add('on');
+};
 function langDlg(){modal('<div id="sheet"><h3>'+T('اللغة','Language')+'</h3><div class="chips" style="margin-top:12px">'+LANGS.map(function(x){return '<button class="chip'+(LANG===x[0]?' on':'')+'" data-lg="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
   $('#no').onclick=closeModal;$('#box').onclick=function(e){var b=e.target.closest('[data-lg]');if(!b)return;closeModal();setLang(b.dataset.lg,true)}}
 function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'always';

@@ -103,14 +103,15 @@
       var bad = function (e) { return { err: (e && e.message === 'drm' ? 'ملف محمي (DRM): ' : 'تعذر استيراد الملف: ') + file.name }; };
       var setTr = function (o) { if (o && o.tr) { try { localStorage.setItem(ext === 'pdf' && o.mode !== 'html' ? 'li-pdf-tr:' + id : 'li:' + id + ':li-tr-target:' + id, o.tr); /* same key the book page reads (its storage is prefixed per book) */ } catch (e) {} } };
       var askOpts = function () { return window.__liImportOpts ? window.__liImportOpts(file.name, ext).catch(function () { return { mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }; }) : Promise.resolve({ mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }); };
-      var prog = function (p) { if (p % 10 === 0) toast('جارٍ تحويل الملف… ' + p + '%'); };
+      var busy = function (m, p) { try { window.__liBusy && window.__liBusy(m, p); } catch (e) {} }, unbusy = function () { try { window.__liBusy && window.__liBusy(false); } catch (e) {} }, tick = function () { return new Promise(function (r) { setTimeout(r, 60); }); };
+      var prog = function (p) { busy('جارٍ تحويل الملف…', p); };
       var asPdf = function (o) { setTr(o); var head = new TextDecoder('latin1').decode(new Uint8Array(buf, Math.max(0, buf.byteLength - 20000))), info = function (k) { var mm = new RegExp('/' + k + '\\s*\\(([^)]{1,200})\\)').exec(head); return mm ? mm[1].replace(/\\(.)/g, '$1').trim() : ''; }; Object.assign(b, { format: 'pdf', file: 'book.pdf', title: (/^[\x20-\x7E]*$/.test(info('Title')) && info('Title')) || base, author: /^[\x20-\x7E]*$/.test(info('Author')) ? info('Author') : '' }); return fSet(id + '/book.pdf', new Blob([buf], { type: 'application/pdf' })).then(function () { return finish(null); }); };
-      if (F && ext === 'docx') return askOpts().then(function (o) { if (o.skip) return { skipped: true }; toast('جارٍ تحويل الملف…'); return F.docxToHtml(buf, file.name).then(function (r) { setTr(o); return fin(r, 'DOCX'); }); }).catch(bad);
+      if (F && ext === 'docx') return askOpts().then(function (o) { if (o.skip) return { skipped: true }; busy('جارٍ تحويل الملف…'); return tick().then(function () { return F.docxToHtml(buf, file.name); }).then(function (r) { setTr(o); return fin(r, 'DOCX'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); return bad(e); }); }).catch(bad);
       if (ext === 'pdf') return askOpts().then(function (o) {
         if (o.skip) return { skipped: true };
         if (o.mode !== 'html' || !F || !F.pdfToHtml) return asPdf(o);
-        toast('جارٍ تحويل الملف…');
-        return F.pdfToHtml(buf, file.name, prog).then(function (r) { setTr(o); return fin(r, 'PDF'); }).catch(function (e) { if (e && e.message === 'scanned') { toast('الملف صور بلا نص، فُتح كما هو'); return asPdf(o); } return bad(e); });
+        busy('جارٍ تحويل الملف…', 0);
+        return tick().then(function () { return F.pdfToHtml(buf, file.name, prog); }).then(function (r) { setTr(o); return fin(r, 'PDF'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); if (e && e.message === 'scanned') { toast('الملف صور بلا نص، فُتح كما هو'); return asPdf(o); } return bad(e); });
       });
       if (F && (ext === 'txt' || ext === 'md')) return F.txtToHtml(buf, file.name).then(function (r) { return fin(r, ext === 'md' ? 'MD' : 'TXT'); }).catch(bad);
       if (F && ext === 'fb2') return F.fb2ToHtml(buf).then(function (r) { return fin(r, 'FB2'); }).catch(bad);
