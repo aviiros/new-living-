@@ -14,3 +14,6 @@ android/capacitor-cordova-android-plugins/
 *.keystore
 *.jks
 .DS_Store
+windows/app/
+windows/node_modules/
+windows/dist/

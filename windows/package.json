@@ -1,0 +1,71 @@
+{
+  "name": "living-ideas-windows",
+  "productName": "Living Ideas",
+  "version": "3.4.1",
+  "description": "Living Ideas \u2014 Windows desktop app (Electron)",
+  "author": "Living Ideas",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.3.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.livingideas.library",
+    "productName": "Living Ideas",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "translator-worker.mjs",
+      "package.json",
+      "app/**/*",
+      "build/icon.png",
+      "node_modules/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v3/linux/**",
+      "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
+      "!node_modules/**/*.map",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "artifactName": "Living-Ideas-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Living-Ideas-Portable-${version}.${ext}"
+    }
+  }
+}

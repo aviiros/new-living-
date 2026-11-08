@@ -1,0 +1,45 @@
+// Runs the translation models on this computer (no server). Each language pair is a small
+// model (about 80 MB) that downloads on first use and is then read from disk, so it works offline.
+import { parentPort, workerData } from 'node:worker_threads';
+
+const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'];
+let tf = null; const pipes = new Map(); let chain = Promise.resolve();
+const post = (id, kind, text) => parentPort.postMessage({ id, kind, text: text == null ? '' : String(text) });
+const why = (e) => String((e && e.message) || e || 'error').slice(0, 90);
+
+async function lib() {
+  if (!tf) { tf = await import('@huggingface/transformers'); tf.env.cacheDir = workerData.cache; tf.env.allowLocalModels = false; }
+  return tf;
+}
+function pipe(a, b) {
+  const k = a + '-' + b;
+  if (!pipes.has(k)) {
+    pipes.set(k, (async () => {
+      const t = await lib(); post('', 'prep');
+      try { const p = await t.pipeline('translation', 'Xenova/opus-mt-' + k, { dtype: 'q8' }); post('', 'ready'); return p; }
+      catch (e) { pipes.delete(k); e.load = true; throw e; }
+    })());
+  }
+  return pipes.get(k);
+}
+function pieces(text) {
+  const sents = text.split(/(?<=[.!?؟…।])\s+/), out = []; let cur = '';
+  for (const s of sents) { if (cur && (cur + ' ' + s).length > 420) { out.push(cur); cur = s; } else cur = cur ? cur + ' ' + s : s; }
+  if (cur) out.push(cur);
+  return out;
+}
+async function hop(text, a, b) {
+  const p = await pipe(a, b), pre = a === 'en' && b === 'ar' ? '>>ara<< ' : '', out = [];
+  for (const s of pieces(text)) { const r = await p(pre + s, { max_new_tokens: 512 }); out.push(((r && r[0] && r[0].translation_text) || '').trim()); }
+  return out.join(' ');
+}
+async function go(m) {
+  const { id, text, src, tgt } = m;
+  if (!LANGS.includes(src) || !LANGS.includes(tgt)) return post(id, 'err', 'language ' + src + '>' + tgt);
+  if (src === tgt) return post(id, 'ok', text);
+  try {
+    const r = (src === 'en' || tgt === 'en') ? await hop(text, src, tgt) : await hop(await hop(text, src, 'en'), 'en', tgt);
+    post(id, 'ok', r);
+  } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
+}
+parentPort.on('message', (m) => { chain = chain.then(() => go(m)).catch(() => {}); });

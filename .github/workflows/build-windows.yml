@@ -1,0 +1,44 @@
+name: Build Windows app
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install root packages (jszip is copied into the app)
+        run: npm install --no-audit --no-fund
+      - name: Prepare the app pages
+        run: node scripts/prepare-www.js --desktop
+      - name: Install desktop packages
+        working-directory: windows
+        run: npm install --no-audit --no-fund
+      - name: Build installer and portable exe
+        working-directory: windows
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Living-Ideas-Windows
+          path: |
+            windows/dist/Living-Ideas-Setup-*.exe
+            windows/dist/Living-Ideas-Portable-*.exe
+      - name: Self-test (opens the real app, translates sentences with the downloaded models)
+        shell: pwsh
+        timeout-minutes: 20
+        run: |
+          $env:LI_SMOKE = '1'
+          $env:LI_SMOKE_OUT = "$PWD\smoke.json"
+          $p = Start-Process -FilePath "$PWD\windows\dist\win-unpacked\Living Ideas.exe" -PassThru
+          if (-not $p.WaitForExit(900000)) { $p.Kill() }
+          if (Test-Path smoke.json) { Get-Content smoke.json } else { Write-Host 'no report written'; exit 1 }
+          if ((Get-Content smoke.json -Raw | ConvertFrom-Json).ok -ne $true) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-selftest-report
+          path: smoke.json
+          if-no-files-found: ignore
