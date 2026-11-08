@@ -1,6 +1,7 @@
 // Living Ideas — Windows (Electron) shell. The pages themselves are the same files the Android app uses.
 const { app, BrowserWindow, protocol, net, ipcMain, shell, Notification, Tray, Menu, nativeImage, session } = require('electron');
-const path = require('path'), url = require('url'), { Worker } = require('worker_threads');
+const path = require('path'), url = require('url'), fs = require('fs'), os = require('os'), { Worker } = require('worker_threads');
+const { dialog } = require('electron');
 
 const ROOT = path.join(__dirname, 'app');
 const ICON = path.join(__dirname, 'build', 'icon.png');
@@ -71,6 +72,21 @@ function arm(n) {
 ipcMain.on('ntf:cancel', (_e, ids) => { (ids || []).forEach(clearN); });
 ipcMain.on('ntf:schedule', (_e, list) => { (list || []).forEach((n) => { if (n && typeof n.id === 'number') arm(n); }); });
 
+// ---------- save the translated book as a PDF ----------
+async function makePdf(html) {
+  const tmp = path.join(os.tmpdir(), 'li-print-' + Date.now() + '.html'); fs.writeFileSync(tmp, html, 'utf8');
+  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+  try { await w.loadFile(tmp); return await w.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { marginType: 'default' } }); }
+  finally { try { w.destroy(); } catch (e) {} try { fs.unlinkSync(tmp); } catch (e) {} }
+}
+ipcMain.on('pdf:print', async (_e, html, name) => {
+  try {
+    const pdf = await makePdf(String(html || ''));
+    const r = await dialog.showSaveDialog(win, { defaultPath: String(name || 'book').replace(/[\\/:*?"<>|]+/g, ' ') + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (!r.canceled && r.filePath) fs.writeFileSync(r.filePath, pdf);
+  } catch (e) { dialog.showErrorBox('Living Ideas', 'PDF: ' + String((e && e.message) || e)); }
+});
+
 // ---------- offline translation (models download once, then run on this PC) ----------
 let worker = null; const pending = new Set();
 let smokeSink = null;
@@ -108,8 +124,9 @@ if (process.env.LI_SMOKE) {
       let ok = info.books > 0 && info.desk && info.platform === 'win32' && info.pdfjs === 200, n = 0;
       for (const [text, src, tgt] of jobs) {
         const t0 = Date.now(), m = await ask('s' + (++n), text, src, tgt), good = m.kind === 'ok' && m.text && m.text !== text;
-        res.translate.push({ pair: src + '>' + tgt, kind: m.kind, text: m.text, sec: Math.round((Date.now() - t0) / 1000) }); if (!good) ok = false;
+        res.translate.push({ pair: src + '>' + tgt, kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 1000) }); if (!good) ok = false;
       }
+      try { const pdf = await makePdf('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px Tahoma"><h1>ترجمة تجريبية</h1><p>' + 'هذه فقرة عربية للتأكد من إنشاء ملف PDF صحيح. '.repeat(40) + '</p>'); res.pdf = { bytes: pdf.length, header: pdf.slice(0, 5).toString() }; if (!(pdf.length > 3000 && res.pdf.header === '%PDF-')) ok = false; } catch (e) { res.pdf = { error: String(e) }; ok = false; }
       done(ok);
     })().catch((e) => { res.error = String((e && e.stack) || e); done(false); });
   });

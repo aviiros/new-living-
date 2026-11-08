@@ -6,7 +6,11 @@ import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
 import android.view.ActionMode;
 import android.webkit.JavascriptInterface;
+import android.content.Context;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -45,6 +49,7 @@ public class MainActivity extends BridgeActivity {
     js("window.__liTr&&window.__liTr(" + q(id) + "," + q(kind) + "," + JSONObject.quote(text == null ? "" : text) + ")");
   }
 
+  private WebView printView;
   private static abstract class Job implements Runnable { String id; Job(String id) { this.id = id; } }
   private final HashMap<String, ArrayList<Job>> jobWaiters = new HashMap<>();
 
@@ -192,6 +197,24 @@ public class MainActivity extends BridgeActivity {
       }
       @JavascriptInterface public void translate(final String id, final String text, final String src, final String tgt) {
         runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
+      }
+      @JavascriptInterface public void printHtml(final String html, final String name) {
+        runOnUiThread(new Runnable() { public void run() {
+          try {
+            final WebView w = new WebView(MainActivity.this);
+            printView = w;
+            final String job = (name == null || name.length() == 0) ? "Living Ideas" : name;
+            w.setWebViewClient(new WebViewClient() {
+              @Override public void onPageFinished(WebView v, String url) {
+                try {
+                  PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                  pm.print(job, v.createPrintDocumentAdapter(job), new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+                } catch (Exception ignored) {}
+              }
+            });
+            w.loadDataWithBaseURL("https://localhost/", html, "text/html", "UTF-8", null);
+          } catch (Exception ignored) {}
+        } });
       }
       @JavascriptInterface public void stop() { runOnUiThread(new Runnable() { public void run() { pending.clear(); if (tts != null) try { tts.stop(); } catch (Exception ignored) {} } }); }
     }, "LiNative");

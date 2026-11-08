@@ -12,7 +12,8 @@
   window.Capacitor = { isNativePlatform: function () { return true; }, Plugins: { LocalNotifications: LN } };
   window.LiNative = {
     init: function () {}, blockMenu: function () {}, stop: function () {}, voices: function () { return '[]'; },
-    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt); }
+    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt); },
+    printHtml: function (html, name) { D.printPdf(html, name); }
   };
   D.onTr(function (e) { if (window.__liTr) window.__liTr(e.id, e.kind, e.text); });
 })();

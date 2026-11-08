@@ -214,12 +214,12 @@
   var TRS = (function () {
     var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', id: 'Indonesia' };
     var TX = {
-      ar: { tr: 'ترجمة', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
-      en: { tr: 'Translate', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
-      fr: { tr: 'Traduire', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
-      es: { tr: 'Traducir', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
-      it: { tr: 'Traduci', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
-      id: { tr: 'Terjemahkan', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
+      ar: { tr: 'ترجمة', sh: 'حفظ الترجمة كملف HTML', sp: 'حفظ الترجمة كملف PDF', wait: 'الترجمة لم تكتمل بعد، انتظر قليلاً', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
+      en: { tr: 'Translate', sh: 'Save translation as HTML', sp: 'Save translation as PDF', wait: 'Translation is not finished yet', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
+      fr: { tr: 'Traduire', sh: 'Enregistrer la traduction en HTML', sp: 'Enregistrer la traduction en PDF', wait: 'La traduction n’est pas terminée', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
+      es: { tr: 'Traducir', sh: 'Guardar la traducción como HTML', sp: 'Guardar la traducción como PDF', wait: 'La traducción aún no ha terminado', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
+      it: { tr: 'Traduci', sh: 'Salva la traduzione come HTML', sp: 'Salva la traduzione come PDF', wait: 'La traduzione non è ancora terminata', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
+      id: { tr: 'Terjemahkan', sh: 'Simpan terjemahan sebagai HTML', sp: 'Simpan terjemahan sebagai PDF', wait: 'Terjemahan belum selesai', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
     };
     return { NAMES: NAMES, TX: TX };
   })();
@@ -400,11 +400,26 @@
       document.documentElement.removeAttribute('data-li-lang');
       try { localStorage.removeItem(key); } catch (e) {} if (!quiet) say(L('orig'), 1500);
     }
+    // Save the translated book: as an HTML file (opens anywhere) or as a PDF (print to PDF).
+    function exportHtml() {
+      var c = document.documentElement.cloneNode(true);
+      [].forEach.call(c.querySelectorAll('#li-tr-ui,script,base,#li-sel-bar'), function (x) { x.remove(); });
+      [].forEach.call(c.querySelectorAll('[data-li-dir],[data-li-ta]'), function (x) { x.removeAttribute('data-li-dir'); x.removeAttribute('data-li-ta'); });
+      c.setAttribute('lang', state.tgt); c.setAttribute('dir', state.tgt === 'ar' ? 'rtl' : 'ltr'); c.removeAttribute('data-li-lang');
+      var st = document.createElement('style'); st.textContent = '@page{margin:18mm}@media print{#li-tr-ui{display:none}}'; (c.querySelector('head') || c).appendChild(st);
+      return '<!doctype html>\n' + c.outerHTML;
+    }
+    function saveAs(kind) {
+      if (state.done < state.total) { say(L('wait'), 2500); return; }
+      var base = (document.title || 'book').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) + ' - ' + state.tgt, html = exportHtml();
+      if (kind === 'pdf') { parent.postMessage({ liBook: 1, type: 'print-pdf', name: base, html: html }, '*'); return; }
+      var r = new FileReader(); r.onload = function () { parent.postMessage({ liBook: 1, type: 'save-file', name: base + '.html', mime: 'text/html', data: r.result }, '*'); }; r.readAsDataURL(new Blob([html], { type: 'text/html' }));
+    }
     function showMenu() {
       SRC = SRC || detect(); menu.innerHTML = '';
-      var items = []; if (state.tgt) items.push(['', L('orig')]);
+      var items = []; if (state.tgt) { items.push(['', L('orig')]); items.push(['@html', L('sh')]); if (N.printHtml) items.push(['@pdf', L('sp')]); }
       Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); });
-      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); });
+      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@html') saveAs('html'); else if (it[0] === '@pdf') saveAs('pdf'); else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); });
       menu.style.display = 'block';
     }
     var lp = 0, longp = false;
@@ -413,7 +428,7 @@
     btn.addEventListener('click', function (e) {
       e.stopPropagation(); if (longp) { longp = false; return; }
       if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
-      if (state.tgt) { revert(); return; }
+      if (state.tgt) { showMenu(); return; }
       SRC = SRC || detect(); if (SRC !== UI) start(UI); else showMenu();
     });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);

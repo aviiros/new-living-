@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('liDesk', {
   schedule: (list) => ipcRenderer.send('ntf:schedule', list),
   cancel: (ids) => ipcRenderer.send('ntf:cancel', ids),
   fullscreen: () => ipcRenderer.invoke('win:fs'),
+  printPdf: (html, name) => ipcRenderer.send('pdf:print', html, name),
   openUrl: (u) => ipcRenderer.send('open-url', u)
 });
