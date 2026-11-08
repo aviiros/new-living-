@@ -40,32 +40,40 @@ public class MainActivity extends BridgeActivity {
   // ---- offline translation (Google ML Kit, models download once, then work without internet)
   private final HashMap<String, Translator> translators = new HashMap<>();
   private final HashMap<String, Integer> modelState = new HashMap<>(); // 1 = downloading, 2 = ready
-  private final HashMap<String, ArrayList<Runnable>> modelWaiters = new HashMap<>();
 
   private void trEmit(String id, String kind, String text) {
     js("window.__liTr&&window.__liTr(" + q(id) + "," + q(kind) + "," + JSONObject.quote(text == null ? "" : text) + ")");
+  }
+
+  private static abstract class Job implements Runnable { String id; Job(String id) { this.id = id; } }
+  private final HashMap<String, ArrayList<Job>> jobWaiters = new HashMap<>();
+
+  private static String why(Exception e) {
+    String m = e == null ? "" : e.getMessage();
+    if (m == null || m.length() == 0) m = e == null ? "error" : e.getClass().getSimpleName();
+    return m.length() > 90 ? m.substring(0, 90) : m;
   }
 
   private void doTranslate(final String id, final String text, final String src, final String tgt) {
     final String key = src + ">" + tgt;
     try {
       final String s = TranslateLanguage.fromLanguageTag(src), t = TranslateLanguage.fromLanguageTag(tgt);
-      if (s == null || t == null) { trEmit(id, "err", ""); return; }
+      if (s == null || t == null) { trEmit(id, "err", "language " + src + ">" + tgt); return; }
       Translator tr = translators.get(key);
       if (tr == null) {
         tr = Translation.getClient(new TranslatorOptions.Builder().setSourceLanguage(s).setTargetLanguage(t).build());
         translators.put(key, tr);
       }
       final Translator trf = tr;
-      final Runnable run = new Runnable() { public void run() {
+      final Job run = new Job(id) { public void run() {
         trf.translate(text)
           .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { trEmit(id, "ok", r); } })
-          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { trEmit(id, "err", ""); } });
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { trEmit(id, "err", why(e)); } });
       } };
       Integer st = modelState.get(key);
       if (st != null && st == 2) { run.run(); return; }
-      ArrayList<Runnable> w = modelWaiters.get(key);
-      if (w == null) { w = new ArrayList<>(); modelWaiters.put(key, w); }
+      ArrayList<Job> w = jobWaiters.get(key);
+      if (w == null) { w = new ArrayList<>(); jobWaiters.put(key, w); }
       w.add(run);
       if (st == null) {
         modelState.put(key, 1);
@@ -73,14 +81,16 @@ public class MainActivity extends BridgeActivity {
         trf.downloadModelIfNeeded(new DownloadConditions.Builder().build())
           .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) {
             modelState.put(key, 2); trEmit("", "ready", "");
-            ArrayList<Runnable> ws = modelWaiters.remove(key); if (ws != null) for (Runnable r : ws) r.run();
+            ArrayList<Job> ws = jobWaiters.remove(key); if (ws != null) for (Job r : ws) r.run();
           } })
           .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) {
-            modelState.remove(key); trEmit("", "nomodel", "");
-            ArrayList<Runnable> ws = modelWaiters.remove(key); if (ws != null) trEmit("", "err-all", "");
+            modelState.remove(key); translators.remove(key);
+            String m = why(e);
+            trEmit("", "nomodel", m);
+            ArrayList<Job> ws = jobWaiters.remove(key); if (ws != null) for (Job r : ws) trEmit(r.id, "err", m);
           } });
       }
-    } catch (Exception e) { trEmit(id, "err", ""); }
+    } catch (Exception e) { trEmit(id, "err", why(e)); }
   }
 
   private void js(final String code) {

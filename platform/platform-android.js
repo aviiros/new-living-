@@ -216,7 +216,7 @@
   // Runs INSIDE every book page: translates the visible text in place (markup, links and layout stay as they are).
   function TRX() {
     var N = window.LiNative; if (!N || !N.translate) return;
-    var UI = (window.__LI && window.__LI.ui) || 'ar';
+    var UI = window.__TRS.UI || (window.__LI && window.__LI.ui) || 'ar';
     var NAMES = window.__TRS.NAMES, TX = window.__TRS.TX;
     var L = function (k) { return (TX[UI] || TX.en)[k]; };
     var STOP = { id: [' yang ', ' dan ', ' di ', ' untuk ', ' dengan ', ' ini ', ' itu ', ' dari '], fr: [' le ', ' la ', ' les ', ' des ', ' et ', ' est ', ' une ', ' que '], es: [' el ', ' los ', ' las ', ' que ', ' una ', ' por ', ' con ', ' para '], it: [' il ', ' che ', ' della ', ' una ', ' per ', ' non ', ' sono ', ' con '], en: [' the ', ' and ', ' of ', ' to ', ' is ', ' in ', ' that ', ' with '] };
@@ -244,7 +244,7 @@
     btn.style.cssText = 'min-width:42px;height:42px;padding:0 12px;border-radius:21px;border:1px solid rgba(176,141,87,.8);background:rgba(29,43,51,.88);color:#f5eedd;font:700 15px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:.82';
     btn.textContent = 'A文'; ui.appendChild(btn);
     var menu = document.createElement('div'); menu.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;min-width:150px;background:#fbf7ec;color:#1d2b33;border:1px solid #d9cdb0;border-radius:14px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.25)'; ui.appendChild(menu);
-    var tip = document.createElement('div'); tip.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;white-space:nowrap;background:rgba(29,43,51,.92);color:#f5eedd;border-radius:10px;padding:7px 11px;font:600 12px system-ui,sans-serif'; ui.appendChild(tip);
+    var tip = document.createElement('div'); tip.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;width:max-content;max-width:78vw;line-height:1.4;background:rgba(29,43,51,.92);color:#f5eedd;border-radius:10px;padding:7px 11px;font:600 12px system-ui,sans-serif'; ui.appendChild(tip);
     var tipT = 0; function say(t, ms) { tip.textContent = t; tip.style.display = 'block'; clearTimeout(tipT); if (ms) tipT = setTimeout(function () { tip.style.display = 'none'; }, ms); }
     function mount() { if (document.body && !ui.parentNode) document.body.appendChild(ui); }
     if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
@@ -267,14 +267,15 @@
     }
     window.addEventListener('message', function (e) {
       var d = e.data; if (!d || !d.liTr) return;
-      if (!d.id) { if (d.kind === 'prep') say(L('prep'), 0); else if (d.kind === 'ready') say(L('work') + '…', 1500); else if (d.kind === 'nomodel' || d.kind === 'err-all') { state.failed = true; say(L('fail'), 6000); btn.textContent = 'A文'; } return; }
+      if (!d.id) { if (d.kind === 'prep') say(L('prep'), 0); else if (d.kind === 'ready') say(L('work') + '…', 1500); else if (d.kind === 'nomodel' || d.kind === 'err-all') failAll(d.text); return; }
       var p = pend[d.id]; if (!p) return; delete pend[d.id]; inflight--;
       if (p.run !== state.run) return;
-      if (d.kind === 'ok' && d.text) { apply(p.n, d.text); cput(p.k, { t: p.core, v: d.text }); } else { apply(p.n, p.core); }
+      if (d.kind === 'ok' && d.text) { state.errs = 0; apply(p.n, d.text); cput(p.k, { t: p.core, v: d.text }); } else { if (d.text && ++state.errs >= 6) { failAll(d.text); return; } apply(p.n, p.core); }
       state.done++; progress(); pump(p.run);
     });
+    function failAll(why) { revert(true); state.failed = true; say(L('fail') + (why ? ' [' + String(why).slice(0, 70) + ']' : ''), 12000); }
     function start(tgt) {
-      revert(true); state.tgt = tgt; state.run++; state.failed = false; SRC = SRC || detect();
+      revert(true); state.errs = 0; state.tgt = tgt; state.run++; state.failed = false; SRC = SRC || detect();
       if (SRC === tgt) { state.tgt = null; return; }
       var all = nodes(), vh = innerHeight;
       all.forEach(function (n) { var r = n.parentElement.getBoundingClientRect(); n.__d = (r.width || r.height) ? Math.abs(r.top - vh / 3) : 1e9; });
@@ -394,7 +395,7 @@
     }
     window.addEventListener('message', function (e) {
       var d = e.data; if (!d || !d.liTr) return;
-      if (!d.id) { if (d.kind === 'prep') say(L('prep'), 0); else if (d.kind === 'ready') say(L('work') + '…', 1500); else if (d.kind === 'nomodel' || d.kind === 'err-all') say(L('fail'), 6000); return; }
+      if (!d.id) { if (d.kind === 'prep') say(L('prep'), 0); else if (d.kind === 'ready') say(L('work') + '…', 1500); else if (d.kind === 'nomodel' || d.kind === 'err-all') { revert(true); say(L('fail') + (d.text ? ' [' + String(d.text).slice(0, 70) + ']' : ''), 12000); } return; }
       var p = pend[d.id]; if (!p) return; delete pend[d.id]; if (p.run !== run) return;
       if (d.kind === 'ok' && d.text) { p.b.tr = d.text; cput(p.k, { t: p.core, v: d.text }); } else p.b.tr = p.core;
       p.one();
@@ -418,7 +419,7 @@
     if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) start(saved); }); }, 1500);
     window.__liPdfTr = { start: start, revert: revert, store: function () { return store; } };
   }
-  var SHIM = function (id) { return '<script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
+  var SHIM = function (id) { return '<base href="about:srcdoc"><script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';window.__TRS.UI=' + JSON.stringify(lib.settings.lang || 'ar') + ';<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
     revokeLive(); var lang = (lib.settings.lang || 'ar') === 'ar' ? 'ar' : 'en';
