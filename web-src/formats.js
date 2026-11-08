@@ -197,5 +197,5 @@
     });
   }
 
-  window.__FMT = { txtToHtml: txtToHtml, fb2ToHtml: fb2ToHtml, cbzImport: cbzImport, mobiToHtml: mobiToHtml, resolvePages: resolvePages, EXT: /\.(txt|md|fb2|cbz|mobi|azw3?|prc)$/i };
+  window.__FMT = { esc: esc, isArabic: isArabic, shell: shell, typedImage: typedImage, toDataURL: toDataURL, txtToHtml: txtToHtml, fb2ToHtml: fb2ToHtml, cbzImport: cbzImport, mobiToHtml: mobiToHtml, resolvePages: resolvePages, EXT: /\.(txt|md|fb2|cbz|mobi|azw3?|prc)$/i };
 })();
