@@ -227,7 +227,7 @@
   function getText(url) { if (textCache[url]) return Promise.resolve(textCache[url]); return fetch(url).then(function (r) { return r.text(); }).then(function (t) { return (textCache[url] = t); }); }
 
 
-  window.__liTr = function (id, kind, text) { ['frame', 'pframe'].forEach(function (n) { var f = document.getElementById(n); try { f.contentWindow.postMessage({ liTr: 1, id: id, kind: kind, text: text }, '*'); } catch (e) {} }); };
+  window.__liTr = function (id, kind, text) { ['frame', 'pframe', 'bgframe'].forEach(function (n) { var f = document.getElementById(n); try { f.contentWindow.postMessage({ liTr: 1, id: id, kind: kind, text: text }, '*'); } catch (e) {} }); };
   window.__liTts = function (id, type, a, b) { var f = document.getElementById('frame'); try { f.contentWindow.postMessage({ liTts: 1, id: id, type: type, a: a, b: b }, '*'); } catch (e) {} };
   // Runs INSIDE every book page: (1) saves/shares files the book creates (quote images, backups),
   // (2) rebuilds speechSynthesis on top of the phone's own text-to-speech.
@@ -428,9 +428,10 @@
     function finishChunk(job, text, ok) {
       var u = job.u; u.res[job.i] = text; if (!ok) state.bad++; u.left--; state.done++;
       if (u.left === 0) applyUnit(u);
-      progress();
+      progress(); report(state.done >= state.total);
     }
-    var lazy = false, budget = 1e9, rt = 0;
+    var lazy = false, budget = 1e9, rt = 0, BG = window.name === 'li-bg', lastRep = 0;
+    function report(force) { var n = Date.now(); if (!force && n - lastRep < 700) return; lastRep = n; try { parent.postMessage({ liBook: 1, type: 'tr-state', id: window.__TRS && window.__TRS.ID, tgt: state.tgt, done: state.done, total: state.total, bg: BG }, '*'); } catch (e) {} }
     function reprio() {
       if (!queue.length) return; var vh = innerHeight, cache = new Map();
       queue.forEach(function (j) { var d = cache.get(j.u); if (d == null) { var r = j.u.b.getBoundingClientRect(); d = r.bottom < -vh * 0.3 ? 1e6 - r.bottom : Math.max(0, r.top); cache.set(j.u, d); } j._d = d; });
@@ -447,7 +448,7 @@
           cget(k, function (c) {
             if (run !== state.run) { inflight--; return; }
             if (c && c.t === core) { inflight--; finishChunk(job, c.v, true); pump(run); return; }
-            var id = 'r' + (++seq); pend[id] = { job: job, core: core, k: k, run: run };
+            var id = (BG ? 'g' : 'r') + (++seq); pend[id] = { job: job, core: core, k: k, run: run };
             N.translate(id, core, SRC, state.tgt);
           });
         })(queue.shift());
@@ -471,7 +472,7 @@
       for (var i = 0; i < units.length; i++) { var r = units[i].b.getBoundingClientRect(); if (r.bottom > 0 && (r.width || r.height)) { first = i; break; } }
       var ordered = units.slice(first).concat(units.slice(0, first)), jobs = [];
       ordered.forEach(function (u) { u.left = u.chunks.length; u.chunks.forEach(function (c, i) { jobs.push({ u: u, i: i }); }); });
-      lazy = !!(N.slow && N.slow()); budget = lazy ? 24 : 1e9;
+      lazy = !BG && !!(N.slow && N.slow()); budget = lazy ? 24 : 1e9;
       queue = jobs; state.total = jobs.length; state.done = 0; window.__LI_TR = true; try { localStorage.setItem(key, tgt); } catch (e) {}
       btn.style.background = 'rgba(29,43,51,.88)'; btn.textContent = '0%'; say(L('work') + '…', 0);
       document.documentElement.setAttribute('data-li-lang', tgt);
@@ -689,6 +690,8 @@
     frameSrc: A(frameSrc), openUrl: function (u) { if (!/^(https?:|mailto:)/i.test(u)) return; if (PL.Browser && PL.Browser.open && /^https?:/i.test(u)) PL.Browser.open({ url: u }); else window.open(u, '_blank'); },
     pathOf: function () { return ''; }, onOpen: function () {}, onState: function (f) { cbState.push(f); }, onToast: function (f) { cbToast.push(f); },
     state: A(function () { return lib; }),
+    notify: function (t, b) { try { notify(t, b); } catch (e) {} return Promise.resolve(); },
+    askNotif: function () { try { if (NATIVE() && PL.LocalNotifications) return PL.LocalNotifications.requestPermissions().catch(function () {}); } catch (e) {} return Promise.resolve(); },
     convertPdf: A(function (id, tr) {
       var b = lib.books.filter(function (x) { return x.id === id; })[0]; if (!b) return lib;
       return fGet(b.id + '/' + b.file).then(function (blob) { return importFile(new File([blob], (b.title || 'book') + '.pdf', { type: 'application/pdf' }), { mode: 'html', tr: tr || '' }); }).then(function (r) {

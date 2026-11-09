@@ -231,6 +231,15 @@ public class MainActivity extends BridgeActivity {
       @JavascriptInterface public void translate(final String id, final String text, final String src, final String tgt) {
         runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
       }
+      // Keeps the app alive (with a live progress notification) while a translation runs in the background.
+      @JavascriptInterface public void keepAlive(boolean on, String title, String text, int pct) {
+        try {
+          android.content.Intent it = new android.content.Intent(MainActivity.this, KeepAliveService.class);
+          if (!on) { stopService(it); return; }
+          it.putExtra("title", title); it.putExtra("text", text); it.putExtra("pct", pct);
+          if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(it); else startService(it);
+        } catch (Exception ignored) {}
+      }
       @JavascriptInterface public boolean online() { return MainActivity.this.online(); }
       @JavascriptInterface public void setOnline(boolean v) { try { getSharedPreferences("li", Context.MODE_PRIVATE).edit().putBoolean("online", v).apply(); } catch (Exception ignored) {} }
       @JavascriptInterface public void printHtml(final String html, final String name) {
@@ -258,6 +267,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onPause() {
     super.onPause();
+    try { getBridge().getWebView().resumeTimers(); } catch (Exception ignored) {}
     if (tts != null) try { tts.stop(); } catch (Exception ignored) {}
   }
 

@@ -15,7 +15,7 @@ function showWin() { if (!win) return; if (win.isMinimized()) win.restore(); win
 function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 820, minWidth: 360, minHeight: 520, backgroundColor: '#f0e8d3', title: 'Living Ideas', icon: ICON, autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false }
   });
   win.setMenuBarVisibility(false);
   win.loadURL('app://local/index.html');

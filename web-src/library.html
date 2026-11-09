@@ -167,8 +167,9 @@ header.top #langBtn{display:none!important}
 @keyframes sheetin{from{transform:translateY(100%)}to{transform:none}}
 .lang{display:grid;grid-template-columns:1fr 1fr 1fr}.lang button{height:30px}
 #box{position:relative}.mx{position:absolute;top:8px;inset-inline-end:10px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:26px;line-height:1;cursor:pointer}.mx:hover{background:var(--line)}
+#bgpill{position:fixed;z-index:60;inset-inline-start:12px;bottom:78px;width:min(320px,calc(100vw - 24px));padding:10px 38px 10px 14px;border-radius:14px;background:var(--card,#fbf7ec);color:var(--ink,#1d2b33);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.22);display:none;font-size:12.5px;line-height:1.5}#bgpill.on{display:block}.bgt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bgb{height:6px;border-radius:4px;background:var(--line);margin:7px 0 4px;overflow:hidden}.bgb i{display:block;height:100%;background:var(--acc);transition:width .4s}.bgs{opacity:.75}#bgx{position:absolute;top:6px;inset-inline-end:6px;width:28px;height:28px;border:0;background:transparent;font-size:20px;color:inherit;cursor:pointer}@media(min-width:900px){#bgpill{bottom:16px}}
 </style></head>
-<body>
+<body><div id="bgpill"></div>
 <div id="app">
 <aside>
  <div class="brand"><img src="assets/emblem.png" alt=""><div><b>LIVING IDEAS</b><small>كتاب · فكرة · حياة</small></div></div>
@@ -348,7 +349,8 @@ function untranslated(){var out=[],w=document.createTreeWalker(document.body,Nod
   [].forEach.call(document.querySelectorAll('[title],[placeholder],[aria-label],[alt]'),function(e){if(e.closest('[data-noloc]'))return;ATTRS.forEach(function(a){var v=e.getAttribute(a);if(v&&/[\u0600-\u06FF]/.test(v))out.push('@'+a+':'+v)})});return out}
 // ---------- reader ----------
 function openBook(id,go){
-  var b=S.books.filter(function(x){return x.id===id})[0];if(!b)return;cur=b;pending=go||null;lastAct=Date.now();secAcc=0;b.lastRead=Date.now();window.api.update(id,{lastRead:b.lastRead}).then(keep);
+  var b=S.books.filter(function(x){return x.id===id})[0];if(!b)return;
+  bgq=bgq.filter(function(j){return j.id!==id});if(bgCur&&bgCur.id===id)bgStop(false);delete trSt[id];cur=b;pending=go||null;lastAct=Date.now();secAcc=0;b.lastRead=Date.now();window.api.update(id,{lastRead:b.lastRead}).then(keep);
   var R=$('#reader'),f=$('#frame'),p=$('#pframe');R.classList.remove('bar');closePanel();$('#find').classList.remove('on');$('#pop').classList.remove('on');
   fixBar=b.format==='audio'||!S.settings.autoHideBar;endShown=(b.progress>=98);$('#endcard').classList.remove('on');R.classList.toggle('fix',fixBar);rbar();
   p.style.display='none';p.src='about:blank';f.style.display='block';f.removeAttribute('srcdoc');f.src='about:blank';Promise.resolve(window.api.frameSrc(b)).then(function(x){if(!cur||cur.id!==id)return;if(x.srcdoc!=null)f.srcdoc=x.srcdoc;else f.src=x.src})
@@ -377,7 +379,61 @@ function pdfToHtmlDlg(tr){var b=cur;if(!b||!window.api.convertPdf)return;
   if(tr){go(tr);return}
   (window.__liImportOpts?window.__liImportOpts(dt(b),'docx'):Promise.resolve({tr:''})).then(function(o){if(o&&!o.skip)go(o.tr)})}
 window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook||d.type!=='pdf-to-html')return;try{if(e.source!==$('#pframe').contentWindow)return}catch(x){return}pdfToHtmlDlg(String(d.tr||''))});
-function closeBook(){var b=cur;$('#reader').classList.remove('on');$('#frame').removeAttribute('srcdoc');$('#frame').src='about:blank';$('#pframe').src='about:blank';if(b)window.api.update(b.id,{lastRead:Date.now()});cur=null;setTimeout(function(){window.api.state().then(function(s){S=s;render()})},350)}
+
+/* ---------- background translation: keeps going when you leave the book, open another one, or switch apps ---------- */
+var trSt={},bgq=[],bgCur=null,bgWatch=0,kaLast=0;
+function bookById(id){return S.books.filter(function(x){return x.id===id})[0]}
+function langName(c){var x=LANGS.filter(function(l){return l[0]===c})[0];return x?x[1]:c}
+function bgSave(){try{localStorage.setItem('li-bgq',JSON.stringify((bgCur?[{id:bgCur.id,tgt:bgCur.tgt}]:[]).concat(bgq)))}catch(e){}}
+function bgPill(){
+  var el=$('#bgpill');if(!el)return;
+  if(!bgCur){el.classList.remove('on');return}
+  var b=bookById(bgCur.id),st=bgCur.st||{done:0,total:0},pct=st.total?Math.floor(st.done/st.total*100):0;
+  el.innerHTML='<div class="bgt"><b>'+T('ترجمة في الخلفية','Translating in background')+'</b> · '+esc(b?dt(b):'')+'</div><div class="bgb"><i style="width:'+pct+'%"></i></div><div class="bgs">'+langName(bgCur.tgt)+' · '+pct+'%'+(bgq.length?' · '+T('في الانتظار: ','queued: ')+bgq.length:'')+'</div><button id="bgx" aria-label="'+T('إيقاف','Stop')+'">×</button>';
+  el.classList.add('on');$('#bgx').onclick=function(){bgStop(false)};
+}
+function kaUpdate(force){
+  var N=window.LiNative;if(!N||!N.keepAlive)return;var n=Date.now();if(!force&&n-kaLast<1500)return;kaLast=n;
+  var job=null,st=null,b=null;
+  if(bgCur){job=bgCur;st=bgCur.st;b=bookById(bgCur.id)}
+  else if(cur&&trSt[cur.id]&&trSt[cur.id].tgt&&trSt[cur.id].done<trSt[cur.id].total){job={tgt:trSt[cur.id].tgt};st=trSt[cur.id];b=cur}
+  if(!job){try{N.keepAlive(false,'','',0)}catch(e){}return}
+  st=st||{done:0,total:0};var pct=st.total?Math.floor(st.done/st.total*100):0;
+  try{N.keepAlive(true,T('جارٍ ترجمة الكتاب','Translating book')+' · '+pct+'%',(b?dt(b):'')+' → '+langName(job.tgt)+(st.total?' · '+st.done+'/'+st.total+' '+T('فقرة','parts'):'')+(bgq.length?' · '+T('في الانتظار: ','queued: ')+bgq.length:''),pct)}catch(e){}
+}
+function bgAdd(id,tgt){
+  if(!id||!tgt)return;if(bgCur&&bgCur.id===id&&bgCur.tgt===tgt)return;
+  bgq=bgq.filter(function(j){return j.id!==id});bgq.push({id:id,tgt:tgt});bgSave();
+  try{window.api.askNotif&&window.api.askNotif()}catch(e){}
+  toast(T('تابعت الترجمة في الخلفية، ستجدها جاهزة عند العودة','Translation continues in the background'));bgRun();
+}
+function bgRun(){
+  if(bgCur||!bgq.length)return;var j=bgq.shift(),b=bookById(j.id);if(!b){bgSave();return bgRun()}
+  bgCur={id:j.id,tgt:j.tgt,st:null,last:Date.now()};bgSave();
+  try{localStorage.setItem('li:'+j.id+':li-tr-target:'+j.id,j.tgt)}catch(e){}
+  var f=document.createElement('iframe');f.id='bgframe';f.name='li-bg';f.setAttribute('sandbox','allow-scripts allow-same-origin');f.setAttribute('aria-hidden','true');
+  f.style.cssText='position:fixed;left:-9999px;top:0;width:760px;height:900px;border:0;opacity:0;pointer-events:none';document.body.appendChild(f);
+  Promise.resolve(window.api.frameSrc(b)).then(function(x){if(!bgCur||bgCur.id!==j.id)return;if(x.srcdoc!=null)f.srcdoc=x.srcdoc;else f.src=x.src});
+  clearInterval(bgWatch);bgWatch=setInterval(function(){if(bgCur&&Date.now()-bgCur.last>180000)bgDone(false)},15000);
+  bgPill();kaUpdate(true);
+}
+function bgClean(){clearInterval(bgWatch);var f=$('#bgframe');if(f){f.src='about:blank';f.remove()}}
+function bgDone(ok){
+  var j=bgCur;bgClean();bgCur=null;bgSave();bgPill();
+  if(j&&ok){var b=bookById(j.id),t=(b?dt(b):'');toast(T('اكتملت ترجمة «','Translation finished: ')+t+(LANG==='ar'?'»':''));try{window.api.notify&&window.api.notify(T('اكتملت الترجمة','Translation finished'),t+' → '+langName(j.tgt))}catch(e){}}
+  else if(j&&!ok)toast(T('توقفت الترجمة في الخلفية. افتح الكتاب لإكمالها','Background translation stopped. Open the book to continue'));
+  kaUpdate(true);bgRun();
+}
+function bgStop(keepFrameWork){bgClean();bgCur=null;bgSave();bgPill();kaUpdate(true);if(!keepFrameWork)bgRun()}
+window.addEventListener('message',function(e){
+  var d=e.data;if(!d||!d.liBook||d.type!=='tr-state')return;var bf=$('#bgframe'),fr=$('#frame');
+  try{
+    if(bf&&e.source===bf.contentWindow&&bgCur){bgCur.st={done:d.done,total:d.total};bgCur.last=Date.now();bgPill();kaUpdate(false);if(d.total&&d.done>=d.total)bgDone(true)}
+    else if(e.source===fr.contentWindow&&cur){trSt[cur.id]={tgt:d.tgt,done:d.done,total:d.total};kaUpdate(false)}
+  }catch(x){}
+});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)bgPill()});
+function closeBook(){var b=cur;if(b){var ts=trSt[b.id];if(ts&&ts.tgt&&ts.total&&ts.done<ts.total)bgAdd(b.id,ts.tgt);delete trSt[b.id]}$('#reader').classList.remove('on');$('#frame').removeAttribute('srcdoc');$('#frame').src='about:blank';$('#pframe').src='about:blank';if(b)window.api.update(b.id,{lastRead:Date.now()});cur=null;setTimeout(function(){window.api.state().then(function(s){S=s;render()})},350)}
 function sync(){if(!cur)return;window.api.state().then(function(s){S=s;cur=S.books.filter(function(x){return x.id===cur.id})[0]||cur;if($('#panel').classList.contains('on'))panelList()})}
 function setFin(b,f){window.api.update(b.id,{finished:f,progress:f?100:(b.format==='pdf'?0:b.progress),finishedAt:f?Date.now():0}).then(setState)}
 window.addEventListener('message',function(e){
@@ -691,7 +747,7 @@ addEventListener('drop',function(e){e.preventDefault();if(dragId)return;dc=0;$('
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
 window.api.onState(keep);window.api.onToast(toast);window.api.onOpen(function(id){window.api.state().then(function(s){S=s;openBook(id)})});
 $('.lang').addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.lang!==LANG)setLang(b.dataset.lang,true)});
-window.api.state().then(function(s){S=s;setLang(s.settings.lang||'ar',false);applyTheme();splashInit()});
+window.api.state().then(function(s){S=s;setLang(s.settings.lang||'ar',false);applyTheme();splashInit();try{JSON.parse(localStorage.getItem('li-bgq')||'[]').forEach(function(j){if(j&&j.id&&j.tgt&&bgq.every(function(x){return x.id!==j.id}))bgq.push(j)});setTimeout(bgRun,2500)}catch(e){}});
 window.__li={onBack:function(){if($('#modal').classList.contains('on')){closeModal();return true}if($('#menu').style.display==='block'){hideMenu();return true}if(document.body.classList.contains('drawer')){document.body.classList.remove('drawer');return true}if($('#endcard').classList.contains('on')){$('#endcard').classList.remove('on');return true}if($('#pop').classList.contains('on')){$('#pop').classList.remove('on');return true}if($('#find').classList.contains('on')){$('#find').classList.remove('on');return true}if($('#panel').classList.contains('on')){closePanel();return true}if($('#reader').classList.contains('on')){closeBook();return true}if(view!=='home'||query){view='home';query='';$('#q').value='';render();return true}return false},setLang:setLang,untranslated:untranslated,open:openBook,state:function(){return S},refresh:function(){return window.api.state().then(setState)}};
 })();
 </script></body></html>
