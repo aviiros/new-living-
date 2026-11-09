@@ -11,15 +11,21 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - name: Install root packages (jszip is copied into the app)
-        run: npm install --no-audit --no-fund
+        shell: bash
+        run: |
+          for i in 1 2 3 4; do npm install --no-audit --no-fund && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - name: Prepare the app pages
         run: node scripts/prepare-www.js --desktop
       - name: Install desktop packages
         working-directory: windows
-        run: npm install --no-audit --no-fund
+        shell: bash
+        run: |
+          for i in 1 2 3 4; do npm install --no-audit --no-fund && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - name: Build installer and portable exe
         working-directory: windows
-        run: npm run dist
+        shell: bash
+        run: |
+          for i in 1 2 3 4; do npm run dist && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: Living-Ideas-Windows

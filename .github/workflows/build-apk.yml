@@ -22,7 +22,9 @@ jobs:
         run: node scripts/prepare-www.js && npx cap sync android
       - name: Build debug APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        run: |
+          chmod +x gradlew
+          for i in 1 2 3 4; do ./gradlew assembleDebug --no-daemon && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: Living-Ideas-debug-apk
