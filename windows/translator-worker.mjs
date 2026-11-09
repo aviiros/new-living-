@@ -30,7 +30,11 @@ function pieces(text) {
 }
 async function hop(text, a, b) {
   const p = await pipe(a, b), pre = a === 'en' && b === 'ar' ? '>>ara<< ' : '', out = [];
-  for (const s of pieces(text)) { const r = await p(pre + s, { max_new_tokens: 400, num_beams: 2 }); out.push(((r && r[0] && r[0].translation_text) || '').trim()); }
+  for (const s of pieces(text)) {
+    let t = '';
+    for (const nb of [2, 1, 4]) { const r = await p(pre + s, { max_new_tokens: 400, num_beams: nb }); t = ((r && r[0] && r[0].translation_text) || '').trim(); if (t) break; }
+    out.push(t || s);
+  }
   return out.join(' ');
 }
 // Best quality first: one multilingual model (NLLB-200, about 900 MB, downloaded once). If it cannot be loaded
