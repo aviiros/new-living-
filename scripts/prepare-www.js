@@ -18,7 +18,7 @@ try {
   if (!tj || !wj) throw new Error('tesseract.js not installed');
   fs.copyFileSync(tj, path.join(od, 'tesseract.min.js')); fs.copyFileSync(wj, path.join(od, 'worker.min.js'));
   const cd = path.join(nm, 'tesseract.js-core'); fs.readdirSync(cd).filter(f => /^tesseract-core.*\.(js|wasm)$/.test(f)).forEach(f => fs.copyFileSync(path.join(cd, f), path.join(od, f)));
-  for (const l of ['ara', 'eng']) {
+  for (const l of ['ara', 'eng', 'fra', 'spa', 'ita', 'ind']) {
     const base = path.join(nm, '@tesseract.js-data', l), dirs = ['4.0.0_best_int', '4.0.0_fast', '4.0.0'].map(d => path.join(base, d, l + '.traineddata.gz'));
     const f = first(...dirs); if (!f) throw new Error('language data missing: ' + l); fs.copyFileSync(f, path.join(od, 'lang', l + '.traineddata.gz'));
   }

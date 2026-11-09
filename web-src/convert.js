@@ -272,9 +272,18 @@
     });
     return { items: items, text: items.map(function (o) { return o.txt; }).join('\n'), firstHeading: (items.filter(function (o) { return o.head; })[0] || {}).txt || '', outline: [] };
   }
+  // Picks the OCR language pack from the first recognised page (Arabic letters, or common words of each Latin language).
+  var STOP = { eng: /\b(the|and|of|to|is|that|with|for|are|was)\b/gi, fra: /\b(le|la|les|des|est|une|et|que|pour|dans|qui)\b/gi, spa: /\b(el|los|las|del|una|que|por|con|para|es|se)\b/gi, ita: /\b(il|gli|della|che|per|con|una|sono|non|di|le)\b/gi, ind: /\b(yang|dan|di|ini|itu|dengan|untuk|dari|pada|adalah)\b/gi };
+  function detectLang(tx) {
+    if (!tx || tx.length < 60) return '';
+    var a = (tx.match(arRe) || []).length, l = (tx.match(laRe) || []).length;
+    if (a > l) return 'ara+eng';
+    var best = 'eng', bs = -1; Object.keys(STOP).forEach(function (k) { var c = (tx.match(STOP[k]) || []).length; if (c > bs) { bs = c; best = k; } });
+    return bs >= 3 ? (best === 'eng' ? 'eng' : best + '+eng') : 'ara+eng+fra+spa+ita+ind';
+  }
   // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
   function ocrRun(count, getCanvas, onP, cx) {
-    var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng', done = 0;
+    var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0;
     var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + (EN() ? '~' + left + ' min left' : 'متبقي نحو ' + left + ' دقيقة')) : ''; };
     var label = function (i) { return (EN() ? 'Reading text from page ' : 'جارٍ قراءة النص من الصفحة ') + i + (EN() ? ' of ' : ' من ') + count + eta(); };
     var step = function (i) {
@@ -286,9 +295,9 @@
         return worker.recognize(cv, {}, { blocks: true, text: true }).then(function (r) {
           cv.width = cv.height = 1;
           var pp = pageParas(r.data); all.push(pp); done++;
-          if (i === 1 || (i === 2 && langs === 'ara+eng' && 0)) {
-            var tx = pp.map(function (x) { return x.t; }).join(' '), a = (tx.match(arRe) || []).length, l = (tx.match(laRe) || []).length;
-            if (tx.length > 80 && a < l * 0.1 && count > 1) { langs = 'eng'; return worker.terminate().then(function () { return makeWorker('eng'); }).then(function (w) { worker = w; }); }
+          if (i === 1 && count > 1) {
+            var nl = detectLang(pp.map(function (x) { return x.t; }).join(' '));
+            if (nl && nl !== langs) { langs = nl; return worker.terminate().then(function () { return makeWorker(nl); }).then(function (w) { worker = w; }); }
           }
         });
       }).then(function () { return step(i + 1); });

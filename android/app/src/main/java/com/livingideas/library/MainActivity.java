@@ -59,7 +59,7 @@ public class MainActivity extends BridgeActivity {
     return m.length() > 90 ? m.substring(0, 90) : m;
   }
 
-  private boolean online() { try { return getSharedPreferences("li", Context.MODE_PRIVATE).getBoolean("online", true); } catch (Exception e) { return true; } }
+  private boolean online() { try { return getSharedPreferences("li", Context.MODE_PRIVATE).getBoolean("online", false); } catch (Exception e) { return false; } }
   private final java.util.concurrent.ExecutorService net = java.util.concurrent.Executors.newFixedThreadPool(3);
 
   // Better meaning than the small on-device model: whole paragraphs go to the online translator;

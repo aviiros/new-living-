@@ -13,7 +13,7 @@
   window.LiNative = {
     init: function () {}, blockMenu: function () {}, stop: function () {}, voices: function () { return '[]'; },
     translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online()); },
-    online: function () { try { return localStorage.getItem('li-online') !== '0'; } catch (e) { return true; } },
+    online: function () { try { return localStorage.getItem('li-online') === '1'; } catch (e) { return false; } },
     setOnline: function (v) { try { localStorage.setItem('li-online', v ? '1' : '0'); } catch (e) {} },
     printHtml: function (html, name) { D.printPdf(html, name); }
   };
