@@ -1,6 +1,6 @@
 {
   "name": "living-ideas-android",
-  "version": "3.8.2",
+  "version": "3.8.3",
   "private": true,
   "description": "Living Ideas — Android build kit (Capacitor)",
   "scripts": {

@@ -199,11 +199,13 @@
 
   // =====================================================================  PDF
   var pdfLib = null;
+  // Workers loaded straight from a custom scheme (the Windows app) can silently fail, which makes pdf.js work on the page itself and freeze it. A blob copy always works.
+  function blobUrl(path) { return fetch(path).then(function (r) { if (!r.ok) throw new Error('x'); return r.text(); }).then(function (t) { return URL.createObjectURL(new Blob([t], { type: 'text/javascript' })); }).catch(function () { return ''; }); }
   function loadPdfJs() {
     if (pdfLib) return Promise.resolve(pdfLib);
     if (window['pdfjs-dist/build/pdf']) { pdfLib = window['pdfjs-dist/build/pdf']; return Promise.resolve(pdfLib); }
     return new Promise(function (res, rej) {
-      var s = document.createElement('script'); s.src = 'pdfjs/pdf.min.js'; s.onload = function () { pdfLib = window['pdfjs-dist/build/pdf']; pdfLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.js'; res(pdfLib); }; s.onerror = function () { rej(new Error('pdfjs')); }; document.head.appendChild(s);
+      var s = document.createElement('script'); s.src = 'pdfjs/pdf.min.js'; s.onload = function () { pdfLib = window['pdfjs-dist/build/pdf']; pdfLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.js'; blobUrl('pdfjs/pdf.worker.min.js').then(function (u) { if (u) pdfLib.GlobalWorkerOptions.workerSrc = u; res(pdfLib); }); }; s.onerror = function () { rej(new Error('pdfjs')); }; document.head.appendChild(s);
     });
   }
   var G = window.__PDFGEO, median = G.median, pageLines = G.pageLines, readingOrder = G.readingOrder;
@@ -215,8 +217,8 @@
     return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'ocr/tesseract.min.js'; sc.onload = res; sc.onerror = function () { rej(new Error('ocr-missing')); }; document.head.appendChild(sc); });
   }
   function makeWorker(langs, onP) {
-    return loadTess().then(function () {
-      return window.Tesseract.createWorker(langs, 1, { workerPath: absUrl('ocr/worker.min.js'), corePath: absUrl('ocr/'), langPath: absUrl('ocr/lang/'), gzip: true, workerBlobURL: false, logger: function (m) { if (onP && m && m.status === 'recognizing text') onP(m.progress || 0); } });
+    return loadTess().then(function () { return blobUrl('ocr/worker.min.js'); }).then(function (wu) {
+      return window.Tesseract.createWorker(langs, 1, { workerPath: wu || absUrl('ocr/worker.min.js'), corePath: absUrl('ocr/'), langPath: absUrl('ocr/lang/'), gzip: true, workerBlobURL: false, logger: function (m) { if (onP && m && m.status === 'recognizing text') onP(m.progress || 0); } });
     });
   }
   // Removes light watermarks, stamps and paper texture, keeping only the dark text.
@@ -334,6 +336,11 @@
         var n = doc.numPages, pages = [], chars = 0, meta = {};
         var step = function (i) {
           if (i > n) return Promise.resolve();
+          if (opts.cancel && opts.cancel.stop) return Promise.reject(new Error('cancel'));
+          if (i % 3 === 0) return new Promise(function (r) { setTimeout(r, 0); }).then(function () { return stepIn(i); });
+          return stepIn(i);
+        };
+        var stepIn = function (i) {
           return doc.getPage(i).then(function (pg) {
             var vp = pg.getViewport({ scale: 1 });
             return pg.getTextContent().then(function (tc) {
