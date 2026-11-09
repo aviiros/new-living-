@@ -183,7 +183,7 @@ header.top #langBtn{display:none!important}
  <header class="top"><button class="btn" id="menuBtn" aria-label="القائمة" style="display:none;width:38px;padding:0;font-size:18px">☰</button><h1 id="title"></h1><button class="btn" id="langBtn" hidden data-noloc="1" aria-label="Language / اللغة"></button><div class="tool" id="tool"><input type="range" id="size" min="120" max="260" step="10" title="حجم الأغلفة">
   <div class="seg"><button id="vg" title="شبكة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button><button id="vl" title="قائمة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div>
   <select id="sort"><option value="recent">الأحدث قراءة</option><option value="title">العنوان</option><option value="author">المؤلف</option><option value="added">تاريخ الإضافة</option><option value="rating">التقييم</option><option value="manual">ترتيبي (بالسحب)</option></select>
-  <button class="btn primary" id="addBtn">إضافة كتاب</button></div></header>
+  <button class="btn" id="scanBtn">مسح بالكاميرا</button><button class="btn primary" id="addBtn">إضافة كتاب</button></div></header>
  <div id="scroller"><label class="sbox" id="sbox" style="display:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><input id="sb" type="search" placeholder="ابحث في مكتبتك..." aria-label="بحث"></label><div class="home" id="home"></div><div class="notes" id="notes"></div><div id="grid"></div><div id="list"></div>
   <div class="empty" id="empty"><img src="assets/logo.png" alt="Living Ideas"><h2 id="et"></h2><p id="ep"></p></div></div>
 </main></div>
@@ -504,7 +504,7 @@ function renderHome(){
   if(!all.length){h+='<div class="hempty">'+emptyArt()+'<h3>'+T('مكتبتك تنتظر أول كتاب','Your library awaits its first book')+'</h3><p>'+T('أضف كتاباً من هاتفك لتبدأ: EPUB أو PDF أو MOBI أو غيرها.','Add a book from your phone to begin: EPUB, PDF, MOBI and more.')+'</p><button class="btn primary" id="hAdd">'+T('إضافة كتاب','Add Book')+'</button></div>'}
   else{
     var gridOn=S.settings.view!=='list';
-    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><button class="ib sm" id="hAdd2" style="margin-inline-start:auto">'+si('plus')+T('إضافة كتاب','Add Book')+'</button><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
+    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><button class="ib sm" id="hScan" style="margin-inline-start:auto">📷 '+T('مسح بالكاميرا','Scan')+'</button><button class="ib sm" id="hAdd2">'+si('plus')+T('إضافة كتاب','Add Book')+'</button><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
     h+='<label class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'+SI.srch+'</svg><input id="hs" type="search" placeholder="'+T('ابحث في مكتبتك...','Search your library...')+'" aria-label="'+T('بحث','Search')+'"></label>';
     if(hero){var lf=left(hero);hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero" data-id="'+hero.id+'" style="cursor:pointer">'+cover(hero)+'<div class="info"><h2>'+esc(dt(hero))+'</h2><div class="a">'+esc(da(hero))+'</div><div class="bar"><i style="width:'+hero.progress+'%"></i></div><div class="a">'+AR(hero.progress)+'٪'+(lf?T(' · متبقٍ نحو '+lf,' · about '+lf+' left'):'')+'</div><button class="btn primary" data-open="'+hero.id+'">'+T('متابعة','Continue')+'</button></div></div></div></div>'}
     else hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero"><img src="assets/emblem.png" alt="" style="width:84px;border-radius:12px"><div class="info"><h2>'+T('لا كتاب قيد القراءة','Nothing in progress')+'</h2><div class="a">'+T('اختر كتاباً لتبدأ.','Pick a book to begin.')+'</div><button class="btn primary" data-v="all">'+T('تصفح كل الكتب','Browse all books')+'</button></div></div></div></div>';
@@ -521,7 +521,7 @@ function renderHome(){
   var q=function(id,f){var e=document.getElementById(id);if(e)e.onclick=f};
   q('goalSet',goalDlg);q('hAdd',function(){window.api.add().then(setState)});
   q('tSave',function(){if(!it)return;var on=toggleSave(it);toast(on?T('حُفظت الفكرة','Saved'):T('أُزيلت من المحفوظة','Removed from saved'));renderHome()});
-  q('tShare',function(){if(it)shareThought(it)});q('tList',quotesDlg);q('tAdd',function(){quotesDlg(true)});q('hAdd2',function(){window.api.add().then(setState)});
+  q('tShare',function(){if(it)shareThought(it)});q('tList',quotesDlg);q('tAdd',function(){quotesDlg(true)});q('hAdd2',function(){window.api.add().then(setState)});q('hScan',function(){if(window.api.scan)window.api.scan().then(setState)});
   q('tNext',function(){curThought(true);renderHome();pulse('#thought')});
   q('tDel',function(){if(!it)return;var m=it.kind==='mine';confirmBox(m?T('حذف اقتباسك؟','Delete your quote?'):T('إخفاء هذا الاقتباس؟','Hide this quote?'),m?T('يُحذف نهائياً.','It will be deleted for good.'):T('لن يظهر بعد الآن، ويمكنك استعادته من «اقتباساتي».','It will no longer appear. You can restore it from “My quotes”.'),m?T('حذف','Delete'):T('إخفاء','Hide'),function(){removeThought(it);curThought(true);renderHome()})});
   q('hvg',function(){window.api.settings({view:'grid'}).then(setState)});q('hvl',function(){window.api.settings({view:'list'}).then(setState)});
@@ -554,7 +554,7 @@ window.__liImportOpts=function(name,ext){return new Promise(function(res){
     $('#box').onclick=function(e){var c=e.target.closest('[data-t]');if(!c)return;tr=c.dataset.t;cardTr()};
   };
   var cardMode=function(){
-    var h=head+'<div class="sh">'+T('طريقة الفتح','OPEN AS')+'</div><div class="chips"><button class="chip'+(mode==='html'?' on':'')+'" data-m="html">'+T('كتاب HTML بكل المميزات','HTML book, all features')+'</button><button class="chip'+(mode==='pdf'?' on':'')+'" data-m="pdf">'+T('PDF كما هو','PDF as is')+'</button></div><p style="margin:8px 2px 0;font-size:13px;color:var(--mute)">'+(mode==='html'?T('نص يعاد تنسيقه ليناسب الشاشة، مع التظليل والملاحظات والاقتباسات وترجمة أدق.','Text reflowed for the screen, with highlights, notes, quotes and more accurate translation.'):T('يحافظ على شكل الصفحات كما هو.','Keeps the original page layout.'))+'</p>'
+    var h=head+'<div class="sh">'+T('طريقة الفتح','OPEN AS')+'</div><div class="chips"><button class="chip'+(mode==='html'?' on':'')+'" data-m="html">'+T('كتاب HTML بكل المميزات','HTML book, all features')+'</button><button class="chip'+(mode==='pdf'?' on':'')+'" data-m="pdf">'+T('PDF كما هو','PDF as is')+'</button></div><p style="margin:8px 2px 0;font-size:13px;color:var(--mute)">'+(mode==='html'?T('نص يعاد تنسيقه ليناسب الشاشة، مع التظليل والملاحظات والاقتباسات وترجمة أدق. الملفات المصوّرة تُقرأ بتقنية OCR وتُزال علامتها المائية.','Text reflowed for the screen, with highlights, notes, quotes and more accurate translation. Scanned files are read with OCR and light watermarks are removed.'):T('يحافظ على شكل الصفحات كما هو.','Keeps the original page layout.'))+'</p>'
      +'<div class="acts"><button class="btn" id="ioNo">'+T('تخطي','Skip')+'</button><button class="btn primary" id="ioGo">'+T('متابعة','Continue')+'</button></div></div>';
     modal(h);
     $('#ioNo').onclick=function(){fin({skip:true})};
@@ -565,13 +565,26 @@ window.__liImportOpts=function(name,ext){return new Promise(function(res){
   if(ext==='pdf')cardMode();else if(canTr)cardTr();else{fin({mode:'html',tr:''});return}
   ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
 })};
-window.__liBusy=function(msg,pct){
+window.__liBusy=function(msg,pct,cancel){
   var m=$('#modal');
   if(msg===false){if(window.__liBusyOn){window.__liBusyOn=false;closeModal()}return}
   window.__liBusyOn=true;
-  var h='<div id="sheet" style="text-align:center"><h3>'+esc(msg)+'</h3><div style="height:8px;border-radius:6px;background:var(--line);margin:18px 4px 6px;overflow:hidden"><div style="height:100%;width:'+(pct==null?35:pct)+'%;background:var(--acc);transition:width .3s"></div></div><p style="font-size:13px;color:var(--mute)">'+(pct==null?'':pct+'%')+'</p></div>';
+  var h='<div id="sheet" style="text-align:center"><h3>'+esc(msg)+'</h3><div style="height:8px;border-radius:6px;background:var(--line);margin:18px 4px 6px;overflow:hidden"><div style="height:100%;width:'+(pct==null?35:pct)+'%;background:var(--acc);transition:width .3s"></div></div><p style="font-size:13px;color:var(--mute)">'+(pct==null?'':pct+'%')+'</p>'+(cancel?'<div class="acts"><button class="btn" id="busyNo">'+T('إلغاء','Cancel')+'</button></div>':'')+'</div>';
   $('#box').innerHTML=h;m.classList.add('on');
+  if(cancel){$('#busyNo').onclick=function(){$('#busyNo').disabled=true;$('#busyNo').textContent=T('جارٍ الإلغاء…','Cancelling…');cancel()}}
 };
+window.__liAsk=function(title,body,yes,no){return new Promise(function(res){
+  var done=false,ob=null,fin=function(v){if(done)return;done=true;try{ob&&ob.disconnect()}catch(e){}try{closeModal()}catch(e){}res(v)};
+  modal('<div id="sheet"><h3>'+esc(title)+'</h3><p style="margin:10px 2px 0;font-size:14px;line-height:1.8;color:var(--mute)">'+esc(body)+'</p><div class="acts"><button class="btn" id="askNo">'+esc(no)+'</button><button class="btn primary" id="askYes">'+esc(yes)+'</button></div></div>');
+  $('#askNo').onclick=function(){fin(false)};$('#askYes').onclick=function(){fin(true)};
+  ob=new MutationObserver(function(){if(!$('#modal').classList.contains('on'))fin(false)});ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
+})};
+window.__liScanAsk=function(n){return new Promise(function(res){
+  var done=false,ob=null,fin=function(v){if(done)return;done=true;try{ob&&ob.disconnect()}catch(e){}try{closeModal()}catch(e){}res(v)};
+  modal('<div id="sheet" style="text-align:center"><h3>'+T('تم التقاط الصفحة ','Page captured: ')+AR(n)+'</h3><p style="margin:10px 2px 0;font-size:14px;line-height:1.8;color:var(--mute)">'+T('صوّر كل صفحة بإضاءة جيدة وبدون ظلال. بعد الانتهاء سنقرأ النص ونحوّله إلى كتاب يمكن ترجمته.','Shoot each page in good light without shadows. When you are done we read the text and turn it into a book you can translate.')+'</p><div class="acts" style="flex-wrap:wrap"><button class="btn" id="scX">'+T('إلغاء','Cancel')+'</button><button class="btn" id="scDone">'+T('إنهاء وتحويل','Finish and convert')+'</button><button class="btn primary" id="scMore">'+T('صفحة أخرى','Next page')+'</button></div></div>');
+  $('#scX').onclick=function(){fin('cancel')};$('#scDone').onclick=function(){fin(false)};$('#scMore').onclick=function(){fin(true)};
+  ob=new MutationObserver(function(){if(!$('#modal').classList.contains('on'))fin('cancel')});ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
+})};
 function langDlg(){modal('<div id="sheet"><h3>'+T('اللغة','Language')+'</h3><div class="chips" style="margin-top:12px">'+LANGS.map(function(x){return '<button class="chip'+(LANG===x[0]?' on':'')+'" data-lg="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
   $('#no').onclick=closeModal;$('#box').onclick=function(e){var b=e.target.closest('[data-lg]');if(!b)return;closeModal();setLang(b.dataset.lg,true)}}
 function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'always';
@@ -613,7 +626,7 @@ $('#sb').addEventListener('input',function(e){query=e.target.value;if(query&&(vi
 var _sorted=sorted;sorted=function(L){if(view==='reads'&&!query.trim())return L.sort(function(a,b){return (b.lastRead||b.added||0)-(a.lastRead||a.added||0)});return _sorted(L)};
 var _filtered=filtered;filtered=function(){if(view==='reads'&&!query.trim())return sorted(S.books.filter(function(b){return vis(b)&&(b.lastRead||b.progress>0)}));return _filtered()};
 var _render=render,lastView=null,freshSeen=null;
-render=function(){_render();var searching=!!query.trim(),isHome=view==='home'&&!searching,isNotes=view==='notes'&&!searching;
+render=function(){_render();var sb2=$('#scanBtn');if(sb2){sb2.textContent=T('📷 مسح بالكاميرا','📷 Scan with camera');sb2.style.display=window.api&&window.api.scan?'':'none'}var searching=!!query.trim(),isHome=view==='home'&&!searching,isNotes=view==='notes'&&!searching;
   $('#sbox').style.display=(isHome||isNotes)?'none':'flex';var sb=$('#sb');if(sb.value!==query&&document.activeElement!==sb)sb.value=query;
   if(view==='reads'&&!searching){$('#title').textContent=T('قراءاتي','My Reads');if(!filtered().length){$('#et').textContent=T('لم تبدأ أي قراءة بعد','No reads yet');$('#ep').textContent=T('الكتب التي تفتحها ستظهر هنا بترتيب آخر قراءة.','Books you open will appear here, most recent first.')}}
   $('#title').style.visibility=isHome?'hidden':'';sb.placeholder=T('ابحث في مكتبتك...','Search your library...');
@@ -654,7 +667,7 @@ document.addEventListener('keydown',function(e){var rd=$('#reader').classList.co
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('.tile,.lrow')){e.preventDefault();openBook(e.target.dataset.id)}});
 $('#q').addEventListener('input',function(e){query=e.target.value;if(query&&(view==='home'||view==='notes'))view=view==='notes'?'notes':'all';render()});
 $('#menuBtn').onclick=function(){document.body.classList.add('drawer')};$('#scrim').onclick=function(){document.body.classList.remove('drawer')};
-$('#addBtn').onclick=$('#addBtn2').onclick=function(){window.api.add().then(setState)};$('#moreBtn').onclick=function(e){e.stopPropagation();moreMenu()};
+$('#addBtn').onclick=$('#addBtn2').onclick=function(){window.api.add().then(setState)};$('#scanBtn').onclick=function(){if(window.api.scan)window.api.scan().then(setState)};$('#moreBtn').onclick=function(e){e.stopPropagation();moreMenu()};
 $('#addCol').onclick=function(){ask('مجموعة جديدة','الاسم','',function(n){window.api.colAdd(n).then(setState)})};
 $('#sort').onchange=function(e){window.api.settings({sort:e.target.value}).then(setState)};
 $('#size').oninput=function(e){S.settings.size=+e.target.value;document.documentElement.style.setProperty('--w',e.target.value+'px')};$('#size').onchange=function(e){window.api.settings({size:+e.target.value})};

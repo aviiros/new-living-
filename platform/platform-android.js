@@ -89,7 +89,49 @@
   }
   // ---------- import ----------
   function sha1(buf) { return crypto.subtle.digest('SHA-1', buf).then(function (h) { return Array.prototype.map.call(new Uint8Array(h), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }); }
-  var ALLOWED = /\.(html?|epub|pdf|docx|txt|md|fb2|cbz|mobi|azw3?|prc|mp3|m4a|m4b|aac|ogg|opus|wav|flac)$/i;
+  var ALLOWED = /\.(html?|epub|pdf|docx|jpe?g|png|webp|bmp|txt|md|fb2|cbz|mobi|azw3?|prc|mp3|m4a|m4b|aac|ogg|opus|wav|flac)$/i;
+  // ---------- progress card, photos (camera / gallery) -> OCR book ----------
+  var busyUI = function (m, p, c) { try { window.__liBusy && window.__liBusy(m, p, c); } catch (e) {} }, unbusyUI = function () { try { window.__liBusy && window.__liBusy(false); } catch (e) {} }, tickUI = function () { return new Promise(function (r) { setTimeout(r, 60); }); };
+  var IMGRE = /\.(jpe?g|png|webp|bmp)$/i;
+  function importImages(files, nameHint) {
+    var F = window.__FMT; if (!F || !F.imagesToHtml) return Promise.resolve({ err: 'تعذر قراءة الصور في هذه النسخة' });
+    var base = nameHint || (files.length === 1 ? baseName(files[0].name) : baseName(files[0].name) + ' (' + files.length + ')');
+    return files[0].arrayBuffer().then(sha1).then(function (h) {
+      var hash = h + '-' + files.length + '-' + files.reduce(function (a, f) { return a + f.size; }, 0), dup = lib.books.filter(function (b) { return b.hash === hash; })[0]; if (dup) return { dup: dup };
+      return (window.__liImportOpts ? window.__liImportOpts(base, 'img').catch(function () { return { tr: '' }; }) : Promise.resolve({ tr: '' })).then(function (o) {
+        if (o.skip) return { skipped: true };
+        var cx = { stop: false }; busyUI('جارٍ تجهيز قراءة النص…', 0, function () { cx.stop = true; });
+        return tickUI().then(function () { return F.imagesToHtml(files, base, function (p, l) { busyUI(l || 'جارٍ القراءة…', p, function () { cx.stop = true; }); }, cx); }).then(function (r) {
+          var id = 'b' + rid(6), b = { id: id, hash: hash, format: 'epub', orig: 'OCR', file: 'index.html', title: r.title || base, author: '', series: '', rating: 0, hidden: false, want: false, cover: null, added: Date.now(), lastRead: 0, progress: 0, finished: false, readSec: 0, collections: [], bytes: files.reduce(function (a, f) { return a + f.size; }, 0), tpl: false, words: wordCount(r.html), ext: null, annots: [], audio: null };
+          if (o.tr) { try { localStorage.setItem('li:' + id + ':li-tr-target:' + id, o.tr); } catch (e) {} }
+          return fSet(id + '/index.html', new Blob([r.html], { type: 'text/html' })).then(function () {
+            var cv = r.cover; var p = cv ? (b.cover = 'cover.' + cv.ext, fSet(id + '/' + b.cover, cv.blob).then(function () { setCoverURL(b, cv.blob); })) : Promise.resolve();
+            return p.then(function () { lib.books.push(b); unbusyUI(); return { book: b }; });
+          });
+        }).catch(function (e) { unbusyUI(); var m = e && e.message; return { err: m === 'cancel' ? 'أُلغي التحويل' : m === 'ocr-missing' ? 'ميزة قراءة النص غير متوفرة في هذه النسخة' : m === 'noText' ? 'لم أستطع قراءة نص من الصور. جرّب صورة أوضح وإضاءة أفضل' : 'تعذر تحويل الصور إلى كتاب' }; });
+      });
+    });
+  }
+  function pickCam() {
+    return new Promise(function (res) {
+      var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.setAttribute('capture', 'environment'); i.style.display = 'none'; document.body.appendChild(i);
+      var done = false, fin = function (f) { if (done) return; done = true; try { i.remove(); } catch (e) {} res(f); };
+      i.onchange = function () { fin([].slice.call(i.files || [])); }; i.oncancel = function () { fin([]); };
+      addEventListener('focus', function once() { setTimeout(function () { if (!done && !(i.files && i.files.length)) fin([]); }, 3500); removeEventListener('focus', once); });
+      i.click();
+    });
+  }
+  function scanFlow() {
+    var shots = [];
+    var next = function () {
+      return pickCam().then(function (f) {
+        if (!f.length) return shots;
+        shots.push(f[0]);
+        return (window.__liScanAsk ? window.__liScanAsk(shots.length) : Promise.resolve(false)).then(function (a) { return a === 'cancel' ? [] : a ? next() : shots; });
+      });
+    };
+    return next();
+  }
   function importFile(file) {
     if (!ALLOWED.test(file.name)) return Promise.resolve({ err: 'صيغة غير مدعومة: ' + file.name });
     return file.arrayBuffer().then(function (buf) { return sha1(buf).then(function (hash) {
@@ -103,15 +145,28 @@
       var bad = function (e) { return { err: (e && e.message === 'drm' ? 'ملف محمي (DRM): ' : 'تعذر استيراد الملف: ') + file.name }; };
       var setTr = function (o) { if (o && o.tr) { try { localStorage.setItem(ext === 'pdf' && o.mode !== 'html' ? 'li-pdf-tr:' + id : 'li:' + id + ':li-tr-target:' + id, o.tr); /* same key the book page reads (its storage is prefixed per book) */ } catch (e) {} } };
       var askOpts = function () { return window.__liImportOpts ? window.__liImportOpts(file.name, ext).catch(function () { return { mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }; }) : Promise.resolve({ mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }); };
-      var busy = function (m, p) { try { window.__liBusy && window.__liBusy(m, p); } catch (e) {} }, unbusy = function () { try { window.__liBusy && window.__liBusy(false); } catch (e) {} }, tick = function () { return new Promise(function (r) { setTimeout(r, 60); }); };
-      var prog = function (p) { busy('جارٍ تحويل الملف…', p); };
+      var busy = busyUI, unbusy = unbusyUI, tick = tickUI, cxp = null;
+      var prog = function (p, l) { busy(l || 'جارٍ تحويل الملف…', p, cxp ? function () { cxp.stop = true; } : null); };
       var asPdf = function (o) { setTr(o); var head = new TextDecoder('latin1').decode(new Uint8Array(buf, Math.max(0, buf.byteLength - 20000))), info = function (k) { var mm = new RegExp('/' + k + '\\s*\\(([^)]{1,200})\\)').exec(head); return mm ? mm[1].replace(/\\(.)/g, '$1').trim() : ''; }; Object.assign(b, { format: 'pdf', file: 'book.pdf', title: (/^[\x20-\x7E]*$/.test(info('Title')) && info('Title')) || base, author: /^[\x20-\x7E]*$/.test(info('Author')) ? info('Author') : '' }); return fSet(id + '/book.pdf', new Blob([buf], { type: 'application/pdf' })).then(function () { return finish(null); }); };
       if (F && ext === 'docx') return askOpts().then(function (o) { if (o.skip) return { skipped: true }; busy('جارٍ تحويل الملف…'); return tick().then(function () { return F.docxToHtml(buf, file.name); }).then(function (r) { setTr(o); return fin(r, 'DOCX'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); return bad(e); }); }).catch(bad);
       if (ext === 'pdf') return askOpts().then(function (o) {
         if (o.skip) return { skipped: true };
         if (o.mode !== 'html' || !F || !F.pdfToHtml) return asPdf(o);
-        busy('جارٍ تحويل الملف…', 0);
-        return tick().then(function () { return F.pdfToHtml(buf, file.name, prog); }).then(function (r) { setTr(o); return fin(r, 'PDF'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); if (e && e.message === 'scanned') { toast('الملف صور بلا نص، فُتح كما هو'); return asPdf(o); } return bad(e); });
+        cxp = { stop: false }; busy('جارٍ تحويل الملف…', 0);
+        var run = function (ocr) { return F.pdfToHtml(buf, file.name, prog, { ocr: ocr, cancel: cxp }); };
+        return tick().then(function () { return run(false); }).catch(function (e) {
+          if (!(e && e.message === 'scanned')) throw e;
+          unbusy();
+          var ask = window.__liAsk ? window.__liAsk('الملف مصوّر (صور بلا نص)', 'سنقرأ النص من الصفحات بتقنية التعرف على النص (OCR) ثم نحوّله إلى كتاب يمكن ترجمته. تُزال العلامات المائية الفاتحة تلقائياً. قد يستغرق وقتاً (' + (e.pages || '') + ' صفحة)، ويعمل بدون إنترنت.', 'تحويل إلى نص', 'فتحه كما هو') : Promise.resolve(false);
+          return ask.then(function (yes) { if (!yes) { var x = new Error('keep'); throw x; } cxp = { stop: false }; busy('جارٍ تجهيز قراءة النص…', 0); return tick().then(function () { return run(true); }); });
+        }).then(function (r) { setTr(o); return fin(r, 'PDF'); }).then(function (x) { unbusy(); return x; }, function (e) {
+          unbusy(); var m = e && e.message;
+          if (m === 'keep') return asPdf(o);
+          if (m === 'cancel') { toast('أُلغي التحويل، فُتح الملف كما هو'); return asPdf(o); }
+          if (m === 'ocr-missing') { toast('ميزة قراءة النص غير متوفرة في هذه النسخة، فُتح الملف كما هو'); return asPdf(o); }
+          if (m === 'noText') { toast('تعذّرت قراءة نص من الملف، فُتح كما هو'); return asPdf(o); }
+          return bad(e);
+        });
       });
       if (F && (ext === 'txt' || ext === 'md')) return F.txtToHtml(buf, file.name).then(function (r) { return fin(r, ext === 'md' ? 'MD' : 'TXT'); }).catch(bad);
       if (F && ext === 'fb2') return F.fb2ToHtml(buf).then(function (r) { return fin(r, 'FB2'); }).catch(bad);
@@ -120,8 +175,13 @@
       var name = 'audio.' + ext; Object.assign(b, { format: 'audio', file: name, audio: { pos: 0, dur: 0, bm: [] } }); return fSet(id + '/' + name, new Blob([buf], { type: file.type || 'audio/mpeg' })).then(function () { return finish(null); });
     }); }).catch(function () { return { err: 'تعذر استيراد الملف: ' + file.name }; });
   }
-  function addMany(files) {
-    var n = 0, d = 0, errs = [], chain = Promise.resolve();
+  function addMany(files, opts) {
+    var n = 0, d = 0, errs = [], chain = Promise.resolve(), imgs = files.filter(function (f) { return IMGRE.test(f.name) || /^image\//.test(f.type || ''); });
+    if (imgs.length) {
+      files = files.filter(function (f) { return imgs.indexOf(f) < 0; });
+      if (!(opts && opts.keep)) imgs.sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+      chain = chain.then(function () { return importImages(imgs, opts && opts.name).then(function (r) { if (r.book) n++; else if (r.dup) d++; else if (r.err) errs.push(r.err); }); });
+    }
     files.forEach(function (f) { chain = chain.then(function () { return importFile(f).then(function (r) { if (r.book) n++; else if (r.dup) d++; else if (r.err) errs.push(r.err); }); }); });
     return chain.then(function () { return save(true); }).then(function () { push(); if (n) toast('أُضيف ' + n + (n === 1 ? ' كتاب' : ' كتب')); if (d) toast('موجود مسبقاً في المكتبة (' + d + ')'); errs.forEach(toast); return lib; });
   }
@@ -611,7 +671,8 @@
     frameSrc: A(frameSrc), openUrl: function (u) { if (!/^(https?:|mailto:)/i.test(u)) return; if (PL.Browser && PL.Browser.open && /^https?:/i.test(u)) PL.Browser.open({ url: u }); else window.open(u, '_blank'); },
     pathOf: function () { return ''; }, onOpen: function () {}, onState: function (f) { cbState.push(f); }, onToast: function (f) { cbToast.push(f); },
     state: A(function () { return lib; }),
-    add: A(function () { return pick('.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
+    scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: (document.documentElement.lang === 'ar' || !window.LANG || window.LANG === 'ar' ? 'مسح ضوئي ' : 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
+    add: A(function () { return pick('.jpg,.jpeg,.png,.webp,.bmp,image/*,.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
     addPaths: A(function () { return lib; }),
     update: A(function (id, patch) { var b = find(id); if (b) { ['title', 'author', 'series', 'rating', 'hidden', 'want', 'progress', 'finished', 'finishedAt', 'lastRead', 'audio', 'pdf'].forEach(function (k) { if (k in patch) b[k] = patch[k]; }); save(); } return lib; }),
     remove: A(function (id) { var i = lib.books.findIndex(function (b) { return b.id === id; }); if (i < 0) return lib; lib.books.splice(i, 1); if (coverURL[id]) { URL.revokeObjectURL(coverURL[id].u); delete coverURL[id]; } return fDelPrefix(id + '/').then(function () { save(true); return lib; }); }),

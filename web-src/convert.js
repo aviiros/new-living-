@@ -208,7 +208,118 @@
   }
   var G = window.__PDFGEO, median = G.median, pageLines = G.pageLines, readingOrder = G.readingOrder;
 
-  function pdfToHtml(buf, name, onProgress) {
+  // ================= OCR: scanned / photographed pages -> text (works offline) =================
+  var absUrl = function (u) { return new URL(u, location.href).href; };
+  function loadTess() {
+    if (window.Tesseract) return Promise.resolve();
+    return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'ocr/tesseract.min.js'; sc.onload = res; sc.onerror = function () { rej(new Error('ocr-missing')); }; document.head.appendChild(sc); });
+  }
+  function makeWorker(langs, onP) {
+    return loadTess().then(function () {
+      return window.Tesseract.createWorker(langs, 1, { workerPath: absUrl('ocr/worker.min.js'), corePath: absUrl('ocr/'), langPath: absUrl('ocr/lang/'), gzip: true, workerBlobURL: false, logger: function (m) { if (onP && m && m.status === 'recognizing text') onP(m.progress || 0); } });
+    });
+  }
+  // Removes light watermarks, stamps and paper texture, keeping only the dark text.
+  function cleanCanvas(cv) {
+    var w = cv.width, h = cv.height, ctx = cv.getContext('2d'), im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h, lum = new Uint8Array(n), hist = new Array(256).fill(0), i, j;
+    for (i = 0, j = 0; j < n; i += 4, j++) { var l = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; lum[j] = l; hist[l]++; }
+    // three-class Otsu: dark text | watermark / shading | paper
+    var P = new Array(257).fill(0), S = new Array(257).fill(0); for (i = 0; i < 256; i++) { P[i + 1] = P[i] + hist[i]; S[i + 1] = S[i] + i * hist[i]; }
+    var tot = P[256], mt = S[256] / tot, best = -1, t1 = 90, t2 = 190;
+    var cls = function (a, b) { var wgt = P[b] - P[a]; if (!wgt) return 0; var m = (S[b] - S[a]) / wgt; return wgt * (m - mt) * (m - mt); };
+    for (var a = 20; a < 200; a += 2) for (var b = a + 12; b < 250; b += 2) { var v = cls(0, a) + cls(a, b) + cls(b, 256); if (v > best) { best = v; t1 = a; t2 = b; } }
+    var T = Math.max(100, Math.min(175, Math.round(t1 + (t2 - t1) * 0.5)));
+    for (i = 0, j = 0; j < n; i += 4, j++) {
+      var mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]), dark = lum[j] < T && !(mx - mn > 50 && lum[j] > 60);
+      var vv = dark ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = vv; d[i + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0); return cv;
+  }
+  function drawBitmap(bm, maxSide) {
+    var sc = Math.min(1.6, maxSide / Math.max(bm.width, bm.height)), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bm.width * sc)); cv.height = Math.max(1, Math.round(bm.height * sc));
+    var c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(bm, 0, 0, cv.width, cv.height); return cv;
+  }
+  function blobBitmap(b) { return (window.createImageBitmap ? createImageBitmap(b, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(b); }) : Promise.reject(new Error('nobitmap'))); }
+  var arRe = /[؀-ۿ]/g, laRe = /[A-Za-z]/g;
+  // One recognised page -> paragraphs [{t, big}]
+  function pageParas(data) {
+    var out = [], lines = [];
+    var blocks = data && data.blocks;
+    if (blocks && blocks.length) {
+      blocks.forEach(function (bk) { (bk.paragraphs || []).forEach(function (pa) {
+        var ls = (pa.lines || []).map(function (ln) { var bb = ln.bbox || {}; return { t: String(ln.text || '').replace(/\s+/g, ' ').trim(), h: (bb.y1 || 0) - (bb.y0 || 0) }; }).filter(function (x) { return x.t; });
+        if (ls.length) { out.push({ ls: ls }); ls.forEach(function (x) { if (x.h > 0) lines.push(x.h); }); }
+      }); });
+    }
+    if (!out.length) { String((data && data.text) || '').split(/\n\s*\n/).forEach(function (blk) { var ls = blk.split('\n').map(function (t) { return { t: t.replace(/\s+/g, ' ').trim(), h: 0 }; }).filter(function (x) { return x.t; }); if (ls.length) out.push({ ls: ls }); }); }
+    var med = median(lines) || 0;
+    return out.map(function (pa) {
+      var txt = '', hs = pa.ls.map(function (x) { return x.h; }).filter(Boolean);
+      pa.ls.forEach(function (x, i) { if (!i) txt = x.t; else if (/[A-Za-z]-$/.test(txt) && /^[a-z]/.test(x.t)) txt = txt.slice(0, -1) + x.t; else txt += ' ' + x.t; });
+      var ph = median(hs) || 0;
+      return { t: txt.trim(), big: !!(med && ph && ph > med * 1.3 && pa.ls.length <= 3 && txt.length < 120) };
+    }).filter(function (x) { var L = (x.t.match(arRe) || []).length + (x.t.match(laRe) || []).length; return L >= 2 && !/^[\d\s.\-–—]+$/.test(x.t); });
+  }
+  function ocrBuild(pagesParas) {
+    var items = [], last = null;
+    pagesParas.forEach(function (pp, pi) {
+      pp.forEach(function (x, k) {
+        var txt = String(x.t || '').normalize('NFKC').replace(/[|¦]+/g, ' ').replace(/\s+/g, ' ').trim(); if (!txt) return;
+        if (x.big) { items.push({ txt: txt, head: true, lvl: 2, page: pi + 1 }); last = null; return; }
+        if (last && k === 0 && !/[.!?؟:…"”»)\]]$/.test(last.txt) && !last.head) { last.txt += ' ' + txt; return; }
+        last = { txt: txt, page: pi + 1 }; items.push(last);
+      });
+    });
+    return { items: items, text: items.map(function (o) { return o.txt; }).join('\n'), firstHeading: (items.filter(function (o) { return o.head; })[0] || {}).txt || '', outline: [] };
+  }
+  // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
+  function ocrRun(count, getCanvas, onP, cx) {
+    var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng', done = 0;
+    var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + (EN() ? '~' + left + ' min left' : 'متبقي نحو ' + left + ' دقيقة')) : ''; };
+    var label = function (i) { return (EN() ? 'Reading text from page ' : 'جارٍ قراءة النص من الصفحة ') + i + (EN() ? ' of ' : ' من ') + count + eta(); };
+    var step = function (i) {
+      if (i > count) return Promise.resolve();
+      if (cx && cx.stop) return Promise.reject(new Error('cancel'));
+      if (onP) onP(Math.round((i - 1) / count * 95), label(i));
+      return getCanvas(i).then(function (cv) {
+        cleanCanvas(cv);
+        return worker.recognize(cv, {}, { blocks: true, text: true }).then(function (r) {
+          cv.width = cv.height = 1;
+          var pp = pageParas(r.data); all.push(pp); done++;
+          if (i === 1 || (i === 2 && langs === 'ara+eng' && 0)) {
+            var tx = pp.map(function (x) { return x.t; }).join(' '), a = (tx.match(arRe) || []).length, l = (tx.match(laRe) || []).length;
+            if (tx.length > 80 && a < l * 0.1 && count > 1) { langs = 'eng'; return worker.terminate().then(function () { return makeWorker('eng'); }).then(function (w) { worker = w; }); }
+          }
+        });
+      }).then(function () { return step(i + 1); });
+    };
+    return makeWorker(langs).then(function (w) { worker = w; return step(1); }).then(function () { return worker.terminate().catch(function () {}); }, function (e) { try { worker && worker.terminate(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
+  }
+  var EN = function () { try { return typeof LANG !== 'undefined' && LANG !== 'ar'; } catch (e) { return false; } };
+  function ocrPdf(doc, name, onP, cx) {
+    return ocrRun(doc.numPages, function (i) {
+      return doc.getPage(i).then(function (pg) {
+        var v1 = pg.getViewport({ scale: 1 }), sc = Math.min(3, 2300 / Math.max(v1.width, v1.height)), vp = pg.getViewport({ scale: sc }), cv = document.createElement('canvas');
+        cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+        var c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+        return pg.render({ canvasContext: c, viewport: vp }).promise.then(function () { pg.cleanup(); return cv; });
+      });
+    }, onP, cx);
+  }
+  // Photos / images (camera or gallery) -> book
+  function imagesToHtml(files, name, onP, cx) {
+    var list = [].slice.call(files);
+    return ocrRun(list.length, function (i) { return blobBitmap(list[i - 1]).then(function (bm) { var cv = drawBitmap(bm, 2400); try { bm.close(); } catch (e) {} return cv; }); }, onP, cx).then(function (built) {
+      if (!built.items.length) throw new Error('noText');
+      var rtl = isArabic(built.text.slice(0, 6000)), title = String(name || '').replace(/\.[^.]+$/, '') || built.firstHeading || 'Scan';
+      return blobBitmap(list[0]).then(function (bm) { var cv = drawBitmap(bm, 520); try { bm.close(); } catch (e) {} return new Promise(function (res) { cv.toBlob(function (b) { res(b ? { ext: 'jpg', blob: b } : null); }, 'image/jpeg', 0.82); }); }).catch(function () { return null; }).then(function (cv) {
+        return { html: finishPdfBook(title, '', rtl, built), title: title, author: '', cover: cv };
+      });
+    });
+  }
+
+  function pdfToHtml(buf, name, onProgress, opts) {
+    opts = opts || {};
     return loadPdfJs().then(function (lib) {
       return lib.getDocument({ data: new Uint8Array(buf.slice(0)), cMapUrl: 'pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: 'pdfjs/standard_fonts/' }).promise.then(function (doc) {
         var n = doc.numPages, pages = [], chars = 0, meta = {};
@@ -218,13 +329,23 @@
             var vp = pg.getViewport({ scale: 1 });
             return pg.getTextContent().then(function (tc) {
               var segs = pageLines(tc.items, vp.width, vp.height); segs.forEach(function (s) { chars += s.chars; });
-              pages.push({ i: i, w: vp.width, h: vp.height, segs: segs }); if (onProgress) onProgress(Math.round(i / n * 90));
+              pages.push({ i: i, w: vp.width, h: vp.height, segs: segs }); if (onProgress && !opts.ocr) onProgress(Math.round(i / n * 90));
               pg.cleanup(); return step(i + 1);
             });
           });
         };
         return step(1).then(function () {
-          if (chars < Math.min(n, 10) * 40) { var e = new Error('scanned'); throw e; }
+          if (chars < Math.min(n, 10) * 40) {
+            if (!opts.ocr) { var e = new Error('scanned'); e.pages = n; throw e; }
+            return doc.getMetadata().catch(function () { return null; }).then(function (mm) {
+              return ocrPdf(doc, name, onProgress, opts.cancel).then(function (built) {
+                if (!built.items.length) throw new Error('noText');
+                var meta2 = (mm && mm.info) || {}, rtl = isArabic(built.text.slice(0, 6000));
+                var title = (meta2.Title && /\S/.test(meta2.Title) && meta2.Title.length < 160 ? meta2.Title.trim() : '') || String(name || '').replace(/\.[^.]+$/, '');
+                return coverBlob(doc).then(function (cv) { return { html: finishPdfBook(title, (meta2.Author || '').trim(), rtl, built), title: title, author: (meta2.Author || '').trim(), cover: cv, ocr: true }; });
+              });
+            });
+          }
           return Promise.all([doc.getMetadata().catch(function () { return null; }), outlineStarts(doc)]).then(function (r) {
             meta = (r[0] && r[0].info) || {};
             var built = buildFromPages(pages, r[1]), rtl = isArabic(built.text.slice(0, 6000));
@@ -303,5 +424,5 @@
     return bookPage(title, author, rtl, parts, 'PDF');
   }
 
-  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.EXT2 = /\.(docx)$/i;
+  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.imagesToHtml = imagesToHtml; F._ocr = { cleanCanvas: cleanCanvas, pageParas: pageParas, ocrBuild: ocrBuild }; F.IMG = /\.(jpe?g|png|webp|bmp)$/i; F.EXT2 = /\.(docx)$/i;
 })();
