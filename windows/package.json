@@ -1,7 +1,7 @@
 {
   "name": "living-ideas-windows",
   "productName": "Living Ideas",
-  "version": "3.6.1",
+  "version": "3.7.0",
   "description": "Living Ideas \u2014 Windows desktop app (Electron)",
   "author": "Living Ideas",
   "private": true,

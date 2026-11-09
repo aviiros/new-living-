@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('liDesk', {
-  translate: (id, text, src, tgt) => ipcRenderer.send('tr:go', id, text, src, tgt),
+  translate: (id, text, src, tgt, online) => ipcRenderer.send('tr:go', id, text, src, tgt, !!online),
   onTr: (cb) => ipcRenderer.on('tr:ev', (_e, m) => cb(m)),
   schedule: (list) => ipcRenderer.send('ntf:schedule', list),
   cancel: (ids) => ipcRenderer.send('ntf:cancel', ids),

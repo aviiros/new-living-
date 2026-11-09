@@ -209,18 +209,26 @@
       else if (d.type === 'boundary') { ent.off = d.a + ent.base; if (u.onboundary) try { u.onboundary({ charIndex: d.a + ent.base, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
       else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) S.speaking = false; var h = d.type === 'end' ? u.onend : u.onerror; if (h) try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} }
     });
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || !d.liCmd) return;
+      if (d.liCmd === 'toc') {
+        var hs = [].slice.call(document.querySelectorAll('.epub-ch h1,.epub-ch h2,main h1,main h2,body > h1,body > h2,body > section > h1,body > section > h2,h1,h2')), seen = [], out = [];
+        hs.forEach(function (h) { if (seen.indexOf(h) >= 0 || h.closest('.li-ui,#li-tr-ui,#toc,.bk-toc,.bk-title')) return; seen.push(h); var t = (h.textContent || '').replace(/\s+/g, ' ').trim(); if (!t || t.length > 140 || out.length >= 600) return; if (!h.id) h.id = 'li-h' + out.length; out.push({ t: t, id: h.id, l: h.tagName === 'H1' ? 1 : 2 }); });
+        parent.postMessage({ liBook: 1, type: 'toc', items: out }, '*');
+      } else if (d.liCmd === 'jump') { var el = document.getElementById(d.id); if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (x) { el.scrollIntoView(); } } }
+    });
     try { N.init(); } catch (e) {}
   }
 
   var TRS = (function () {
     var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', id: 'Indonesia' };
     var TX = {
-      ar: { tr: 'ترجمة', sh: 'حفظ الترجمة كملف HTML', sp: 'حفظ الترجمة كملف PDF', wait: 'الترجمة لم تكتمل بعد، انتظر قليلاً', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
-      en: { tr: 'Translate', sh: 'Save translation as HTML', sp: 'Save translation as PDF', wait: 'Translation is not finished yet', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
-      fr: { tr: 'Traduire', sh: 'Enregistrer la traduction en HTML', sp: 'Enregistrer la traduction en PDF', wait: 'La traduction n’est pas terminée', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
-      es: { tr: 'Traducir', sh: 'Guardar la traducción como HTML', sp: 'Guardar la traducción como PDF', wait: 'La traducción aún no ha terminado', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
-      it: { tr: 'Traduci', sh: 'Salva la traduzione come HTML', sp: 'Salva la traduzione come PDF', wait: 'La traduzione non è ancora terminata', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
-      id: { tr: 'Terjemahkan', sh: 'Simpan terjemahan sebagai HTML', sp: 'Simpan terjemahan sebagai PDF', wait: 'Terjemahan belum selesai', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
+      ar: { on: 'دقة أعلى عبر الإنترنت', tr: 'ترجمة', sh: 'حفظ الترجمة كملف HTML', sp: 'حفظ الترجمة كملف PDF', wait: 'الترجمة لم تكتمل بعد، انتظر قليلاً', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
+      en: { on: 'Higher accuracy (online)', tr: 'Translate', sh: 'Save translation as HTML', sp: 'Save translation as PDF', wait: 'Translation is not finished yet', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
+      fr: { on: 'Précision accrue (en ligne)', tr: 'Traduire', sh: 'Enregistrer la traduction en HTML', sp: 'Enregistrer la traduction en PDF', wait: 'La traduction n’est pas terminée', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
+      es: { on: 'Mayor precisión (en línea)', tr: 'Traducir', sh: 'Guardar la traducción como HTML', sp: 'Guardar la traducción como PDF', wait: 'La traducción aún no ha terminado', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
+      it: { on: 'Maggiore precisione (online)', tr: 'Traduci', sh: 'Salva la traduzione come HTML', sp: 'Salva la traduzione come PDF', wait: 'La traduzione non è ancora terminata', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
+      id: { on: 'Akurasi lebih tinggi (online)', tr: 'Terjemahkan', sh: 'Simpan terjemahan sebagai HTML', sp: 'Simpan terjemahan sebagai PDF', wait: 'Terjemahan belum selesai', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
     };
     return { NAMES: NAMES, TX: TX };
   })();
@@ -420,7 +428,8 @@
       SRC = SRC || detect(); menu.innerHTML = '';
       var items = []; if (state.tgt) { items.push(['', L('orig')]); items.push(['@html', L('sh')]); if (N.printHtml) items.push(['@pdf', L('sp')]); }
       Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); });
-      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@html') saveAs('html'); else if (it[0] === '@pdf') saveAs('pdf'); else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); });
+      if (N.setOnline) items.push(['@online', (N.online && N.online() ? '✓ ' : '') + L('on')]);
+      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@html') saveAs('html'); else if (it[0] === '@pdf') saveAs('pdf'); else if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); });
       menu.style.display = 'block';
     }
     var lp = 0, longp = false;
@@ -434,7 +443,8 @@
     });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     if (saved && NAMES[saved]) setTimeout(function () { SRC = detect(); if (SRC !== saved) start(saved); }, 900);
-    window.__liTrAPI = { start: start, revert: revert, state: state };
+    window.__liTrAPI = { start: start, revert: revert, state: state, menu: showMenu };
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { e.stopImmediatePropagation && 0; showMenu(); } });
   }
 
   // Runs INSIDE the PDF viewer page: translates page text and paints it over the original text, in place.

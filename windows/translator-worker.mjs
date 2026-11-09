@@ -51,10 +51,20 @@ async function viaNllb(text, src, tgt) {
   return out.join(' ');
 }
 async function marian(text, src, tgt) { return (src === 'en' || tgt === 'en') ? await hop(text, src, tgt) : await hop(await hop(text, src, 'en'), 'en', tgt); }
+async function viaOnline(text, src, tgt) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + src + '&tl=' + tgt + '&dt=t&ie=UTF-8&oe=UTF-8', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: 'q=' + encodeURIComponent(text), signal: ctl.signal });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const j = await r.json(), out = (j[0] || []).map((x) => (x && x[0]) || '').join('').trim();
+    if (!out) throw new Error('empty'); return out;
+  } finally { clearTimeout(to); }
+}
 async function go(m) {
   const { id, text, src, tgt } = m;
   if (!LANGS.includes(src) || !LANGS.includes(tgt)) return post(id, 'err', 'language ' + src + '>' + tgt);
   if (src === tgt) return post(id, 'ok', text);
+  if (m.online && process.env.LI_SMOKE !== '1') { try { return post(id, 'ok', await viaOnline(text, src, tgt), 'online'); } catch (e) { /* no internet: use the models on this computer */ } }
   try {
     let r = null, eng = 'nllb', why1 = '';
     if (!nllbBad) { try { r = await viaNllb(text, src, tgt); } catch (e) { r = null; why1 = why(e); } } else why1 = nllbWhy;

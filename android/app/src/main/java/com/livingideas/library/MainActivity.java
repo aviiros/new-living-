@@ -59,7 +59,40 @@ public class MainActivity extends BridgeActivity {
     return m.length() > 90 ? m.substring(0, 90) : m;
   }
 
+  private boolean online() { try { return getSharedPreferences("li", Context.MODE_PRIVATE).getBoolean("online", true); } catch (Exception e) { return true; } }
+  private final java.util.concurrent.ExecutorService net = java.util.concurrent.Executors.newFixedThreadPool(3);
+
+  // Better meaning than the small on-device model: whole paragraphs go to the online translator;
+  // if there is no internet (or it fails) the on-device model below is used automatically.
+  private static String onlineTranslate(String text, String src, String tgt) throws Exception {
+    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://translate.googleapis.com/translate_a/single?client=gtx&sl=" + src + "&tl=" + tgt + "&dt=t&ie=UTF-8&oe=UTF-8").openConnection();
+    try {
+      c.setConnectTimeout(8000); c.setReadTimeout(20000); c.setRequestMethod("POST"); c.setDoOutput(true);
+      c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+      c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) LivingIdeas");
+      byte[] body = ("q=" + java.net.URLEncoder.encode(text, "UTF-8")).getBytes("UTF-8");
+      java.io.OutputStream os = c.getOutputStream(); os.write(body); os.close();
+      if (c.getResponseCode() != 200) throw new Exception("http " + c.getResponseCode());
+      java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream(); java.io.InputStream in = c.getInputStream(); byte[] buf = new byte[8192]; int n;
+      while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+      org.json.JSONArray root = new org.json.JSONArray(bo.toString("UTF-8")), segs = root.getJSONArray(0);
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < segs.length(); i++) { org.json.JSONArray sg = segs.optJSONArray(i); if (sg != null) sb.append(sg.optString(0, "")); }
+      String r = sb.toString().trim();
+      if (r.length() == 0) throw new Exception("empty");
+      return r;
+    } finally { c.disconnect(); }
+  }
+
   private void doTranslate(final String id, final String text, final String src, final String tgt) {
+    if (!online()) { doTranslateOffline(id, text, src, tgt); return; }
+    net.execute(new Runnable() { public void run() {
+      try { trEmit(id, "ok", onlineTranslate(text, src, tgt)); }
+      catch (Exception e) { runOnUiThread(new Runnable() { public void run() { doTranslateOffline(id, text, src, tgt); } }); }
+    } });
+  }
+
+  private void doTranslateOffline(final String id, final String text, final String src, final String tgt) {
     final String key = src + ">" + tgt;
     try {
       final String s = TranslateLanguage.fromLanguageTag(src), t = TranslateLanguage.fromLanguageTag(tgt);
@@ -198,6 +231,8 @@ public class MainActivity extends BridgeActivity {
       @JavascriptInterface public void translate(final String id, final String text, final String src, final String tgt) {
         runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
       }
+      @JavascriptInterface public boolean online() { return MainActivity.this.online(); }
+      @JavascriptInterface public void setOnline(boolean v) { try { getSharedPreferences("li", Context.MODE_PRIVATE).edit().putBoolean("online", v).apply(); } catch (Exception ignored) {} }
       @JavascriptInterface public void printHtml(final String html, final String name) {
         runOnUiThread(new Runnable() { public void run() {
           try {

@@ -140,10 +140,52 @@
   }
 
   // Split flat HTML into chapters (at the top-level headings) and wrap it in the book shell.
-  function finishBook(title, author, rtl, flatHtml) {
-    var parts = splitChapters(flatHtml);
-    var body = parts.map(function (p, i) { return '<section class="epub-ch" id="ch' + (i + 1) + '">' + p + '</section>'; }).join('\n');
-    return shell(title, author, rtl ? 'ar' : 'en', rtl, body + '<style>.li-tbl{overflow-x:auto;margin:1em 0}.li-tbl table{border-collapse:collapse;width:100%;font-size:.9em}.li-tbl td{border:1px solid rgba(120,100,70,.35);padding:.35em .6em;vertical-align:top}sup a{text-decoration:none}</style>');
+  function finishBook(title, author, rtl, flatHtml, kind) { return bookPage(title, author, rtl, splitChapters(flatHtml), kind || 'DOCX'); }
+  // ---- the finished book page: title page, contents, chapters, previous/next, responsive typography ----
+  var BOOK_CSS = ':root{--ink:#1c2b33;--paper:#fbf7ec;--mute:rgba(90,84,66,.78);--line:rgba(130,112,80,.32);--acc:#a85a38}' +
+    '*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}' +
+    'body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Naskh Arabic","Amiri","Traditional Arabic","Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:clamp(17px,calc(15px + .55vw),21px);line-height:1.95;overflow-wrap:break-word;word-break:normal;text-rendering:optimizeLegibility}' +
+    '.bk{max-width:42rem;margin:0 auto;padding:0 clamp(16px,5vw,36px)}' +
+    '.bk-title{min-height:92vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:12vh 0 8vh;border-bottom:1px solid var(--line)}' +
+    '.bk-orn{width:64px;height:1px;background:var(--acc);margin:0 auto 26px;position:relative}.bk-orn:after{content:"";position:absolute;left:50%;top:-4px;width:9px;height:9px;margin-left:-4px;background:var(--acc);transform:rotate(45deg)}' +
+    '.bk-title h1{font-size:clamp(1.9rem,6.4vw,3rem);line-height:1.3;margin:0 0 .5em;font-weight:700;text-wrap:balance}' +
+    '.bk-by{font-size:1.2em;color:var(--acc);margin:0 0 1.2em}.bk-meta{font-size:.82em;opacity:.7;margin:0 0 2.2em}' +
+    '.bk-go{display:inline-block;padding:.65em 2em;border:1px solid var(--acc);border-radius:999px;color:var(--acc);text-decoration:none;font-weight:700;font-size:.95em}.bk-go:active{opacity:.7}' +
+    '.bk-toc{padding:44px 0 20px;border-bottom:1px solid var(--line)}.bk-toc h2{text-align:center;font-size:1.35em;margin:0 0 1em}' +
+    '.bk-toc ol{list-style:none;margin:0;padding:0;counter-reset:c}.bk-toc li{counter-increment:c;border-bottom:1px dashed var(--line)}' +
+    '.bk-toc a{display:flex;gap:.8em;align-items:baseline;padding:.55em .2em;color:inherit;text-decoration:none;font-size:.95em;line-height:1.6}.bk-toc a:before{content:counter(c);min-width:2em;text-align:center;opacity:.55;font-size:.85em}.bk-toc a:hover{color:var(--acc)}' +
+    '.epub-ch{padding:54px 0 30px;border-bottom:1px solid var(--line);scroll-margin-top:12px}.epub-ch:last-of-type{border-bottom:0}' +
+    '.bk-k{text-align:center;font-size:.78em;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin:0 0 .6em;font-family:system-ui,"Segoe UI",sans-serif}' +
+    'h1,h2,h3,h4{line-height:1.45;font-weight:700;text-wrap:balance}' +
+    '.epub-ch>h1:first-child,.epub-ch>h2:first-child{text-align:center;font-size:1.75em;margin:.2em 0 1.1em}.epub-ch>h1:first-child:after,.epub-ch>h2:first-child:after{content:"";display:block;width:48px;height:1px;background:var(--acc);margin:.6em auto 0}' +
+    'h1{font-size:1.6em;margin:1.6em 0 .6em}h2{font-size:1.35em;margin:1.7em 0 .5em}h3{font-size:1.15em;margin:1.5em 0 .4em}h4{font-size:1em;margin:1.3em 0 .3em}' +
+    'p{margin:0 0 1.05em;text-align:justify;hyphens:auto;-webkit-hyphens:auto;orphans:3;widows:3}[dir=ltr] p+p{text-indent:0}' +
+    'ul,ol{margin:0 0 1.1em;padding-inline-start:1.6em}li{margin:.25em 0}li>p{margin:0}' +
+    'blockquote{margin:1.2em 0;padding:.2em 1.1em;border-inline-start:3px solid var(--acc);opacity:.92}' +
+    'img,svg,video{max-width:100%;height:auto;display:block;margin:1.2em auto;border-radius:4px}figure{margin:1.2em 0}figcaption{text-align:center;font-size:.85em;opacity:.75}' +
+    'pre,code{font-family:ui-monospace,Consolas,monospace;font-size:.85em;direction:ltr;text-align:left}pre{overflow:auto;padding:.8em 1em;border:1px solid var(--line);border-radius:8px;white-space:pre-wrap}' +
+    'a{color:var(--acc)}hr{border:0;border-top:1px solid var(--line);margin:2em 0}' +
+    '.bk-nav{display:flex;justify-content:space-between;gap:12px;margin:2.2em 0 0;padding-top:1.1em;border-top:1px solid var(--line);font-size:.88em;font-family:system-ui,"Segoe UI",Tahoma,sans-serif}' +
+    '.bk-nav a{color:inherit;text-decoration:none;padding:.5em .9em;border:1px solid var(--line);border-radius:10px;max-width:46%;line-height:1.4;overflow:hidden;text-overflow:ellipsis}.bk-nav a:hover{border-color:var(--acc);color:var(--acc)}.bk-nav .up{margin:0 auto}' +
+    '@media(max-width:520px){p{text-align:start}.bk-title{min-height:86vh}.epub-ch{padding-top:40px}}' +
+    '@media print{.bk-title,.epub-ch{min-height:0;border:0;page-break-after:always}.bk-nav,.bk-go{display:none}body{font-size:12pt}}';
+  function plainOf(h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;|&quot;/g, "'").replace(/\s+/g, ' ').trim(); }
+  function bookPage(title, author, rtl, parts, kind) {
+    var ar = !!rtl, T = function (a, e) { return ar ? a : e; }, N = function (n) { return ar ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); };
+    var heads = parts.map(function (p, i) { var m = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i.exec(p); var t = m ? plainOf(m[1]) : ''; return t && t.length < 140 ? t : T('القسم ', 'Part ') + N(i + 1); });
+    var words = plainOf(parts.join(' ')).split(' ').length, mins = Math.max(1, Math.round(words / (ar ? 180 : 230)));
+    var h = ['<main class="bk">'];
+    h.push('<header class="bk-title"><div class="bk-orn"></div><h1 dir="auto">' + esc(title) + '</h1>' + (author ? '<p class="bk-by" dir="auto">' + esc(author) + '</p>' : '') +
+      '<p class="bk-meta">' + esc(kind) + ' · ' + N(parts.length) + ' ' + T(parts.length === 1 ? 'قسم' : 'أقسام', parts.length === 1 ? 'section' : 'sections') + ' · ' + T('نحو ', '~') + N(mins) + ' ' + T('دقيقة قراءة', 'min read') + '</p>' +
+      '<a class="bk-go" href="#' + (parts.length > 1 ? 'toc' : 'ch1') + '">' + T('ابدأ القراءة', 'Start reading') + '</a></header>');
+    if (parts.length > 1) h.push('<nav class="bk-toc" id="toc" aria-label="' + T('المحتويات', 'Contents') + '"><h2>' + T('المحتويات', 'Contents') + '</h2><ol>' + heads.map(function (t, i) { return '<li><a href="#ch' + (i + 1) + '" dir="auto">' + esc(t) + '</a></li>'; }).join('') + '</ol></nav>');
+    parts.forEach(function (p, i) {
+      var nav = '';
+      if (parts.length > 1) nav = '<div class="bk-nav">' + (i > 0 ? '<a href="#ch' + i + '" dir="auto">' + (ar ? '→ ' : '← ') + esc(heads[i - 1]) + '</a>' : '<span></span>') + '<a class="up" href="#toc">' + T('المحتويات', 'Contents') + '</a>' + (i + 1 < parts.length ? '<a href="#ch' + (i + 2) + '" dir="auto">' + esc(heads[i + 1]) + (ar ? ' ←' : ' →') + '</a>' : '<span></span>') + '</div>';
+      h.push('<section class="epub-ch" id="ch' + (i + 1) + '">' + p + nav + '</section>');
+    });
+    h.push('</main>');
+    return shell(title, author, ar ? 'ar' : 'en', rtl, h.join('\n') + '<style>.li-tbl{overflow-x:auto;margin:1.2em 0;-webkit-overflow-scrolling:touch}.li-tbl table{border-collapse:collapse;width:100%;font-size:.88em;line-height:1.55}.li-tbl td,.li-tbl th{border:1px solid var(--line);padding:.4em .65em;vertical-align:top;text-align:start}.li-tbl th{font-weight:700;background:rgba(130,112,80,.1)}</style>', BOOK_CSS);
   }
   function splitChapters(html) {
     var re = /<h1(?![^>]*doc-title)[ >]/g, idx = [], m; while ((m = re.exec(html))) idx.push(m.index);
@@ -258,8 +300,7 @@
     });
     closeList(); if (cur.length) parts.push(cur.join('\n'));
     if (parts.length === 1 && items.length > 60) { var chunks = [], para = parts[0].split('\n'), sz = Math.ceil(para.length / Math.ceil(para.length / 40)); for (var i = 0; i < para.length; i += sz) chunks.push(para.slice(i, i + sz).join('\n')); parts = chunks; }
-    var body = parts.map(function (p, i) { return '<section class="epub-ch" id="ch' + (i + 1) + '">' + p + '</section>'; }).join('\n');
-    return shell(title, author, rtl ? 'ar' : 'en', rtl, body);
+    return bookPage(title, author, rtl, parts, 'PDF');
   }
 
   F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.EXT2 = /\.(docx)$/i;
