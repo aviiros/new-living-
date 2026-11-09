@@ -499,7 +499,7 @@
       e.stopPropagation(); if (longp) { longp = false; return; }
       if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
       if (state.tgt) { showMenu(); return; }
-      SRC = SRC || detect(); if (SRC !== UI) start(UI); else showMenu();
+      SRC = SRC || detect(); showMenu();
     });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     if (saved && NAMES[saved]) setTimeout(function () { SRC = detect(); if (SRC !== saved) start(saved); }, 900);
@@ -615,8 +615,8 @@
     var lp = 0, longp = false;
     btn.addEventListener('touchstart', function () { longp = false; lp = setTimeout(function () { longp = true; sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); }, 550); }, { passive: true });
     btn.addEventListener('touchend', function () { clearTimeout(lp); }, { passive: true });
-    btn.addEventListener('click', function (e) { e.stopPropagation(); if (longp) { longp = false; return; } if (menu.style.display === 'block') { menu.style.display = 'none'; return; } if (tgt) { revert(); return; }
-      sample().then(function (s) { SRC = SRC || detect(s); if (SRC !== UI) start(UI); else showMenu(); }); });
+    btn.addEventListener('click', function (e) { e.stopPropagation(); if (longp) { longp = false; return; } if (menu.style.display === 'block') { menu.style.display = 'none'; return; } if (tgt) { showMenu(); return; }
+      sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     var saved = null; try { saved = localStorage.getItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {}
     if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) start(saved); }); }, 1500);
