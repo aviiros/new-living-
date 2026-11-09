@@ -166,6 +166,7 @@ header.top #langBtn{display:none!important}
 @media(max-width:760px){.modal.on{place-items:end center}.modal.on .box{border-radius:22px 22px 0 0;width:100vw;max-width:560px;max-height:88vh;padding-bottom:calc(22px + env(safe-area-inset-bottom));animation:sheetin .38s var(--ease)}}
 @keyframes sheetin{from{transform:translateY(100%)}to{transform:none}}
 .lang{display:grid;grid-template-columns:1fr 1fr 1fr}.lang button{height:30px}
+#box{position:relative}.mx{position:absolute;top:8px;inset-inline-end:10px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:26px;line-height:1;cursor:pointer}.mx:hover{background:var(--line)}
 </style></head>
 <body>
 <div id="app">
@@ -357,11 +358,11 @@ var hoverBar=false,endShown=false;
 function rbar(){var b=cur,h=b&&(b.format==='html'||b.format==='epub');
   var I=function(d){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>'};
   $('#rbar').innerHTML='<button id="back">'+I('<path d="M9 6l6 6-6 6"/>')+'المكتبة</button><div class="rt">'+esc(b?dt(b):'')+'</div>'+
-   (h&&!b.tpl?'<button id="rbm" title="إشارة مرجعية هنا">'+I('<path d="M6 3h12v18l-6-4-6 4z"/>')+'</button>':'')+(h?'<button id="rtoc" title="المحتويات">'+I('<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>')+'</button>':'')+(h&&window.LiNative&&window.LiNative.translate?'<button id="rtr" title="ترجمة">'+I('<path d="M4 5h8M8 3v2M5 5c1 4 3 6 6 8M11 5c-1 4-3 7-7 9"/><path d="M13 20l4-9 4 9M14.5 17h5"/>')+'</button>':'')+(h?'<button id="rfind" title="بحث (Ctrl+F)">'+I('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>')+'</button>':'')+
-   (h?'<button id="rnotes" title="الملاحظات والإشارات">'+I('<path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>')+'</button>':'')+
+   (h&&!b.tpl?'<button id="rbm" title="إشارة مرجعية هنا">'+I('<path d="M6 3h12v18l-6-4-6 4z"/>')+'</button>':'')+(h?'<button id="rtoc" title="المحتويات">'+I('<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>')+'</button>':'')+((h||(b&&b.format==='pdf'))&&window.LiNative&&window.LiNative.translate?'<button id="rtr" title="ترجمة">'+I('<path d="M4 5h8M8 3v2M5 5c1 4 3 6 6 8M11 5c-1 4-3 7-7 9"/><path d="M13 20l4-9 4 9M14.5 17h5"/>')+'</button>':'')+(h?'<button id="rfind" title="بحث (Ctrl+F)">'+I('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>')+'</button>':'')+
+   (b&&b.format==='pdf'?'<button id="rhtml" title="تحويل إلى كتاب HTML">'+I('<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/>')+'</button>':'')+(h?'<button id="rnotes" title="الملاحظات والإشارات">'+I('<path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>')+'</button>':'')+
    (h?'<button id="raa" title="المظهر">Aa</button>':'')+(b&&b.format!=='audio'?'<button id="rpin" class="'+(S.settings.autoHideBar?'':'on')+'" title="'+(S.settings.autoHideBar?'تثبيت الشريط':'إخفاء الشريط تلقائياً (يظهر عند وضع المؤشر أعلى الصفحة)')+'">'+I('<path d="M12 17v5M8 3h8l-1 7 3 3v2H6v-2l3-3z"/>')+'</button>':'')+'<button id="rfs" title="ملء الشاشة (F11)">'+I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')+'</button>';
   $('#back').onclick=closeBook;$('#rfs').onclick=function(){window.api.fullscreen()};
-  var e;if(e=$('#rpin'))e.onclick=function(){var v=!S.settings.autoHideBar;window.api.settings({autoHideBar:v}).then(function(s){S=s;fixBar=v?false:true;var R=$('#reader');R.classList.toggle('fix',fixBar);R.classList.remove('bar');rbar();if(v){toast('الشريط يختفي تلقائياً؛ مرّر المؤشر إلى أعلى الصفحة لإظهاره')}})};if(e=$('#rbm'))e.onclick=function(){post({liCmd:'bookmark'})};if(e=$('#rfind'))e.onclick=toggleFind;if(e=$('#rtoc'))e.onclick=function(){post({liCmd:'toc'})};if(e=$('#rtr'))e.onclick=function(){post({liCmd:'trmenu'})};if(e=$('#rnotes'))e.onclick=togglePanel;if(e=$('#raa'))e.onclick=togglePop}
+  var e;if(e=$('#rpin'))e.onclick=function(){var v=!S.settings.autoHideBar;window.api.settings({autoHideBar:v}).then(function(s){S=s;fixBar=v?false:true;var R=$('#reader');R.classList.toggle('fix',fixBar);R.classList.remove('bar');rbar();if(v){toast('الشريط يختفي تلقائياً؛ مرّر المؤشر إلى أعلى الصفحة لإظهاره')}})};if(e=$('#rbm'))e.onclick=function(){post({liCmd:'bookmark'})};if(e=$('#rfind'))e.onclick=toggleFind;if(e=$('#rtoc'))e.onclick=function(){post({liCmd:'toc'})};if(e=$('#rtr'))e.onclick=function(){if(cur&&cur.format==='pdf')postP({liCmd:'trmenu'});else post({liCmd:'trmenu'})};if(e=$('#rhtml'))e.onclick=function(){pdfToHtmlDlg('')};if(e=$('#rnotes'))e.onclick=togglePanel;if(e=$('#raa'))e.onclick=togglePop}
 function tocDlg(items){
   if(!items.length){toast(T('لا توجد عناوين في هذا الكتاب','This book has no headings'));return}
   modal('<div id="sheet"><h3>'+T('المحتويات','Contents')+'</h3><div style="max-height:58vh;overflow:auto;margin-top:8px">'+items.map(function(x,i){return '<button class="srow" data-j="'+i+'" style="padding-inline-start:'+(x.l>1?26:12)+'px;'+(x.l>1?'font-size:13px;opacity:.85':'font-weight:700')+'">'+esc(x.t)+'</button>'}).join('')+'</div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
@@ -370,6 +371,12 @@ function tocDlg(items){
 function showEnd(){if(endShown||!cur)return;endShown=true;$('#endcard').classList.add('on')}
 $('#ecBack').onclick=function(){$('#endcard').classList.remove('on');closeBook()};$('#ecClose').onclick=function(){$('#endcard').classList.remove('on')};$('#ecFin').onclick=function(){var b=cur;$('#endcard').classList.remove('on');if(b)setFin(b,true);closeBook()};
 function post(m){try{$('#frame').contentWindow.postMessage(m,'*')}catch(e){}}
+function postP(m){try{$('#pframe').contentWindow.postMessage(m,'*')}catch(e){}}
+function pdfToHtmlDlg(tr){var b=cur;if(!b||!window.api.convertPdf)return;
+  var go=function(t){window.api.convertPdf(b.id,t||'').then(function(s){if(s&&s.books)setState(s)})};
+  if(tr){go(tr);return}
+  (window.__liImportOpts?window.__liImportOpts(dt(b),'docx'):Promise.resolve({tr:''})).then(function(o){if(o&&!o.skip)go(o.tr)})}
+window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook||d.type!=='pdf-to-html')return;try{if(e.source!==$('#pframe').contentWindow)return}catch(x){return}pdfToHtmlDlg(String(d.tr||''))});
 function closeBook(){var b=cur;$('#reader').classList.remove('on');$('#frame').removeAttribute('srcdoc');$('#frame').src='about:blank';$('#pframe').src='about:blank';if(b)window.api.update(b.id,{lastRead:Date.now()});cur=null;setTimeout(function(){window.api.state().then(function(s){S=s;render()})},350)}
 function sync(){if(!cur)return;window.api.state().then(function(s){S=s;cur=S.books.filter(function(x){return x.id===cur.id})[0]||cur;if($('#panel').classList.contains('on'))panelList()})}
 function setFin(b,f){window.api.update(b.id,{finished:f,progress:f?100:(b.format==='pdf'?0:b.progress),finishedAt:f?Date.now():0}).then(setState)}
@@ -417,7 +424,8 @@ function bookMenu(id,x,y){var b=S.books.filter(function(z){return z.id===id})[0]
   it.push('-',{t:isFin(b)?'وضع علامة «لم أنهِه»':'وضع علامة «أنهيتُه»',f:function(){setFin(b,!isFin(b))}},{t:'تعديل البيانات والتقييم…',f:function(){edit(b)}},{t:'تغيير الغلاف…',f:function(){window.api.setCover(id).then(setState)}},'-');
   it.push({t:'تصدير الملاحظات (Markdown)',f:function(){window.api.exportNotes(id)}},{t:'حفظ نسخة من الكتاب…',f:function(){window.api.exportBook(id)}},{t:'نسخ العنوان والمؤلف',f:function(){window.api.copy(dt(b)+(da(b)?' — '+da(b):'')).then(function(){toast('تم النسخ')})}},(window.api.platform==='android'?null:{t:'إظهار الملف في المجلد',f:function(){window.api.reveal(id)}}),'-');
   it.push({t:b.hidden?'إظهار في المكتبة':'إخفاء من المكتبة',f:function(){window.api.update(id,{hidden:!b.hidden}).then(setState)}},{t:'إزالة من المكتبة…',danger:1,f:function(){confirmBox('إزالة «'+dt(b)+'» من المكتبة؟','يُحذف الكتاب وملاحظاته من هذا البرنامج، ولا يُمسّ ملفك الأصلي.','إزالة',function(){window.api.remove(id).then(setState)})}});menu(x,y,it)}
-function modal(h){$('#box').innerHTML=h;$('#modal').classList.add('on')}function closeModal(){$('#modal').classList.remove('on')}
+function modal(h){$('#box').innerHTML=h+'<button class="mx" id="mxClose" aria-label="'+T('إغلاق','Close')+'">×</button>';$('#modal').classList.add('on');var x=$('#mxClose');if(x)x.onclick=closeModal}function closeModal(){$('#modal').classList.remove('on')}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('#modal').classList.contains('on')&&!window.__liBusyOn)closeModal()});
 function ask(t,l,v,cb){modal('<h3>'+esc(t)+'</h3><label>'+esc(l)+'</label><input type="text" id="mi" value="'+esc(v)+'"><div class="acts"><button class="btn primary" id="ok">حسناً</button><button class="btn" id="no">إلغاء</button></div>');var i=$('#mi');i.focus();i.select();var go=function(){var x=i.value.trim();closeModal();if(x)cb(x)};$('#ok').onclick=go;$('#no').onclick=closeModal;i.onkeydown=function(e){if(e.key==='Enter')go();if(e.key==='Escape')closeModal()}}
 function edit(b){var r=b.rating||0;modal('<h3>تعديل البيانات</h3><label>العنوان</label><input type="text" id="e1" value="'+esc(b.title)+'"><label>المؤلف</label><input type="text" id="e2" value="'+esc(b.author)+'"><label>السلسلة (اختياري)</label><input type="text" id="e3" value="'+esc(b.series||'')+'"><label>تقييمك</label><div class="stars" id="st">'+[1,2,3,4,5].map(function(n){return '<button data-s="'+n+'" class="'+(n<=r?'on':'')+'" aria-label="'+n+'">★</button>'}).join('')+'</div><div class="acts"><button class="btn primary" id="ok">حفظ</button><button class="btn" id="no">إلغاء</button></div>');
   $('#st').onclick=function(e){var s=e.target.closest('button');if(!s)return;var n=+s.dataset.s;r=(r===n)?0:n;[].forEach.call($('#st').children,function(x){x.classList.toggle('on',+x.dataset.s<=r)})};
@@ -551,7 +559,7 @@ window.__liImportOpts=function(name,ext){return new Promise(function(res){
     modal(h);
     $('#ioNo').onclick=function(){fin({skip:true})};
     $('#ioGo').onclick=function(){fin({mode:mode,tr:tr})};
-    $('#box').onclick=function(e){var c=e.target.closest('[data-t]');if(!c)return;tr=c.dataset.t;cardTr()};
+    $('#box').onclick=function(e){var c=e.target.closest('.chip');if(!c||c.dataset.t==null)return;tr=c.dataset.t;cardTr()};
   };
   var cardMode=function(){
     var h=head+'<div class="sh">'+T('طريقة الفتح','OPEN AS')+'</div><div class="chips"><button class="chip'+(mode==='html'?' on':'')+'" data-m="html">'+T('كتاب HTML بكل المميزات','HTML book, all features')+'</button><button class="chip'+(mode==='pdf'?' on':'')+'" data-m="pdf">'+T('PDF كما هو','PDF as is')+'</button></div><p style="margin:8px 2px 0;font-size:13px;color:var(--mute)">'+(mode==='html'?T('نص يعاد تنسيقه ليناسب الشاشة، مع التظليل والملاحظات والاقتباسات وترجمة أدق. الملفات المصوّرة تُقرأ بتقنية OCR وتُزال علامتها المائية.','Text reflowed for the screen, with highlights, notes, quotes and more accurate translation. Scanned files are read with OCR and light watermarks are removed.'):T('يحافظ على شكل الصفحات كما هو.','Keeps the original page layout.'))+'</p>'
@@ -559,7 +567,7 @@ window.__liImportOpts=function(name,ext){return new Promise(function(res){
     modal(h);
     $('#ioNo').onclick=function(){fin({skip:true})};
     $('#ioGo').onclick=function(){if(canTr)cardTr();else fin({mode:mode,tr:''})};
-    $('#box').onclick=function(e){var c=e.target.closest('[data-m]');if(!c)return;mode=c.dataset.m;cardMode()};
+    $('#box').onclick=function(e){var c=e.target.closest('.chip');if(!c||!c.dataset.m)return;mode=c.dataset.m;cardMode()};
   };
   ob=new MutationObserver(function(){if(!$('#modal').classList.contains('on'))fin({skip:true})});
   if(ext==='pdf')cardMode();else if(canTr)cardTr();else{fin({mode:'html',tr:''});return}

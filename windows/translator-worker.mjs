@@ -30,7 +30,7 @@ function pieces(text) {
 }
 async function hop(text, a, b) {
   const p = await pipe(a, b), pre = a === 'en' && b === 'ar' ? '>>ara<< ' : '', out = [];
-  for (const s of pieces(text)) { const r = await p(pre + s, { max_new_tokens: 512 }); out.push(((r && r[0] && r[0].translation_text) || '').trim()); }
+  for (const s of pieces(text)) { const r = await p(pre + s, { max_new_tokens: 400, num_beams: 2 }); out.push(((r && r[0] && r[0].translation_text) || '').trim()); }
   return out.join(' ');
 }
 // Best quality first: one multilingual model (NLLB-200, about 900 MB, downloaded once). If it cannot be loaded
@@ -66,10 +66,12 @@ async function go(m) {
   if (src === tgt) return post(id, 'ok', text);
   if (m.online && process.env.LI_SMOKE !== '1') { try { return post(id, 'ok', await viaOnline(text, src, tgt), 'online'); } catch (e) { /* no internet: use the models on this computer */ } }
   try {
-    let r = null, eng = 'nllb', why1 = '';
-    if (!nllbBad) { try { r = await viaNllb(text, src, tgt); } catch (e) { r = null; why1 = why(e); } } else why1 = nllbWhy;
-    if (r == null) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
+    let r = null, eng = 'marian', why1 = '';
+    // Fast by default (small model per language pair). The big NLLB model is only used when the person asks for higher quality.
+    if (!m.hq) { try { r = await marian(text, src, tgt); } catch (e) { r = null; why1 = why(e); } }
+    if (r == null && !nllbBad) { try { r = await viaNllb(text, src, tgt); eng = 'nllb'; } catch (e) { r = null; why1 = why1 || why(e); } } else if (r == null) why1 = why1 || nllbWhy;
+    if (r == null && m.hq) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
     post(id, 'ok', r, eng);
   } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
 }
-parentPort.on('message', (m) => { chain = chain.then(() => go(m)).catch(() => {}); });
+parentPort.on('message', (m) => { if (m.online && process.env.LI_SMOKE !== '1') { go(m).catch(() => {}); return; } chain = chain.then(() => go(m)).catch(() => {}); });

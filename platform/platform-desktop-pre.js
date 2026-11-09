@@ -12,7 +12,10 @@
   window.Capacitor = { isNativePlatform: function () { return true; }, Plugins: { LocalNotifications: LN } };
   window.LiNative = {
     init: function () {}, blockMenu: function () {}, stop: function () {}, voices: function () { return '[]'; },
-    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online()); },
+    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online(), this.hq()); },
+    slow: function () { return !this.online(); },
+    hq: function () { try { return localStorage.getItem('li-hq') === '1'; } catch (e) { return false; } },
+    setHQ: function (v) { try { localStorage.setItem('li-hq', v ? '1' : '0'); } catch (e) {} },
     online: function () { try { return localStorage.getItem('li-online') === '1'; } catch (e) { return false; } },
     setOnline: function (v) { try { localStorage.setItem('li-online', v ? '1' : '0'); } catch (e) {} },
     printHtml: function (html, name) { D.printPdf(html, name); }

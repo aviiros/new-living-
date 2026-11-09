@@ -100,8 +100,8 @@ function getWorker() {
   w.on('exit', (c) => { if (worker === w) dead('translator stopped (' + c + ')'); });
   worker = w; return w;
 }
-ipcMain.on('tr:go', (_e, id, text, src, tgt, online) => {
-  try { pending.add(id); getWorker().postMessage({ id, text: String(text), src, tgt, online: !!online }); }
+ipcMain.on('tr:go', (_e, id, text, src, tgt, online, hq) => {
+  try { pending.add(id); getWorker().postMessage({ id, text: String(text), src, tgt, online: !!online, hq: !!hq }); }
   catch (e) { pending.delete(id); toUI({ id: '', kind: 'nomodel', text: String((e && e.message) || e).slice(0, 90) }); toUI({ id, kind: 'err', text: 'worker' }); }
 });
 
