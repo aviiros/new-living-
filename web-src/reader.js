@@ -56,13 +56,15 @@
   }
   function createAnnot(sp, type, color, note) { var a = { id: uid(), type: type, color: color, quote: sp.idx.text.slice(sp.s, sp.e).slice(0, 3000), prefix: sp.idx.text.slice(Math.max(0, sp.s - 24), sp.s), note: note || '', pct: Math.round(pct() * 10) / 10, date: new Date().toISOString().slice(0, 10) }; annots.push(a); getSelection().removeAllRanges(); applyAnnots(); commit(); return a; }
   function onSel(e) {
-    if (window.__LI_TR || TPL || (e && e.target && e.target.closest && e.target.closest('.li-ui'))) return;
+    if (TPL || (e && e.target && e.target.closest && e.target.closest('.li-ui'))) return;
     setTimeout(function () {
       var sp = selPos(); hideBar(); if (!sp) return;
-      bar = ui(dots() + '<button data-u="1" style="' + btn + ';text-decoration:underline;text-decoration-color:#C3714C;text-decoration-thickness:2px">'+X('تسطير','Underline')+'</button><button data-n="1" style="' + btn + '">'+X('ملاحظة','Note')+'</button><button data-cp="1" style="' + btn + '">'+X('نسخ','Copy')+'</button>'); place(bar, sp.rect);
+      var trOn = !!window.__LI_TR, tools = '<button data-cp="1" style="' + btn + '">'+X('نسخ','Copy')+'</button><button data-sp="1" style="' + btn + '">'+X('استماع','Listen')+'</button>';
+      bar = ui(trOn ? tools : dots() + '<button data-u="1" style="' + btn + ';text-decoration:underline;text-decoration-color:#C3714C;text-decoration-thickness:2px">'+X('تسطير','Underline')+'</button><button data-n="1" style="' + btn + '">'+X('ملاحظة','Note')+'</button>' + tools); place(bar, sp.rect);
       bar.onmousedown = function (ev) { ev.preventDefault(); };
       bar.onclick = function (ev) { var t = ev.target.closest('button'); if (!t) return; var s2 = selPos() || sp;
-        if (t.dataset.c) { createAnnot(s2, 'hl', t.dataset.c); hideBar(); } else if (t.dataset.u) { createAnnot(s2, 'ul', 'b'); hideBar(); } else if (t.dataset.cp) { try { navigator.clipboard.writeText(s2.idx.text.slice(s2.s, s2.e)); } catch (x) {} hideBar(); }
+        if (t.dataset.c) { createAnnot(s2, 'hl', t.dataset.c); hideBar(); } else if (t.dataset.u) { createAnnot(s2, 'ul', 'b'); hideBar(); } else if (t.dataset.cp) { var tx = s2.idx.text.slice(s2.s, s2.e), okc = false; try { document.execCommand('copy'); okc = true; } catch (x) {} if (!okc) { try { navigator.clipboard.writeText(tx); } catch (x) {} } hideBar(); }
+        else if (t.dataset.sp) { var NN = window.LiNative || (parent && parent.LiNative), tx2 = s2.idx.text.slice(s2.s, s2.e), st = window.__liTrAPI && window.__liTrAPI.state; if (NN && NN.speak) { var lg = /[\u0600-\u06FF]/.test(tx2) ? 'ar' : ((st && st.tgt) || document.documentElement.lang || 'en'); try { NN.stop(); NN.speak('sel' + Date.now(), tx2, lg, '', 1, 1); } catch (x) {} } hideBar(); }
         else if (t.dataset.n) { var a = createAnnot(s2, 'hl', 'y'); hideBar(); editNote(a); } };
     }, 10);
   }
@@ -84,6 +86,22 @@
   });
   addEventListener('scroll', function () { if (bar && !bar.querySelector('textarea')) hideBar(); }, { passive: true });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideBar(); });
+  // ---- touch gestures: two fingers pinch = text size, three fingers swipe down = screenshot ----
+  (function () {
+    var d0 = 0, fs0 = 100, cur = 0, y3 = null, x3 = 0, fired = false;
+    var dist = function (t) { var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.sqrt(dx * dx + dy * dy); };
+    var avg = function (t, k) { return (t[0][k] + t[1][k] + t[2][k]) / 3; };
+    if (!TPL) document.documentElement.style.touchAction = 'pan-y';
+    addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2 && !TPL) { d0 = dist(e.touches); fs0 = prefs.fs || 100; cur = fs0; }
+      else if (e.touches.length === 3) { y3 = avg(e.touches, 'clientY'); x3 = avg(e.touches, 'clientX'); fired = false; d0 = 0; }
+    }, { passive: true });
+    addEventListener('touchmove', function (e) {
+      if (e.touches.length === 2 && d0 > 0 && !TPL) { var n = Math.max(70, Math.min(240, Math.round(fs0 * dist(e.touches) / d0 / 5) * 5)); if (n !== cur) { cur = n; prefs.fs = n; document.documentElement.style.zoom = n / 100; } }
+      else if (e.touches.length === 3 && y3 !== null && !fired) { if (avg(e.touches, 'clientY') - y3 > 120 && Math.abs(avg(e.touches, 'clientX') - x3) < 140) { fired = true; P({ type: 'shot' }); } }
+    }, { passive: true });
+    addEventListener('touchend', function (e) { if (e.touches.length < 2 && d0 > 0 && cur !== fs0 && !TPL) { P({ type: 'fs', fs: cur }); d0 = 0; } if (e.touches.length === 0) { y3 = null; d0 = 0; } }, { passive: true });
+  })();
   // ---- parent commands ----
   function visiblePara() { var els = document.querySelectorAll('p,li,h1,h2,h3,blockquote,div'), best = null; for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); if (r.top >= 0 && r.top < innerHeight * 0.8 && els[i].textContent.trim().length > 20 && els[i].children.length < 4) { best = els[i]; break; } } return best ? best.textContent.replace(/\s+/g, ' ').trim().slice(0, 140) : ''; }
   function gotoAnnot(a) { if (a.type !== 'bm') { var m = document.querySelector('mark.li-hl[data-id="' + a.id + '"]'); if (m) { m.scrollIntoView({ block: 'center', behavior: 'smooth' }); flash(m); return; } } if (a.quote) { var idx = walk(), r = locate(a, idx); if (r) { var n = idx.nodes.filter(function (o) { return o.s <= r[0] && o.s + o.n.nodeValue.length > r[0]; })[0]; if (n && n.n.parentElement) { n.n.parentElement.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; } } } var d = document.documentElement; scrollTo({ top: (d.scrollHeight - innerHeight) * (a.pct || 0) / 100, behavior: 'smooth' }); }

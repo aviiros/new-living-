@@ -59,6 +59,62 @@ public class MainActivity extends BridgeActivity {
     return m.length() > 90 ? m.substring(0, 90) : m;
   }
 
+  private boolean saveToDownloads(java.io.File src, String name) throws Exception {
+    java.io.InputStream in = new java.io.FileInputStream(src);
+    try {
+      if (android.os.Build.VERSION.SDK_INT >= 29) {
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+        cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf");
+        cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Living Ideas");
+        android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+        if (u == null) return false;
+        java.io.OutputStream os = getContentResolver().openOutputStream(u);
+        byte[] b = new byte[16384]; int n; while ((n = in.read(b)) > 0) os.write(b, 0, n); os.close();
+        return true;
+      }
+      java.io.File dir = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Living Ideas");
+      if (!dir.exists() && !dir.mkdirs()) return false;
+      java.io.OutputStream os = new java.io.FileOutputStream(new java.io.File(dir, name));
+      byte[] b = new byte[16384]; int n; while ((n = in.read(b)) > 0) os.write(b, 0, n); os.close();
+      return true;
+    } finally { try { in.close(); } catch (Exception ignored) {} }
+  }
+
+  private boolean saveShot(android.graphics.Bitmap bm) {
+    try {
+      String name = "LivingIdeas-" + System.currentTimeMillis() + ".png";
+      java.io.OutputStream os;
+      if (android.os.Build.VERSION.SDK_INT >= 29) {
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+        cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+        cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Living Ideas");
+        android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+        if (u == null) return false;
+        os = getContentResolver().openOutputStream(u);
+      } else {
+        java.io.File dir = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "Living Ideas");
+        if (!dir.exists() && !dir.mkdirs()) return false;
+        os = new java.io.FileOutputStream(new java.io.File(dir, name));
+      }
+      bm.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os); os.close();
+      return true;
+    } catch (Exception e) { return false; }
+  }
+
+  private void jsShot(final boolean ok) {
+    runOnUiThread(new Runnable() { public void run() {
+      try { getBridge().getWebView().evaluateJavascript("window.__liShot&&window.__liShot(" + ok + ")", null); } catch (Exception ignored) {}
+    } });
+  }
+
+  private void jsSaved(final boolean ok, final String name) {
+    runOnUiThread(new Runnable() { public void run() {
+      try { getBridge().getWebView().evaluateJavascript("window.__liPdfSaved&&window.__liPdfSaved(" + ok + "," + org.json.JSONObject.quote(name) + ")", null); } catch (Exception ignored) {}
+    } });
+  }
+
   private boolean online() { try { return getSharedPreferences("li", Context.MODE_PRIVATE).getBoolean("online", false); } catch (Exception e) { return false; } }
   private final java.util.concurrent.ExecutorService net = java.util.concurrent.Executors.newFixedThreadPool(3);
 
@@ -240,6 +296,18 @@ public class MainActivity extends BridgeActivity {
           if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(it); else startService(it);
         } catch (Exception ignored) {}
       }
+      @JavascriptInterface public void screenshot() {
+        runOnUiThread(new Runnable() { public void run() {
+          try {
+            final android.view.View v = getWindow().getDecorView();
+            final android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(v.getWidth(), v.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+              android.view.PixelCopy.request(getWindow(), bm, new android.view.PixelCopy.OnPixelCopyFinishedListener() { public void onPixelCopyFinished(int r) { jsShot(r == android.view.PixelCopy.SUCCESS && saveShot(bm)); } }, new android.os.Handler(android.os.Looper.getMainLooper()));
+            } else { v.draw(new android.graphics.Canvas(bm)); jsShot(saveShot(bm)); }
+          } catch (Exception e) { jsShot(false); }
+        } });
+      }
+      @JavascriptInterface public boolean kaStopped() { boolean v = KeepAliveService.stopRequested; KeepAliveService.stopRequested = false; return v; }
       @JavascriptInterface public boolean online() { return MainActivity.this.online(); }
       @JavascriptInterface public void setOnline(boolean v) { try { getSharedPreferences("li", Context.MODE_PRIVATE).edit().putBoolean("online", v).apply(); } catch (Exception ignored) {} }
       @JavascriptInterface public void printHtml(final String html, final String name) {
@@ -250,10 +318,21 @@ public class MainActivity extends BridgeActivity {
             final String job = (name == null || name.length() == 0) ? "Living Ideas" : name;
             w.setWebViewClient(new WebViewClient() {
               @Override public void onPageFinished(WebView v, String url) {
+                final PrintAttributes pa = new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).setResolution(new PrintAttributes.Resolution("pdf", "pdf", 300, 300)).setMinMargins(new PrintAttributes.Margins(350, 350, 350, 350)).build();
+                final String fname = job.replaceAll("[\\\\/:*?\"<>|]+", " ").trim() + ".pdf";
                 try {
-                  PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                  pm.print(job, v.createPrintDocumentAdapter(job), new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
-                } catch (Exception ignored) {}
+                  final java.io.File tmp = new java.io.File(getCacheDir(), "export-" + System.currentTimeMillis() + ".pdf");
+                  new android.print.PdfPrint(pa).print(v.createPrintDocumentAdapter(job), tmp, new Runnable() { public void run() {
+                    boolean saved = false;
+                    try { saved = saveToDownloads(tmp, fname); } catch (Exception ignored) {}
+                    try { tmp.delete(); } catch (Exception ignored) {}
+                    if (!saved) { try { PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE); pm.print(job, printView.createPrintDocumentAdapter(job), pa); return; } catch (Exception ignored) {} }
+                    jsSaved(saved, fname);
+                    printView = null;
+                  } }, new Runnable() { public void run() { jsSaved(false, fname); printView = null; } });
+                } catch (Exception e) {
+                  try { PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE); pm.print(job, v.createPrintDocumentAdapter(job), pa); } catch (Exception ignored) {}
+                }
               }
             });
             w.loadDataWithBaseURL("https://localhost/", html, "text/html", "UTF-8", null);

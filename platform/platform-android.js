@@ -380,6 +380,15 @@
     function h(s) { var x = 5381; for (var i = 0; i < s.length; i++) x = ((x << 5) + x + s.charCodeAt(i)) | 0; return (x >>> 0).toString(36) + '.' + s.length; }
     function cget(k, cb) { var go = function () { if (!db) return cb(null); try { var r = db.transaction('c').objectStore('c').get(k); r.onsuccess = function () { cb(r.result || null); }; r.onerror = function () { cb(null); }; } catch (e) { cb(null); } }; db === null ? dbq.push(go) : go(); }
     function cput(k, v) { if (!db) return; try { db.transaction('c', 'readwrite').objectStore('c').put(v, k); } catch (e) {} }
+    function cmany(keys, cb) {
+      var go = function () {
+        if (!db || !keys.length) return cb({});
+        try { var st = db.transaction('c').objectStore('c'), out = {}, n = keys.length, one = function () { if (--n === 0) cb(out); };
+          keys.forEach(function (k) { var r = st.get(k); r.onsuccess = function () { if (r.result) out[k] = r.result; one(); }; r.onerror = one; });
+        } catch (e) { cb({}); }
+      };
+      if (db) go(); else dbq.push(go);
+    }
     // ---- UI
     var ui = document.createElement('div'); ui.id = 'li-tr-ui'; ui.setAttribute('translate', 'no');
     ui.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;font:600 13px/1.2 system-ui,sans-serif;direction:ltr';
@@ -424,7 +433,7 @@
       u.nodes.forEach(function (n) { if (n !== u.main) n.nodeValue = ''; });
       u.main.nodeValue = lead + tr + trail; align(u.b);
     }
-    function progress() { var p = state.total ? Math.round(state.done / state.total * 100) : 100; btn.textContent = state.done >= state.total ? 'A文' : p + '%'; if (state.done >= state.total) { btn.style.background = 'rgba(93,101,64,.95)'; say(state.bad ? L('mt') + ' · ' + NAMES[state.tgt] + ' · ' + state.bad + ' ⚠' : L('mt') + ' · ' + NAMES[state.tgt], 3500); } }
+    function progress() { var p = state.total ? Math.min(state.done >= state.total ? 100 : 99, Math.floor(state.done / state.total * 100)) : 100; btn.textContent = state.done >= state.total ? 'A文' : p + '%'; if (state.done >= state.total) { btn.style.background = 'rgba(93,101,64,.95)'; if (state.quiet) { state.quiet = false; reveal(); } else say(state.bad ? L('mt') + ' · ' + NAMES[state.tgt] + ' · ' + state.bad + ' ⚠' : L('mt') + ' · ' + NAMES[state.tgt], 3500); } }
     function finishChunk(job, text, ok) {
       var u = job.u; u.res[job.i] = text; if (!ok) state.bad++; u.left--; state.done++;
       if (u.left === 0) applyUnit(u);
@@ -464,8 +473,9 @@
       pump(p.run);
     });
     function failAll(why) { revert(true); state.failed = true; say(L('fail') + (why ? ' [' + String(why).slice(0, 70) + ']' : ''), 12000); }
-    function start(tgt) {
-      revert(true); state.errs = 0; state.bad = 0; state.tgt = tgt; state.run++; state.failed = false; SRC = SRC || detect();
+    function reveal() { try { document.documentElement.style.visibility = ''; } catch (e) {} }
+    function start(tgt, auto) {
+      revert(true); state.quiet = !!auto; state.errs = 0; state.bad = 0; state.tgt = tgt; state.run++; state.failed = false; SRC = SRC || detect();
       if (SRC === tgt) { state.tgt = null; return; }
       units = plan();
       var vh = innerHeight, first = 0;
@@ -474,10 +484,21 @@
       ordered.forEach(function (u) { u.left = u.chunks.length; u.chunks.forEach(function (c, i) { jobs.push({ u: u, i: i }); }); });
       lazy = !BG && !!(N.slow && N.slow()); budget = lazy ? 24 : 1e9;
       queue = jobs; state.total = jobs.length; state.done = 0; window.__LI_TR = true; try { localStorage.setItem(key, tgt); } catch (e) {}
-      btn.style.background = 'rgba(29,43,51,.88)'; btn.textContent = '0%'; say(L('work') + '…', 0);
+      btn.style.background = 'rgba(29,43,51,.88)'; btn.textContent = '0%'; if (!auto) say(L('work') + '…', 0);
       document.documentElement.setAttribute('data-li-lang', tgt);
-      if (!jobs.length) { progress(); return; }
-      pump(state.run);
+      if (!jobs.length) { progress(); reveal(); return; }
+      // Finished work is read back from the saved copy in one go, so reopening a translated book shows it at once instead of translating again.
+      var run0 = state.run, keys = [];
+      jobs.forEach(function (j) { var core = j.u.chunks[j.i]; j.core = core; j.k = /\p{L}/u.test(core) ? '2|' + tgt + '|' + SRC + '|' + h(core) : null; if (j.k) keys.push(j.k); });
+      cmany(keys, function (hit) {
+        if (run0 !== state.run) return;
+        var rest = [];
+        jobs.forEach(function (j) { var c = j.k && hit[j.k]; if (c && c.t === j.core) finishChunk(j, c.v, true); else rest.push(j); });
+        if (run0 !== state.run) return;
+        queue = rest; reveal();
+        if (rest.length && state.quiet) { state.quiet = false; }
+        pump(state.run);
+      });
     }
     function revert(quiet) {
       state.run++; queue = []; pend = {}; inflight = 0; units = [];
@@ -492,7 +513,7 @@
       var c = document.documentElement.cloneNode(true);
       [].forEach.call(c.querySelectorAll('#li-tr-ui,script,base,#li-sel-bar'), function (x) { x.remove(); });
       [].forEach.call(c.querySelectorAll('[data-li-dir],[data-li-ta]'), function (x) { x.removeAttribute('data-li-dir'); x.removeAttribute('data-li-ta'); });
-      c.setAttribute('lang', state.tgt); c.setAttribute('dir', state.tgt === 'ar' ? 'rtl' : 'ltr'); c.removeAttribute('data-li-lang');
+      c.style.zoom = ''; c.style.touchAction = ''; c.style.visibility = ''; if (!c.getAttribute('style')) c.removeAttribute('style'); c.setAttribute('lang', state.tgt); c.setAttribute('dir', state.tgt === 'ar' ? 'rtl' : 'ltr'); c.removeAttribute('data-li-lang');
       var st = document.createElement('style'); st.textContent = '@page{margin:18mm}@media print{#li-tr-ui{display:none}}'; (c.querySelector('head') || c).appendChild(st);
       return '<!doctype html>\n' + c.outerHTML;
     }
@@ -520,9 +541,9 @@
       SRC = SRC || detect(); showMenu();
     });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
-    if (saved && NAMES[saved]) setTimeout(function () { SRC = detect(); if (SRC !== saved) start(saved); }, 900);
+    if (saved && NAMES[saved]) { try { document.documentElement.style.visibility = 'hidden'; } catch (e) {} setTimeout(reveal, 3500); setTimeout(function () { SRC = detect(); if (SRC !== saved) start(saved, true); else reveal(); }, 120); }
     window.__liTrAPI = { start: start, revert: revert, state: state, menu: showMenu };
-    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { e.stopImmediatePropagation && 0; showMenu(); } });
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { showMenu(); } else if (d && d.liCmd === 'trstop') { queue.length = 0; state.run++; btn.textContent = 'A文'; } });
   }
 
   // Runs INSIDE the PDF viewer page: translates page text and paints it over the original text, in place.
@@ -641,6 +662,12 @@
     if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) start(saved); }); }, 1500);
     window.__liPdfTr = { start: start, revert: revert, store: function () { return store; } };
   }
+  function GEST() {
+    var y3 = null, x3 = 0, fired = false, av = function (t, k) { return (t[0][k] + t[1][k] + t[2][k]) / 3; };
+    addEventListener('touchstart', function (e) { if (e.touches.length === 3) { y3 = av(e.touches, 'clientY'); x3 = av(e.touches, 'clientX'); fired = false; } }, { passive: true });
+    addEventListener('touchmove', function (e) { if (e.touches.length === 3 && y3 !== null && !fired && av(e.touches, 'clientY') - y3 > 120 && Math.abs(av(e.touches, 'clientX') - x3) < 140) { fired = true; parent.postMessage({ liBook: 1, type: 'shot' }, '*'); } }, { passive: true });
+    addEventListener('touchend', function (e) { if (e.touches.length === 0) y3 = null; }, { passive: true });
+  }
   var SHIM = function (id) { return '<base href="about:srcdoc"><script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';window.__TRS.UI=' + JSON.stringify(lib.settings.lang || 'ar') + ';window.__TRS.ID=' + JSON.stringify(id) + ';<\/script><script>(' + TRU.toString() + ')();<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
@@ -649,7 +676,7 @@
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
-    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
+    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------

@@ -392,8 +392,10 @@ function bgPill(){
   el.innerHTML='<div class="bgt"><b>'+T('ترجمة في الخلفية','Translating in background')+'</b> · '+esc(b?dt(b):'')+'</div><div class="bgb"><i style="width:'+pct+'%"></i></div><div class="bgs">'+langName(bgCur.tgt)+' · '+pct+'%'+(bgq.length?' · '+T('في الانتظار: ','queued: ')+bgq.length:'')+'</div><button id="bgx" aria-label="'+T('إيقاف','Stop')+'">×</button>';
   el.classList.add('on');$('#bgx').onclick=function(){bgStop(false)};
 }
+setInterval(function(){kaUpdate(true)},5000);
 function kaUpdate(force){
-  var N=window.LiNative;if(!N||!N.keepAlive)return;var n=Date.now();if(!force&&n-kaLast<1500)return;kaLast=n;
+  var N=window.LiNative;if(!N||!N.keepAlive)return;
+  try{if(N.kaStopped&&N.kaStopped()){if(bgCur)bgStop(false);else if(cur){post({liCmd:'trstop'});delete trSt[cur.id]}}}catch(e){}var n=Date.now();if(!force&&n-kaLast<1500)return;kaLast=n;
   var job=null,st=null,b=null;
   if(bgCur){job=bgCur;st=bgCur.st;b=bookById(bgCur.id)}
   else if(cur&&trSt[cur.id]&&trSt[cur.id].tgt&&trSt[cur.id].done<trSt[cur.id].total){job={tgt:trSt[cur.id].tgt};st=trSt[cur.id];b=cur}
@@ -429,7 +431,7 @@ window.addEventListener('message',function(e){
   var d=e.data;if(!d||!d.liBook||d.type!=='tr-state')return;var bf=$('#bgframe'),fr=$('#frame');
   try{
     if(bf&&e.source===bf.contentWindow&&bgCur){bgCur.st={done:d.done,total:d.total};bgCur.last=Date.now();bgPill();kaUpdate(false);if(d.total&&d.done>=d.total)bgDone(true)}
-    else if(e.source===fr.contentWindow&&cur){trSt[cur.id]={tgt:d.tgt,done:d.done,total:d.total};kaUpdate(false)}
+    else if(e.source===fr.contentWindow&&cur){trSt[cur.id]={tgt:d.tgt,done:d.done,total:d.total};kaUpdate(!!(d.total&&d.done>=d.total))}
   }catch(x){}
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden)bgPill()});
@@ -441,6 +443,7 @@ window.addEventListener('message',function(e){
   if(d.type==='ready'){post({liCmd:'init',annots:b.annots||[],pct:b.progress,prefs:{fs:S.settings.fs||100,theme:S.settings.rtheme||'original'},audio:b.audio&&Object.assign({rate:1},b.audio),pdf:b.pdf});if(pending){var g=pending;pending=null;setTimeout(function(){post({liCmd:'goto',section:g.section,hlId:g.hlId,annot:g.annot})},700)}}
   else if(d.type==='save-file'){try{var m=/^data:([^;,]*)(;base64)?,(.*)$/.exec(d.data||'');var bin=atob(decodeURIComponent(m[3])),u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);var bl=new Blob([u8],{type:d.mime||m[1]||'application/octet-stream'});if(window.api.shareFile)window.api.shareFile(d.name,bl);toast(window.api.platform==='win32'?T('اختر مكان الحفظ','Choose where to save'):T('جاهز: اختر «حفظ» أو تطبيقاً للمشاركة','Ready: choose Save or an app to share'))}catch(err){toast(T('تعذر حفظ الملف','Could not save the file'))}}
   else if(d.type==='toc'){tocDlg(d.items||[])}
+  else if(d.type==='fs'){window.api.settings({fs:d.fs}).then(function(s){S=s})}
   else if(d.type==='print-pdf'){try{window.LiNative.printHtml(String(d.html||''),String(d.name||'book'))}catch(err){toast(T('تعذر إنشاء PDF','Could not create the PDF'))}}
   else if(d.type==='share-text'){var P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Share;if(P)P.share({text:d.text}).catch(function(){});else if(navigator.clipboard)navigator.clipboard.writeText(d.text)}
   else if(d.type==='act')lastAct=Date.now();
@@ -629,6 +632,14 @@ window.__liImportOpts=function(name,ext){return new Promise(function(res){
   if(ext==='pdf')cardMode();else if(canTr)cardTr();else{fin({mode:'html',tr:''});return}
   ob.observe($('#modal'),{attributes:true,attributeFilter:['class']});
 })};
+function takeShot(){var N=window.LiNative;if(N&&N.screenshot)try{N.screenshot()}catch(e){}else toast(T('لقطة الشاشة متاحة في تطبيق الأندرويد','Screenshots are available in the Android app'))}
+window.__liShot=function(ok){toast(ok?T('تم حفظ لقطة الشاشة في المعرض','Screenshot saved to your gallery'):T('تعذر حفظ لقطة الشاشة','Could not save the screenshot'))};
+window.addEventListener('message',function(e){var d=e.data;if(d&&d.liBook&&d.type==='shot')takeShot()});
+(function(){var y3=null,x3=0,fired=false,av=function(t,k){return(t[0][k]+t[1][k]+t[2][k])/3};
+addEventListener('touchstart',function(e){if(e.touches.length===3){y3=av(e.touches,'clientY');x3=av(e.touches,'clientX');fired=false}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches.length===3&&y3!==null&&!fired&&av(e.touches,'clientY')-y3>120&&Math.abs(av(e.touches,'clientX')-x3)<140){fired=true;takeShot()}},{passive:true});
+addEventListener('touchend',function(e){if(e.touches.length===0)y3=null},{passive:true})})();
+window.__liPdfSaved=function(ok,name){toast(ok?T('تم حفظ ملف PDF في مجلد التنزيلات › Living Ideas: ','PDF saved to Downloads › Living Ideas: ')+name:T('تعذر حفظ ملف PDF','Could not save the PDF'))};
 window.__liBusy=function(msg,pct,cancel){
   var m=$('#modal');
   if(msg===false){if(window.__liBusyOn){window.__liBusyOn=false;closeModal()}return}
