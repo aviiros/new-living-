@@ -442,7 +442,9 @@
       progress(); report(state.done >= state.total);
     }
     var lazy = false, budget = 1e9, rt = 0, BG = window.name === 'li-bg', lastRep = 0;
-    function report(force) { var n = Date.now(); if (!force && n - lastRep < 700) return; lastRep = n; try { parent.postMessage({ liBook: 1, type: 'tr-state', id: window.__TRS && window.__TRS.ID, tgt: state.tgt, done: state.done, total: state.total, bg: BG }, '*'); } catch (e) {} }
+    function report(force) { var n = Date.now(); if (!force && n - lastRep < 700) return; lastRep = n;
+      if (state.tgt && state.total > 0 && state.done >= state.total && state.sent !== state.run && !state.failed) { state.sent = state.run; try { parent.postMessage({ liBook: 1, type: 'tr-done', id: window.__TRS && window.__TRS.ID, tgt: state.tgt, html: exportHtml() }, '*'); } catch (e) {} }
+      try { parent.postMessage({ liBook: 1, type: 'tr-state', id: window.__TRS && window.__TRS.ID, tgt: state.tgt, done: state.done, total: state.total, bg: BG }, '*'); } catch (e) {} }
     function reprio() {
       if (!queue.length) return; var vh = innerHeight, cache = new Map();
       queue.forEach(function (j) { var d = cache.get(j.u); if (d == null) { var r = j.u.b.getBoundingClientRect(); d = r.bottom < -vh * 0.3 ? 1e6 - r.bottom : Math.max(0, r.top); cache.set(j.u, d); } j._d = d; });
@@ -530,7 +532,7 @@
       var items = []; if (state.tgt) { items.push(['', L('orig')]); items.push(['@html', L('sh')]); if (N.printHtml) items.push(['@pdf', L('sp')]); }
       Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); });
       if (N.setOnline) items.push(['@online', (N.online && N.online() ? '✓ ' : '') + L('on')]); if (N.setHQ) items.push(['@hq', (N.hq && N.hq() ? '✓ ' : '') + L('hq')]);
-      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@html') saveAs('html'); else if (it[0] === '@pdf') saveAs('pdf'); else if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0] === '@hq') { try { N.setHQ(!N.hq()); } catch (x) {} } else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); });
+      items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === state.tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@html') saveAs('html'); else if (it[0] === '@pdf') saveAs('pdf'); else if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0] === '@hq') { try { N.setHQ(!N.hq()); } catch (x) {} } else if (it[0]) { if (BG) start(it[0]); else parent.postMessage({ liBook: 1, type: 'tr-want', id: window.__TRS && window.__TRS.ID, tgt: it[0] }, '*'); } else revert(); }; menu.appendChild(b); });
       menu.style.display = 'block';
     }
     var lp = 0, longp = false;
@@ -545,7 +547,7 @@
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     if (saved && NAMES[saved]) { try { document.documentElement.style.visibility = 'hidden'; } catch (e) {} setTimeout(reveal, 3500); var go0 = function () { var t0 = Date.now(); (function tryGo() { if (bodyText().length < 200 && Date.now() - t0 < 2500) { setTimeout(tryGo, 150); return; } if (getSrc() !== saved) start(saved, true); else reveal(); })(); }; setTimeout(go0, 60); }
     window.__liTrAPI = { start: start, revert: revert, state: state, menu: showMenu };
-    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { showMenu(); } else if (d && d.liCmd === 'trstop') { queue.length = 0; state.run++; btn.textContent = 'A文'; } });
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { showMenu(); } else if (d && d.liCmd === 'trgo' && NAMES[d.tgt]) { start(d.tgt); } else if (d && d.liCmd === 'trstop') { queue.length = 0; state.run++; btn.textContent = 'A文'; } });
   }
 
   // Runs INSIDE the PDF viewer page: translates page text and paints it over the original text, in place.
@@ -731,6 +733,16 @@
     scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: (document.documentElement.lang === 'ar' || !window.LANG || window.LANG === 'ar' ? 'مسح ضوئي ' : 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
     add: A(function () { return pick('.jpg,.jpeg,.png,.webp,.bmp,image/*,.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
     addPaths: A(function () { return lib; }),
+    addTranslated: A(function (srcId, tgt, html, tname) {
+      var src = find(srcId); if (!src || !html || html.length < 200) return { err: 1 };
+      var ex = lib.books.filter(function (x) { return x.trOf === srcId && x.trLang === tgt; })[0], id = ex ? ex.id : 'b' + rid(6), title = String(src.title || '').replace(/\s*\([^()]*\)\s*$/, '') + ' (' + tname + ')';
+      var b = ex || { id: id, hash: 'tr-' + srcId + '-' + tgt, format: 'html', file: 'index.html', title: title, author: src.author || '', series: src.series || '', rating: 0, hidden: false, want: false, cover: null, added: Date.now(), lastRead: 0, progress: 0, finished: false, readSec: 0, collections: (src.collections || []).slice(), bytes: html.length, tpl: false, words: 0, ext: null, annots: [], audio: null, trOf: srcId, trLang: tgt };
+      b.words = wordCount(html); b.bytes = html.length;
+      return fSet(id + '/index.html', new Blob([html], { type: 'text/html' })).then(function () {
+        var cv = src.cover ? fGet(srcId + '/' + src.cover) : Promise.resolve(null);
+        return cv.then(function (bl) { if (bl && !b.cover) { b.cover = src.cover; return fSet(id + '/' + b.cover, bl).then(function () { setCoverURL(b, bl); }); } });
+      }).then(function () { if (!ex) lib.books.push(b); save(true); return { book: b, existed: !!ex }; });
+    }),
     update: A(function (id, patch) { var b = find(id); if (b) { ['title', 'author', 'series', 'rating', 'hidden', 'want', 'progress', 'finished', 'finishedAt', 'lastRead', 'audio', 'pdf'].forEach(function (k) { if (k in patch) b[k] = patch[k]; }); save(); } return lib; }),
     remove: A(function (id) { var i = lib.books.findIndex(function (b) { return b.id === id; }); if (i < 0) return lib; lib.books.splice(i, 1); if (coverURL[id]) { URL.revokeObjectURL(coverURL[id].u); delete coverURL[id]; } return fDelPrefix(id + '/').then(function () { save(true); return lib; }); }),
     ext: A(function (id, x) { var b = find(id); if (b && x) { b.ext = x; if (b.tpl && typeof x.progress === 'number') b.progress = Math.max(0, Math.min(100, Math.round(x.progress))); save(); } return lib; }),

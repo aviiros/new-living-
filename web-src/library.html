@@ -168,6 +168,7 @@ header.top #langBtn{display:none!important}
 .lang{display:grid;grid-template-columns:1fr 1fr 1fr}.lang button{height:30px}
 #box{position:relative}.mx{position:absolute;top:8px;inset-inline-end:10px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:26px;line-height:1;cursor:pointer}.mx:hover{background:var(--line)}
 #bgpill{position:fixed;z-index:60;inset-inline-start:12px;bottom:78px;width:min(320px,calc(100vw - 24px));padding:10px 38px 10px 14px;border-radius:14px;background:var(--card,#fbf7ec);color:var(--ink,#1d2b33);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.22);display:none;font-size:12.5px;line-height:1.5}#bgpill.on{display:block}.bgt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bgb{height:6px;border-radius:4px;background:var(--line);margin:7px 0 4px;overflow:hidden}.bgb i{display:block;height:100%;background:var(--acc);transition:width .4s}.bgs{opacity:.75}#bgx{position:absolute;top:6px;inset-inline-end:6px;width:28px;height:28px;border:0;background:transparent;font-size:20px;color:inherit;cursor:pointer}@media(min-width:900px){#bgpill{bottom:16px}}
+.libhead{flex-wrap:wrap;row-gap:8px}.libhead .ib{white-space:nowrap}.libhead .ib svg{width:18px;height:18px}.cami{display:inline-flex;vertical-align:middle;margin-inline-end:7px}.cami svg{width:19px;height:19px}#scanBtn{display:inline-flex;align-items:center}
 </style></head>
 <body><div id="bgpill"></div>
 <div id="app">
@@ -422,7 +423,7 @@ function bgRun(){
 function bgClean(){clearInterval(bgWatch);var f=$('#bgframe');if(f){f.src='about:blank';f.remove()}}
 function bgDone(ok){
   var j=bgCur;bgClean();bgCur=null;bgSave();bgPill();
-  if(j&&ok){var b=bookById(j.id),t=(b?dt(b):'');toast(T('اكتملت ترجمة «','Translation finished: ')+t+(LANG==='ar'?'»':''));try{window.api.notify&&window.api.notify(T('اكتملت الترجمة','Translation finished'),t+' → '+langName(j.tgt))}catch(e){}}
+  if(j&&ok){var b=bookById(j.id),t=(b?dt(b):'');toast(T('اكتملت ترجمة «','Translation finished: ')+t+(LANG==='ar'?'» وحُفظت ككتاب مستقل في مكتبتك':' (saved as its own book in your library)'));try{window.api.notify&&window.api.notify(T('اكتملت الترجمة','Translation finished'),t+' → '+langName(j.tgt))}catch(e){}}
   else if(j&&!ok)toast(T('توقفت الترجمة في الخلفية. افتح الكتاب لإكمالها','Background translation stopped. Open the book to continue'));
   kaUpdate(true);bgRun();
 }
@@ -433,6 +434,29 @@ window.addEventListener('message',function(e){
     if(bf&&e.source===bf.contentWindow&&bgCur){bgCur.st={done:d.done,total:d.total};bgCur.last=Date.now();bgPill();kaUpdate(false);if(d.total&&d.done>=d.total)bgDone(true)}
     else if(e.source===fr.contentWindow&&cur){trSt[cur.id]={tgt:d.tgt,done:d.done,total:d.total};kaUpdate(!!(d.total&&d.done>=d.total))}
   }catch(x){}
+});
+// A finished translation becomes its own book ("Title (Language)"): it opens like any other book (notes, listening, copy, save as PDF), and the original stays untouched.
+window.addEventListener('message',function(e){
+  var d=e.data;if(!d||!d.liBook||(d.type!=='tr-done'&&d.type!=='tr-want'))return;
+  var bf=$('#bgframe'),fr=$('#frame'),fromBg=!!(bf&&bf.contentWindow&&e.source===bf.contentWindow),fromFr=!!(fr&&fr.contentWindow&&e.source===fr.contentWindow);
+  if(!fromBg&&!fromFr)return;
+  var id=(fromBg&&bgCur&&bgCur.id)||(fromFr&&cur&&cur.id)||d.id,b=bookById(id);if(!b)return;
+  if(d.type==='tr-want'){
+    var cp=S.books.filter(function(x){return x.trOf===id&&x.trLang===d.tgt})[0];
+    if(cp){toast(T('هذه الترجمة محفوظة، فتحتها لك','This translation is saved. Opening it'));closeBook();setTimeout(function(){openBook(cp.id)},500);return}
+    post({liCmd:'trgo',tgt:d.tgt});return;
+  }
+  if(b.tpl||b.format==='pdf'||!d.html)return;
+  window.api.addTranslated(id,d.tgt,d.html,langName(d.tgt)).then(function(r){
+    if(!r||!r.book)return;
+    try{localStorage.removeItem('li:'+id+':li-tr-target:'+id)}catch(x){}
+    return window.api.state().then(function(st){
+      S=st;
+      if(!$('#reader').classList.contains('on'))render();
+      if(fromBg||!cur||cur.id!==id)return;
+      window.__liAsk(T('اكتملت الترجمة','Translation finished'),T('حُفظت الترجمة ككتاب مستقل باسم «'+r.book.title+'». هل تريد فتحه الآن؟','The translation was saved as its own book: '+r.book.title+'. Open it now?'),T('فتح الترجمة','Open it'),T('البقاء هنا','Stay here')).then(function(yes){if(yes){closeBook();setTimeout(function(){openBook(r.book.id)},500)}});
+    });
+  });
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden)bgPill()});
 function closeBook(){var b=cur;if(b){var ts=trSt[b.id];if(ts&&ts.tgt&&ts.total&&ts.done<ts.total)bgAdd(b.id,ts.tgt);delete trSt[b.id]}$('#reader').classList.remove('on');$('#frame').removeAttribute('srcdoc');$('#frame').src='about:blank';$('#pframe').src='about:blank';if(b)window.api.update(b.id,{lastRead:Date.now()});cur=null;setTimeout(function(){window.api.state().then(function(s){S=s;render()})},350)}
@@ -552,7 +576,7 @@ function toggleSave(it){var L=savedList(),i=-1;L.forEach(function(x,n){if(x.key=
 function shareThought(it){shareQuote({key:it.key,text:it.text,b:it.b||null,title:it.title,author:it.author})}
 function removeThought(it){if(it.kind==='mine'){setMyQ(myQ().filter(function(m){return m.id!==it.key}))}else{var h=hidQ();h.push(it.key);setHidQ(h)}}
 var BOT='<svg class="bot" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M18 90C34 62 50 40 82 12"/><path d="M30 70c-10-1-16-7-17-15 9 0 16 5 17 15zM40 56c-9-2-13-9-13-17 8 1 14 7 13 17zM52 42c-8-3-11-10-10-18 8 2 12 9 10 18zM40 74c8-5 17-3 22 3-8 5-17 3-22-3zM52 58c7-5 16-4 21 2-7 5-16 4-21-2zM64 44c7-5 15-4 20 1-6 5-14 5-20-1z"/></svg>';
-var SI={next:'<path d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"/>',plus:'<path d="M12 5v14M5 12h14"/>',trash:'<path d="M5 7h14M10 4h4M7 7l1 13h8l1-13M10 11v6M14 11v6"/>',srch:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',grid:'<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',mark:'<path d="M6 3.5h12v17l-6-4.2-6 4.2z"/>',share:'<circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'};
+var SI={cam:'<path d="M4 8.5A1.5 1.5 0 015.5 7h2.2l1.2-2h6.2l1.2 2h2.2A1.5 1.5 0 0120 8.5v9a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 17.5z"/><circle cx="12" cy="13" r="3.4"/><path d="M17 10.2h.01"/>',next:'<path d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"/>',plus:'<path d="M12 5v14M5 12h14"/>',trash:'<path d="M5 7h14M10 4h4M7 7l1 13h8l1-13M10 11v6M14 11v6"/>',srch:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',grid:'<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',mark:'<path d="M6 3.5h12v17l-6-4.2-6 4.2z"/>',share:'<circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'};
 var si=function(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+SI[k]+'</svg>'};
 function greeting(){var h=new Date().getHours();if(h>=5&&h<12)return T('صباح الخير','Good morning');if(h<17)return T('نهارك سعيد','Good afternoon');if(h<22)return T('مساء الخير','Good evening');return T('ليلة هادئة','A quiet night')}
 function lrowHtml(b){var lf=left(b);return '<div class="lrow" tabindex="0" data-id="'+b.id+'">'+cover(b)+'<div class="tt"><div class="t">'+esc(dt(b))+'</div><div class="a">'+esc(da(b)||' ')+(b.series?' · '+esc(b.series):'')+'</div></div><div class="pr"><div class="row">'+status(b)+stars(b)+'</div><div class="bar"><i style="width:'+(isFin(b)?100:b.progress)+'%"></i></div></div><div class="dt">'+(lf&&!isFin(b)?lf:(b.lastRead?new Date(b.lastRead).toLocaleDateString(LOC[LANG]):'—'))+'</div><button class="dots" data-dots="'+b.id+'" style="opacity:1" aria-label="'+T('المزيد','More')+'">⋯</button></div>'}
@@ -571,7 +595,7 @@ function renderHome(){
   if(!all.length){h+='<div class="hempty">'+emptyArt()+'<h3>'+T('مكتبتك تنتظر أول كتاب','Your library awaits its first book')+'</h3><p>'+T('أضف كتاباً من هاتفك لتبدأ: EPUB أو PDF أو MOBI أو غيرها.','Add a book from your phone to begin: EPUB, PDF, MOBI and more.')+'</p><button class="btn primary" id="hAdd">'+T('إضافة كتاب','Add Book')+'</button></div>'}
   else{
     var gridOn=S.settings.view!=='list';
-    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><button class="ib sm" id="hScan" style="margin-inline-start:auto">📷 '+T('مسح بالكاميرا','Scan')+'</button><button class="ib sm" id="hAdd2">'+si('plus')+T('إضافة كتاب','Add Book')+'</button><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
+    h+='<div><div class="libhead"><h2>'+T('مكتبتك','Your Library')+'</h2><button class="ib sm" id="hScan" style="margin-inline-start:auto">'+si('cam')+T('مسح بالكاميرا','Scan')+'</button><button class="ib sm" id="hAdd2">'+si('plus')+T('إضافة كتاب','Add Book')+'</button><div class="vt"><button id="hvg" class="'+(gridOn?'on':'')+'" aria-label="'+T('شبكة','Grid')+'">'+si('grid')+'</button><button id="hvl" class="'+(gridOn?'':'on')+'" aria-label="'+T('قائمة','List')+'">'+si('list')+'</button></div></div></div>';
     h+='<label class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'+SI.srch+'</svg><input id="hs" type="search" placeholder="'+T('ابحث في مكتبتك...','Search your library...')+'" aria-label="'+T('بحث','Search')+'"></label>';
     if(hero){var lf=left(hero);hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero" data-id="'+hero.id+'" style="cursor:pointer">'+cover(hero)+'<div class="info"><h2>'+esc(dt(hero))+'</h2><div class="a">'+esc(da(hero))+'</div><div class="bar"><i style="width:'+hero.progress+'%"></i></div><div class="a">'+AR(hero.progress)+'٪'+(lf?T(' · متبقٍ نحو '+lf,' · about '+lf+' left'):'')+'</div><button class="btn primary" data-open="'+hero.id+'">'+T('متابعة','Continue')+'</button></div></div></div></div>'}
     else hc='<div><p class="sub">'+T('تابع القراءة','Continue Reading')+'</p><div class="card"><div class="hero"><img src="assets/emblem.png" alt="" style="width:84px;border-radius:12px"><div class="info"><h2>'+T('لا كتاب قيد القراءة','Nothing in progress')+'</h2><div class="a">'+T('اختر كتاباً لتبدأ.','Pick a book to begin.')+'</div><button class="btn primary" data-v="all">'+T('تصفح كل الكتب','Browse all books')+'</button></div></div></div></div>';
@@ -701,7 +725,7 @@ $('#sb').addEventListener('input',function(e){query=e.target.value;if(query&&(vi
 var _sorted=sorted;sorted=function(L){if(view==='reads'&&!query.trim())return L.sort(function(a,b){return (b.lastRead||b.added||0)-(a.lastRead||a.added||0)});return _sorted(L)};
 var _filtered=filtered;filtered=function(){if(view==='reads'&&!query.trim())return sorted(S.books.filter(function(b){return vis(b)&&(b.lastRead||b.progress>0)}));return _filtered()};
 var _render=render,lastView=null,freshSeen=null;
-render=function(){_render();var sb2=$('#scanBtn');if(sb2){sb2.textContent=T('📷 مسح بالكاميرا','📷 Scan with camera');sb2.style.display=window.api&&window.api.scan?'':'none'}var searching=!!query.trim(),isHome=view==='home'&&!searching,isNotes=view==='notes'&&!searching;
+render=function(){_render();var sb2=$('#scanBtn');if(sb2){sb2.innerHTML='<span class="cami">'+si('cam')+'</span>'+T('مسح بالكاميرا','Scan with camera');sb2.style.display=window.api&&window.api.scan?'':'none'}var searching=!!query.trim(),isHome=view==='home'&&!searching,isNotes=view==='notes'&&!searching;
   $('#sbox').style.display=(isHome||isNotes)?'none':'flex';var sb=$('#sb');if(sb.value!==query&&document.activeElement!==sb)sb.value=query;
   if(view==='reads'&&!searching){$('#title').textContent=T('قراءاتي','My Reads');if(!filtered().length){$('#et').textContent=T('لم تبدأ أي قراءة بعد','No reads yet');$('#ep').textContent=T('الكتب التي تفتحها ستظهر هنا بترتيب آخر قراءة.','Books you open will appear here, most recent first.')}}
   $('#title').style.visibility=isHome?'hidden':'';sb.placeholder=T('ابحث في مكتبتك...','Search your library...');
