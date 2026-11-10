@@ -416,7 +416,7 @@ function bgRun(){
   var f=document.createElement('iframe');f.id='bgframe';f.name='li-bg';f.setAttribute('sandbox','allow-scripts allow-same-origin');f.setAttribute('aria-hidden','true');
   f.style.cssText='position:fixed;left:-9999px;top:0;width:760px;height:900px;border:0;opacity:0;pointer-events:none';document.body.appendChild(f);
   Promise.resolve(window.api.frameSrc(b)).then(function(x){if(!bgCur||bgCur.id!==j.id)return;if(x.srcdoc!=null)f.srcdoc=x.srcdoc;else f.src=x.src});
-  clearInterval(bgWatch);bgWatch=setInterval(function(){if(bgCur&&Date.now()-bgCur.last>180000)bgDone(false)},15000);
+  clearInterval(bgWatch);bgWatch=setInterval(function(){if(bgCur&&Date.now()-bgCur.last>600000)bgDone(false)},15000);
   bgPill();kaUpdate(true);
 }
 function bgClean(){clearInterval(bgWatch);var f=$('#bgframe');if(f){f.src='about:blank';f.remove()}}
