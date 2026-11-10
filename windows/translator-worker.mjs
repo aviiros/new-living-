@@ -16,8 +16,12 @@ function pipe(a, b) {
   if (!pipes.has(k)) {
     pipes.set(k, (async () => {
       const t = await lib(); post('', 'prep');
-      try { const p = await t.pipeline('translation', 'Xenova/opus-mt-' + k, { dtype: 'q8' }); post('', 'ready'); return p; }
-      catch (e) { pipes.delete(k); e.load = true; throw e; }
+      let last = null;
+      for (let n = 0; n < 3; n++) {
+        try { const p = await t.pipeline('translation', 'Xenova/opus-mt-' + k, { dtype: 'q8' }); post('', 'ready'); return p; }
+        catch (e) { last = e; await new Promise((r) => setTimeout(r, 1500 * (n + 1))); }
+      }
+      pipes.delete(k); last.load = true; throw last;
     })());
   }
   return pipes.get(k);
@@ -75,6 +79,8 @@ async function go(m) {
     if (!m.hq) { try { r = await marian(text, src, tgt); } catch (e) { r = null; why1 = why(e); } }
     if (r == null && !nllbBad) { try { r = await viaNllb(text, src, tgt); eng = 'nllb'; } catch (e) { r = null; why1 = why1 || why(e); } } else if (r == null) why1 = why1 || nllbWhy;
     if (r == null && m.hq) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
+    if (!r || !String(r).trim()) { try { r = await marian(text, src, tgt); eng = 'marian'; } catch (e) { r = null; } }
+    if (!r || !String(r).trim()) return post(id, 'err', 'empty result ' + src + '>' + tgt);
     post(id, 'ok', r, eng);
   } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
 }
