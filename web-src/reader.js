@@ -7,7 +7,7 @@
   ['scroll', 'keydown', 'mousedown', 'wheel', 'touchstart'].forEach(function (e) { addEventListener(e, act, { passive: true, capture: true }); });
   var barShown = false;
   addEventListener('mousemove', function (e) { act(); if (e.clientY <= 30) { if (!barShown) { barShown = true; P({ type: 'bar', show: 1 }); } clearTimeout(barT); } else if (barShown && e.clientY > 90) { clearTimeout(barT); barT = setTimeout(function () { barShown = false; P({ type: 'bar', show: 0 }); }, 700); } }, { passive: true });
-  function pct() { var d = document.documentElement, h = d.scrollHeight - innerHeight, s = window.scrollY || d.scrollTop || 0; return h > 0 ? Math.max(0, Math.min(100, s / h * 100)) : 0; }
+  function pct() { if (window.__liPg && window.__liPg.on) return window.__liPg.pct(); var d = document.documentElement, h = d.scrollHeight - innerHeight, s = window.scrollY || d.scrollTop || 0; return h > 0 ? Math.max(0, Math.min(100, s / h * 100)) : 0; }
   var pT; if (!TPL) addEventListener('scroll', function () { clearTimeout(pT); pT = setTimeout(function () { P({ type: 'progress', pct: Math.round(pct()), exact: pct() }); }, 400); }, { passive: true });
   addEventListener('keydown', function (e) { if ((e.ctrlKey && (e.key === 'l' || e.key === 'L')) || (e.altKey && e.key === 'ArrowLeft')) P({ type: 'back' }); else if (e.key === 'F11') { P({ type: 'fs' }); e.preventDefault(); } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F') && !TPL) { P({ type: 'findkey' }); e.preventDefault(); } });
   // ---- template books: mirror their notebook/progress into the library ----
@@ -106,11 +106,12 @@
   function visiblePara() { var els = document.querySelectorAll('p,li,h1,h2,h3,blockquote,div'), best = null; for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); if (r.top >= 0 && r.top < innerHeight * 0.8 && els[i].textContent.trim().length > 20 && els[i].children.length < 4) { best = els[i]; break; } } return best ? best.textContent.replace(/\s+/g, ' ').trim().slice(0, 140) : ''; }
   function gotoAnnot(a) { if (a.type !== 'bm') { var m = document.querySelector('mark.li-hl[data-id="' + a.id + '"]'); if (m) { m.scrollIntoView({ block: 'center', behavior: 'smooth' }); flash(m); return; } } if (a.quote) { var idx = walk(), r = locate(a, idx); if (r) { var n = idx.nodes.filter(function (o) { return o.s <= r[0] && o.s + o.n.nodeValue.length > r[0]; })[0]; if (n && n.n.parentElement) { n.n.parentElement.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; } } } var d = document.documentElement; scrollTo({ top: (d.scrollHeight - innerHeight) * (a.pct || 0) / 100, behavior: 'smooth' }); }
   function flash(m) { var o = m.style.outline; m.style.outline = '3px solid #C3714C'; setTimeout(function () { m.style.outline = o; }, 1500); }
+  window.__liRd = { getFs: function () { return prefs.fs; }, setFs: function (n) { prefs.fs = n; applyPrefs(); P({ type: 'fs', fs: n }); } };
   addEventListener('message', function (e) {
     var d = e.data; if (!d || !d.liCmd) return;
     if (d.liCmd === 'init') {
-      annots = d.annots || []; prefs = Object.assign(prefs, d.prefs || {}); applyPrefs();
-      if (!TPL) { setTimeout(function () { applyAnnots(); if (d.pct > 0 && d.pct < 99) { var dd = document.documentElement; scrollTo(0, (dd.scrollHeight - innerHeight) * d.pct / 100); } }, 250); }
+      annots = d.annots || []; prefs = Object.assign(prefs, d.prefs || {}); applyPrefs(); window.__liInitPct = d.pct;
+      if (!TPL) { setTimeout(function () { applyAnnots(); if (window.__liPg && window.__liPg.on) { if (d.pct > 0 && d.pct < 99) window.__liPg.goPct(d.pct); } else if (d.pct > 0 && d.pct < 99) { var dd = document.documentElement; scrollTo(0, (dd.scrollHeight - innerHeight) * d.pct / 100); } }, 250); }
       if (TPL) dumpTpl();
     } else if (d.liCmd === 'prefs') { prefs = Object.assign(prefs, d.prefs || {}); applyPrefs(); }
     else if (d.liCmd === 'goto') {

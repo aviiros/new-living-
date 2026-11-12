@@ -515,7 +515,7 @@
     // Save the translated book: as an HTML file (opens anywhere) or as a PDF (print to PDF).
     function exportHtml() {
       var c = document.documentElement.cloneNode(true);
-      [].forEach.call(c.querySelectorAll('#li-tr-ui,script,base,#li-sel-bar'), function (x) { x.remove(); });
+      [].forEach.call(c.querySelectorAll('#li-tr-ui,script,base,#li-sel-bar,.li-ui,#li-dock-css,#li-font-css,#li-pg-css'), function (x) { x.remove(); }); c.classList.remove('li-paged'); [].forEach.call(c.querySelectorAll('.li-speak'), function (x) { x.classList.remove('li-speak'); });
       [].forEach.call(c.querySelectorAll('[data-li-dir],[data-li-ta]'), function (x) { x.removeAttribute('data-li-dir'); x.removeAttribute('data-li-ta'); });
       c.style.zoom = ''; c.style.touchAction = ''; c.style.visibility = ''; if (!c.getAttribute('style')) c.removeAttribute('style'); c.setAttribute('lang', state.tgt); c.setAttribute('dir', state.tgt === 'ar' ? 'rtl' : 'ltr'); c.removeAttribute('data-li-lang');
       var st = document.createElement('style'); st.textContent = '@page{margin:18mm}@media print{#li-tr-ui{display:none}}'; (c.querySelector('head') || c).appendChild(st);
@@ -676,7 +676,7 @@
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
     revokeLive(); var lang = (lib.settings.lang || 'ar') === 'ar' ? 'ar' : 'en';
-    if (b.format === 'html' || b.format === 'epub') return Promise.all([fGet(b.id + '/index.html'), INJECT_JS ? INJECT_JS : getText('reader.js')]).then(function (r) {
+    if (b.format === 'html' || b.format === 'epub') return Promise.all([fGet(b.id + '/index.html'), INJECT_JS ? INJECT_JS : Promise.all([getText('reader.js'), getText('dock.js').catch(function () { return ''; })]).then(function (x) { return x[0] + '\n' + x[1]; })]).then(function (r) {
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
