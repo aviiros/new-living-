@@ -346,8 +346,8 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onPause() {
     super.onPause();
-    try { getBridge().getWebView().resumeTimers(); } catch (Exception ignored) {}
-    if (tts != null) try { tts.stop(); } catch (Exception ignored) {}
+    // Keep the page running and keep reading aloud when the screen turns off or another app is opened.
+    try { getBridge().getWebView().resumeTimers(); getBridge().getWebView().onResume(); } catch (Exception ignored) {}
   }
 
   @Override

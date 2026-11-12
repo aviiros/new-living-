@@ -106,11 +106,14 @@ async function bergamot() {
       // The package's worker file is written for CommonJS but the package is marked as a module, so Node refuses it.
       // Use a private copy where the worker folder is marked CommonJS.
       const srcDir = path.dirname(fileURLToPath(import.meta.resolve('@browsermt/bergamot-translator/translator.js')));
-      const pkgDir = path.join(workerData.cache, 'bergamot-pkg-' + (process.env.LI_BERG_V || '1'));
+      const pkgDir = path.join(workerData.cache, 'bergamot-pkg2-' + (process.env.LI_BERG_V || '1'));
       if (!fs.existsSync(path.join(pkgDir, 'ok'))) {
         fs.rmSync(pkgDir, { recursive: true, force: true }); fs.mkdirSync(path.join(pkgDir, 'worker'), { recursive: true });
         fs.copyFileSync(path.join(srcDir, 'translator.js'), path.join(pkgDir, 'translator.js'));
         for (const f of fs.readdirSync(path.join(srcDir, 'worker'))) fs.copyFileSync(path.join(srcDir, 'worker', f), path.join(pkgDir, 'worker', f));
+        // On Windows the package turns file:///D:/x into "/D:/x" and fails to read it; use the proper conversion.
+        const wf = path.join(pkgDir, 'worker', 'translator-worker.js'); let ws = fs.readFileSync(wf, 'utf8');
+        ws = ws.replace('await readFile(url.pathname)', "await readFile(require('node:url').fileURLToPath(url))"); fs.writeFileSync(wf, ws);
         fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"type":"module"}');
         fs.writeFileSync(path.join(pkgDir, 'worker', 'package.json'), '{"type":"commonjs"}');
         fs.writeFileSync(path.join(pkgDir, 'ok'), '1');
