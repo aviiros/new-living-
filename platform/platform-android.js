@@ -228,9 +228,34 @@
 
 
   window.__liTr = function (id, kind, text) { ['frame', 'pframe', 'bgframe'].forEach(function (n) { var f = document.getElementById(n); try { f.contentWindow.postMessage({ liTr: 1, id: id, kind: kind, text: text }, '*'); } catch (e) {} }); };
-  window.__liTts = function (id, type, a, b) { var f = document.getElementById('frame'); try { f.contentWindow.postMessage({ liTts: 1, id: id, type: type, a: a, b: b }, '*'); } catch (e) {} };
+  window.__liTts = function (id, type, a, b) { ['frame', 'pframe'].forEach(function (n) { var f = document.getElementById(n); try { f.contentWindow.postMessage({ liTts: 1, id: id, type: type, a: a, b: b }, '*'); } catch (e) {} }); };
   // Runs INSIDE every book page: (1) saves/shares files the book creates (quote images, backups),
   // (2) rebuilds speechSynthesis on top of the phone's own text-to-speech.
+  function TTSX() {
+    var N = window.LiNative; if (!N || !N.speak) return;
+    var seq = 0, live = {}, q = [], vc = null, ls = [], spkT = null, spkOn = false;
+    // While anything is being read aloud the app keeps a notification alive, so the voice continues with the screen off or another app open.
+    function note(on) { clearTimeout(spkT); if (on) { if (!spkOn) { spkOn = true; try { parent.postMessage({ liBook: 1, type: 'speak-state', on: true }, '*'); } catch (e) {} } } else spkT = setTimeout(function () { if (!S.speaking && spkOn) { spkOn = false; try { parent.postMessage({ liBook: 1, type: 'speak-state', on: false }, '*'); } catch (e) {} } }, 2500); }
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'spkstop') { try { S.cancel(); } catch (x) {} try { window.__liDock && window.__liDock.act('sstop'); } catch (x) {} try { window.__liPdfStop && window.__liPdfStop(); } catch (x) {} } });
+    function voices() { if (vc) return vc; var a = []; try { a = JSON.parse(N.voices() || '[]'); } catch (e) {} if (!a.length) return []; vc = a.map(function (v) { return { name: v[0], lang: v[1], voiceURI: v[0], localService: true, default: false }; }); return vc; }
+    function U(t) { this.text = t === undefined ? '' : String(t); this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1; this.voice = null; this.onstart = this.onend = this.onerror = this.onboundary = this.onpause = this.onresume = null; }
+    function issue(ent, from) { var id = 'u' + (++seq); live[id] = ent; ent.id = id; var u = ent.u; ent.base = from || 0; N.speak(id, u.text.slice(ent.base), u.lang || (u.voice && u.voice.lang) || '', u.voice ? u.voice.name : '', +u.rate || 1, +u.pitch || 1); }
+    var S = { speaking: false, pending: false, paused: false, onvoiceschanged: null, getVoices: voices,
+      speak: function (u) { var ent = { u: u, base: 0, off: 0 }; q.push(ent); S.speaking = true; note(true); if (!S.paused) issue(ent, 0); },
+      cancel: function () { live = {}; q = []; S.speaking = false; S.paused = false; note(false); try { N.stop(); } catch (e) {} },
+      pause: function () { if (!S.speaking || S.paused) return; S.paused = true; live = {}; try { N.stop(); } catch (e) {} q.forEach(function (e) { if (e.u.onpause && e === q[0]) try { e.u.onpause({}); } catch (x) {} }); },
+      resume: function () { if (!S.paused) return; S.paused = false; var first = true; q.forEach(function (e) { issue(e, first ? e.off : 0); first = false; }); if (q[0] && q[0].u.onresume) try { q[0].u.onresume({}); } catch (x) {} },
+      addEventListener: function (n, f) { if (n === 'voiceschanged') ls.push(f); }, removeEventListener: function (n, f) { ls = ls.filter(function (x) { return x !== f; }); }, dispatchEvent: function () { return true; } };
+    try { Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: U }); Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: function () { return S; } }); } catch (e) { window.SpeechSynthesisUtterance = U; window.speechSynthesis = S; }
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || !d.liTts) return;
+      if (d.type === 'voices') { vc = null; var ev = { type: 'voiceschanged' }; if (S.onvoiceschanged) try { S.onvoiceschanged(ev); } catch (x) {} ls.slice().forEach(function (f) { try { f(ev); } catch (x) {} }); return; }
+      var ent = live[d.id]; if (!ent) return; var u = ent.u;
+      if (d.type === 'start') { if (u.onstart) try { u.onstart({}); } catch (x) {} }
+      else if (d.type === 'boundary') { ent.off = d.a + ent.base; if (u.onboundary) try { u.onboundary({ charIndex: d.a + ent.base, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
+      else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) { S.speaking = false; note(false); } var h = d.type === 'end' ? u.onend : u.onerror; if (h) try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} }
+    });
+  }
   function SHIMX() {
     function send(name, mime, blob) { var r = new FileReader(); r.onload = function () { parent.postMessage({ liBook: 1, type: 'save-file', name: name || 'file', mime: mime || blob.type || '', data: r.result }, '*'); }; r.readAsDataURL(blob); }
     function grab(a) { var h = a.href; fetch(h).then(function (r) { return r.blob(); }).then(function (b) { send(a.getAttribute('download'), b.type, b); }).catch(function () {}); }
@@ -257,26 +282,6 @@
       var el = document.getElementById(h) || document.getElementsByName(h)[0];
       if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (x) { el.scrollIntoView(); } try { history.replaceState(null, '', '#' + encodeURIComponent(h)); } catch (x) {} }
     }, false);
-    var N = window.LiNative; if (!N || !N.speak) return;
-    var seq = 0, live = {}, q = [], vc = null, ls = [];
-    function voices() { if (vc) return vc; var a = []; try { a = JSON.parse(N.voices() || '[]'); } catch (e) {} if (!a.length) return []; vc = a.map(function (v) { return { name: v[0], lang: v[1], voiceURI: v[0], localService: true, default: false }; }); return vc; }
-    function U(t) { this.text = t === undefined ? '' : String(t); this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1; this.voice = null; this.onstart = this.onend = this.onerror = this.onboundary = this.onpause = this.onresume = null; }
-    function issue(ent, from) { var id = 'u' + (++seq); live[id] = ent; ent.id = id; var u = ent.u; ent.base = from || 0; N.speak(id, u.text.slice(ent.base), u.lang || (u.voice && u.voice.lang) || '', u.voice ? u.voice.name : '', +u.rate || 1, +u.pitch || 1); }
-    var S = { speaking: false, pending: false, paused: false, onvoiceschanged: null, getVoices: voices,
-      speak: function (u) { var ent = { u: u, base: 0, off: 0 }; q.push(ent); S.speaking = true; if (!S.paused) issue(ent, 0); },
-      cancel: function () { live = {}; q = []; S.speaking = false; S.paused = false; try { N.stop(); } catch (e) {} },
-      pause: function () { if (!S.speaking || S.paused) return; S.paused = true; live = {}; try { N.stop(); } catch (e) {} q.forEach(function (e) { if (e.u.onpause && e === q[0]) try { e.u.onpause({}); } catch (x) {} }); },
-      resume: function () { if (!S.paused) return; S.paused = false; var first = true; q.forEach(function (e) { issue(e, first ? e.off : 0); first = false; }); if (q[0] && q[0].u.onresume) try { q[0].u.onresume({}); } catch (x) {} },
-      addEventListener: function (n, f) { if (n === 'voiceschanged') ls.push(f); }, removeEventListener: function (n, f) { ls = ls.filter(function (x) { return x !== f; }); }, dispatchEvent: function () { return true; } };
-    try { Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: U }); Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: function () { return S; } }); } catch (e) { window.SpeechSynthesisUtterance = U; window.speechSynthesis = S; }
-    window.addEventListener('message', function (e) {
-      var d = e.data; if (!d || !d.liTts) return;
-      if (d.type === 'voices') { vc = null; var ev = { type: 'voiceschanged' }; if (S.onvoiceschanged) try { S.onvoiceschanged(ev); } catch (x) {} ls.slice().forEach(function (f) { try { f(ev); } catch (x) {} }); return; }
-      var ent = live[d.id]; if (!ent) return; var u = ent.u;
-      if (d.type === 'start') { if (u.onstart) try { u.onstart({}); } catch (x) {} }
-      else if (d.type === 'boundary') { ent.off = d.a + ent.base; if (u.onboundary) try { u.onboundary({ charIndex: d.a + ent.base, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
-      else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) S.speaking = false; var h = d.type === 'end' ? u.onend : u.onerror; if (h) try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} }
-    });
     window.addEventListener('message', function (e) {
       var d = e.data; if (!d || !d.liCmd) return;
       if (d.liCmd === 'toc') {
@@ -660,6 +665,42 @@
     btn.addEventListener('touchend', function () { clearTimeout(lp); }, { passive: true });
     btn.addEventListener('click', function (e) { e.stopPropagation(); if (longp) { longp = false; return; } if (menu.style.display === 'block') { menu.style.display = 'none'; return; } if (tgt) { showMenu(); return; }
       sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });
+    // ---- read aloud, page after page (works with the screen off through the notification) ----
+    var LS = { on: false, tok: 0 };
+    function lsay(on) { try { parent.postMessage({ liBook: 1, type: 'plisten-state', on: on }, '*'); } catch (e) {} }
+    function lchunks(t) {
+      var out = [], re = /[^.!?؟۔…\n]+[.!?؟۔…]*\s*/g, m, c = '';
+      while ((m = re.exec(t))) { var x = m[0]; while (x.length > 240) { var cut = x.lastIndexOf(' ', 220); if (cut < 80) cut = 220; if (c) { out.push(c); c = ''; } out.push(x.slice(0, cut)); x = x.slice(cut); } if ((c + x).length > 220 && c) { out.push(c); c = x; } else c += x; }
+      if (c.trim()) out.push(c); return out.length ? out : [t];
+    }
+    function llang(t) {
+      if (/[؀-ۿ]/.test(t)) return 'ar'; var l = ' ' + t.slice(0, 1500).toLowerCase() + ' ', best = 'en', bs = 0;
+      var W = { fr: [' le ', ' la ', ' les ', ' des ', ' est ', ' une '], es: [' el ', ' los ', ' que ', ' una ', ' es ', ' por '], it: [' il ', ' che ', ' di ', ' una ', ' è ', ' per '], id: [' yang ', ' dan ', ' di ', ' ini ', ' itu ', ' dengan '], en: [' the ', ' and ', ' of ', ' to ', ' is ', ' in '] };
+      Object.keys(W).forEach(function (k) { var c = 0; W[k].forEach(function (w) { c += l.split(w).length - 1; }); if (c > bs) { bs = c; best = k; } }); return best;
+    }
+    function ptext(n) { return getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { var o = []; tc.items.forEach(function (it) { o.push(it.str); if (it.hasEOL) o.push(' '); }); return o.join(' ').replace(/\s+/g, ' ').trim(); }); }
+    function lstop() { LS.on = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); }
+    function lpage(n, tok) {
+      if (!LS.on || tok !== LS.tok) return;
+      getDoc().then(function (d) {
+        if (n > d.numPages) { lstop(); return; }
+        return ptext(n).then(function (t) {
+          if (!LS.on || tok !== LS.tok) return;
+          try { window.__pgo && window.__pgo(n); } catch (e) {}
+          if (!t) { lpage(n + 1, tok); return; }
+          var cs = lchunks(t), k = 0, lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
+          (function next() {
+            if (!LS.on || tok !== LS.tok) return; if (k >= cs.length) { lpage(n + 1, tok); return; }
+            var u = new SpeechSynthesisUtterance(cs[k++]); u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
+            try { var vs = (window.speechSynthesis.getVoices() || []).filter(function (v) { return (v.lang || '').toLowerCase().indexOf(lg) === 0; }); var pick = vs.filter(function (v) { return v.name === G.voice; })[0] || vs[0]; if (pick) { u.voice = pick; u.lang = pick.lang; } } catch (e) {}
+            u.onend = next; u.onerror = function (ev) { if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return; next(); };
+            try { window.speechSynthesis.speak(u); } catch (e) { lstop(); }
+          })();
+        });
+      }).catch(function () { lstop(); });
+    }
+    window.__liPdfStop = function () { if (LS.on) lstop(); };
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'plisten') { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; var tok = ++LS.tok; lsay(true); lpage((window.__pcur && window.__pcur()) || 1, tok); } });
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     var saved = null; try { saved = localStorage.getItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {}
@@ -672,7 +713,7 @@
     addEventListener('touchmove', function (e) { if (e.touches.length === 3 && y3 !== null && !fired && av(e.touches, 'clientY') - y3 > 120 && Math.abs(av(e.touches, 'clientX') - x3) < 140) { fired = true; parent.postMessage({ liBook: 1, type: 'shot' }, '*'); } }, { passive: true });
     addEventListener('touchend', function (e) { if (e.touches.length === 0) y3 = null; }, { passive: true });
   }
-  var SHIM = function (id) { return '<base href="about:srcdoc"><script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';window.__TRS.UI=' + JSON.stringify(lib.settings.lang || 'ar') + ';window.__TRS.ID=' + JSON.stringify(id) + ';<\/script><script>(' + TRU.toString() + ')();<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
+  var SHIM = function (id) { return '<base href="about:srcdoc"><script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>(function(){try{var P="li:' + id + ':",R=window.localStorage;function keys(){var a=[];for(var i=0;i<R.length;i++){var k=R.key(i);if(k&&k.indexOf(P)===0)a.push(k.slice(P.length))}return a}var base={getItem:function(k){return R.getItem(P+k)},setItem:function(k,v){R.setItem(P+k,String(v))},removeItem:function(k){R.removeItem(P+k)},clear:function(){keys().forEach(function(k){R.removeItem(P+k)})},key:function(n){var a=keys();return a[n]===undefined?null:a[n]}};var LSP=new Proxy(base,{get:function(t,k){if(k==="length")return keys().length;if(k in t)return t[k];return R.getItem(P+String(k))},set:function(t,k,v){R.setItem(P+String(k),String(v));return true},deleteProperty:function(t,k){R.removeItem(P+String(k));return true},has:function(t,k){return k in t||R.getItem(P+String(k))!==null},ownKeys:function(){return keys()},getOwnPropertyDescriptor:function(t,k){return R.getItem(P+String(k))!==null?{value:R.getItem(P+String(k)),enumerable:true,configurable:true,writable:true}:undefined}});Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return LSP}});var o=indexedDB.open.bind(indexedDB);indexedDB.open=function(n,v){return v===undefined?o(P+n):o(P+n,v)};var d=indexedDB.deleteDatabase.bind(indexedDB);indexedDB.deleteDatabase=function(n){return d(P+n)}}catch(e){}document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&/^(https?:|mailto:)/i.test(a.href)&&a.origin!==location.origin){e.preventDefault();parent.postMessage({liBook:1,type:"open-url",url:a.href},"*")}},true)})();<\/script>' + '<script>(' + SHIMX.toString() + ')();<\/script><script>(' + TTSX.toString() + ')();<\/script>' + '<script>window.__TRS=' + JSON.stringify(TRS) + ';window.__TRS.UI=' + JSON.stringify(lib.settings.lang || 'ar') + ';window.__TRS.ID=' + JSON.stringify(id) + ';<\/script><script>(' + TRU.toString() + ')();<\/script><script>(' + TRX.toString() + ')();<\/script>'; };
   function revokeLive() { live.forEach(function (u) { URL.revokeObjectURL(u); }); live = []; }
   function frameSrc(b) {
     revokeLive(); var lang = (lib.settings.lang || 'ar') === 'ar' ? 'ar' : 'en';
@@ -680,7 +721,7 @@
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
-    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
+    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TTSX.toString() + ')();<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------

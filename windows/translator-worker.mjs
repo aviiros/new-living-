@@ -94,6 +94,9 @@ async function bergRegistry() {
     try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (x) { throw e; }
   }
 }
+const ce = console.error.bind(console);
+console.error = (...a) => { try { if (String(a[0]).indexOf('WASM Translation Worker error') >= 0) { bergBad = true; bergWhy = 'bergamot worker failed to start'; } } catch (e) {} ce(...a); };
+function limit(p, ms, what) { let t; return Promise.race([p, new Promise((_, rj) => { t = setTimeout(() => { bergBad = true; bergWhy = what + ' timed out'; rj(new Error(what + ' timed out')); }, ms); })]).finally(() => clearTimeout(t)); }
 async function bergamot() {
   if (bergBad) throw new Error(bergWhy || 'bergamot unavailable');
   if (!berg) berg = (async () => {
@@ -119,10 +122,10 @@ async function bergamot() {
 }
 async function viaBergamot(text, src, tgt) {
   const key = src + '>' + tgt, bad = pairBad.get(key); if (bad && Date.now() - bad < 120000) throw new Error('bergamot pair skipped');
-  const t = await bergamot();
+  const t = await limit(bergamot(), 180000, 'bergamot load');
   try {
     const out = [];
-    for (const part of text.split(/\n+/)) { if (!part.trim()) continue; const r = await t.translate({ from: src, to: tgt, text: part, html: false, qualityScores: false }); out.push(((r && r.target && r.target.text) || '').trim()); }
+    for (const part of text.split(/\n+/)) { if (!part.trim()) continue; const r = await limit(t.translate({ from: src, to: tgt, text: part, html: false, qualityScores: false }), 60000, 'bergamot translate'); out.push(((r && r.target && r.target.text) || '').trim()); }
     const res = out.join('\n'); if (!res.trim()) throw new Error('empty'); return res;
   } catch (e) { pairBad.set(key, Date.now()); throw e; }
 }

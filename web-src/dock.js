@@ -107,7 +107,7 @@
     var pick = G.voice && vs.filter(function (v) { return v.name === G.voice; })[0]; if (pick) return pick;
     vs.sort(function (a, b) { var sa = (/natural|online/i.test(a.name) ? 2 : 0) + (a.localService ? 1 : 0), sb = (/natural|online/i.test(b.name) ? 2 : 0) + (b.localService ? 1 : 0); return sb - sa; }); return vs[0];
   }
-  function mark(el) { [].forEach.call(D.querySelectorAll('.li-speak'), function (x) { x.classList.remove('li-speak'); }); if (el) { el.classList.add('li-speak'); reveal(el); } }
+  function mark(el) { [].forEach.call(D.querySelectorAll('.li-speak'), function (x) { x.classList.remove('li-speak'); }); if (el) { el.classList.add('li-speak'); if (GD.on && GD.voice) { var ix = units.indexOf(el); if (ix >= 0 && (ix !== GD.i || GD.off)) { GD.i = ix; GD.off = 0; gShow(); } } else reveal(el); } }
   function reveal(el) {
     if (PG.on) { PG.toEl(el); return; }
     var r = el.getBoundingClientRect(); if (r.top < 70 || r.bottom > innerHeight - 130) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { el.scrollIntoView(); } }
@@ -129,7 +129,7 @@
   function endSpeak(done) { S.on = false; S.paused = false; S.tok++; cancelSpeech(); mark(null); if (done) bset('li-spk', '0'); render(); }
   function startSpeak(from) {
     if (!SSf()) { alert(T('القراءة الصوتية غير متاحة على هذا الجهاز', 'Text to speech is not available on this device')); return; }
-    collect(); if (!units.length) return; if (GD.on) stopGuide(); S.stop = Infinity;
+    collect(); if (!units.length) return; if (GD.on && !GD.voice) stopGuide(); S.stop = Infinity;
     if (G.scope === 'ch') { var h = null; for (var j = from + 1; j < units.length; j++) if (/^H[1-3]$/.test(units[j].tagName)) { h = j; break; } if (h) S.stop = h - 1; }
     S.on = true; S.paused = false; cancelSpeech(); speakUnit(from, 0); render(); wake();
   }
@@ -147,7 +147,7 @@
   }
 
   // ---------- guided reading ----------
-  var GD = { on: false, i: 0, off: 0, timer: null, auto: false }, mt = null, mb = null;
+  var GD = { on: false, i: 0, off: 0, timer: null, auto: false, voice: false }, mt = null, mb = null;
   function bandTop() { return Math.round(innerHeight * 0.26); }
   function lineH() { var el = units[GD.i] || D.body, cs = getComputedStyle(el), lh = parseFloat(cs.lineHeight); return lh > 0 ? lh : (parseFloat(cs.fontSize) || 16) * 1.7; }
   function bandH() { return Math.round(Math.max(1.5, G.band || 3) * lineH()); }
@@ -158,7 +158,7 @@
   function gShow() {
     var el = units[GD.i]; if (!el) return; maskUp(); var r = el.getBoundingClientRect(), y = r.top + (window.scrollY || root.scrollTop || 0) + GD.off - bandTop();
     try { scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { scrollTo(0, Math.max(0, y)); }
-    mark(null); if (gtimer) { clearTimeout(gtimer); gtimer = null; } if (GD.auto) gSchedule();
+    if (gtimer) { clearTimeout(gtimer); gtimer = null; } if (GD.auto && !(GD.voice && S.on)) gSchedule();
   }
   var gtimer = null;
   function gSchedule() {
@@ -170,12 +170,13 @@
     if (GD.off >= h - 4) { if (GD.i + 1 >= units.length) { stopGuide(); return; } GD.i++; GD.off = 0; } else if (GD.off < 0) { if (GD.i === 0) GD.off = 0; else { GD.i--; var pr = units[GD.i].getBoundingClientRect().height; GD.off = Math.max(0, pr - bh); } }
     gShow();
   }
-  function startGuide() { if (S.on) endSpeak(); if (PG.on) exitPaged(); collect(); if (!units.length) return; GD.on = true; GD.i = firstVisible(); GD.off = 0; gShow(); render(); wake(); }
-  function stopGuide() { GD.on = false; GD.auto = false; clearTimeout(gtimer); [mt, mb].forEach(function (x) { if (x) x.remove(); }); mt = mb = null; render(); }
+  function startGuide() { if (S.on) endSpeak(); GD.voice = false; if (PG.on) exitPaged(); collect(); if (!units.length) return; GD.on = true; GD.i = firstVisible(); GD.off = 0; gShow(); render(); wake(); }
+  function stopGuide() { if (GD.voice && S.on) endSpeak(); GD.on = false; GD.auto = false; GD.voice = false; clearTimeout(gtimer); [mt, mb].forEach(function (x) { if (x) x.remove(); }); mt = mb = null; render(); }
   function panelG() {
     var h = '<h4>' + T('القراءة الموجهة', 'Guided reading') + '</h4>';
     if (!GD.on) return h + '<div class="hint">' + T('يضيء شريطًا صغيرًا على النص ويعتم الباقي لتركّز على سطرين أو ثلاثة فقط، ثم تنتقل بالأزرار أو بلمس المنطقة المعتمة، أو يتحرك الشريط وحده بسرعة تختارها.', 'Highlights a small band of text and dims the rest so you focus on two or three lines. Move with the buttons or by tapping the dimmed area, or let it advance on its own at your speed.') + '</div><div class="row c" style="margin-top:10px">' + chip('gstart', '1', T('ابدأ القراءة الموجهة', 'Start guided reading'), false) + '</div>';
     h += '<div class="row c">' + btn(ICON.up, 'sm', '').replace('<button', '<button data-a="gprev" aria-label="' + T('السابق', 'Previous') + '"') + btn(GD.auto ? ICON.pause : ICON.play, 'big', '').replace('<button', '<button data-a="gauto" aria-label="' + T('تلقائي', 'Auto') + '"') + btn(ICON.down, 'sm', '').replace('<button', '<button data-a="gnext" aria-label="' + T('التالي', 'Next') + '"') + btn(ICON.stop, 'sm', '').replace('<button', '<button data-a="gstop" aria-label="' + T('خروج', 'Exit') + '"') + '</div>';
+    h += '<div class="row c" style="margin-top:8px">' + chip('gvoice', '1', (GD.voice ? '✓ ' : '') + T('قراءة صوتية مع الشريط', 'Read aloud with the band'), GD.voice) + '</div>';
     h += '<h4>' + T('سرعة التحرك التلقائي', 'Auto speed') + ': ' + (G.wpm || 180) + ' ' + T('كلمة/دقيقة', 'wpm') + '</h4><input type="range" min="80" max="450" step="10" value="' + (G.wpm || 180) + '" data-a="gwpm">';
     h += '<h4>' + T('حجم الشريط', 'Band size') + '</h4><div class="row">' + [2, 3, 4, 5].map(function (n) { return chip('gband', n, n + ' ' + T('أسطر', 'lines'), (G.band || 3) === n); }).join('') + '</div>';
     return h;
@@ -272,6 +273,7 @@
     if (a === 'gnext') { gMove(1); return; } if (a === 'gprev') { gMove(-1); return; } if (a === 'gstop') { stopGuide(); return; }
     if (a === 'gauto') { GD.auto = !GD.auto; clearTimeout(gtimer); if (GD.auto) gSchedule(); render(); return; }
     if (a === 'gwpm') { G.wpm = +v; saveG(); var h4 = pn.querySelector('h4:nth-of-type(2)'); if (h4) h4.textContent = T('سرعة التحرك التلقائي', 'Auto speed') + ': ' + G.wpm + ' ' + T('كلمة/دقيقة', 'wpm'); return; }
+    if (a === 'gvoice') { if (GD.voice) { GD.voice = false; endSpeak(); } else { GD.voice = true; GD.auto = false; clearTimeout(gtimer); startSpeak(GD.i); } render(); return; }
     if (a === 'gband') { G.band = +v; saveG(); if (GD.on) gShow(); render(); return; }
     if (a === 'bmode') { G.mode = v; saveG(); if (v === 'book') enterPaged(); else exitPaged(); applyType(); render(); return; }
     if (a === 'bnext') { PG.turn(1); render(); return; } if (a === 'bprev') { PG.turn(-1); render(); return; }
@@ -287,6 +289,7 @@
   // book frame scroll in paged mode: keep progress in sync if something jumped the view (TOC, search, notes)
   var snapT = null;
   function bodyScrolled() { if (!PG.on) return; clearTimeout(snapT); snapT = setTimeout(function () { var n = PG.pos(); if (Math.abs(Math.abs(D.body.scrollLeft) - n * PG.step) > 2) PG.go(n); else PG.status(); }, 160); }
+  addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'spkstop') { try { endSpeak(); } catch (x) {} } });
   function init() {
     mount(); applyType(); wake(); D.body.addEventListener('scroll', bodyScrolled, { passive: true });
     try { if (SSf() && SSf().onvoiceschanged !== undefined) SSf().onvoiceschanged = function () { if (cur === 'L') render(); }; } catch (e) {}
