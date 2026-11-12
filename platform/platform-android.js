@@ -10,7 +10,7 @@
   var DEF_GOALS = { enabled: true, daily: 5, yearly: 12, days: {}, notified: '', remind: false, remindAt: '20:00', remindedOn: '' };
   var lib = { books: [], collections: [], settings: Object.assign({}, DEF_SET), goals: JSON.parse(JSON.stringify(DEF_GOALS)), seeded: [] };
   var cbState = [], cbToast = [], coverURL = {}, live = [], textCache = {};
-  var M = function (ar, en) { return lib.settings.lang !== 'ar' ? en : ar; };
+  var M = function (ar, en) { try { if (typeof window.T === 'function') return window.T(ar, en); } catch (e) {} return (window.LANG || lib.settings.lang || 'ar') !== 'ar' ? en : ar; };
   var today = function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   var find = function (id) { return lib.books.find(function (b) { return b.id === id; }); };
   var toast = function (m) { cbToast.forEach(function (f) { f(m); }); };
@@ -94,21 +94,21 @@
   var busyUI = function (m, p, c) { try { window.__liBusy && window.__liBusy(m, p, c); } catch (e) {} }, unbusyUI = function () { try { window.__liBusy && window.__liBusy(false); } catch (e) {} }, tickUI = function () { return new Promise(function (r) { setTimeout(r, 60); }); };
   var IMGRE = /\.(jpe?g|png|webp|bmp)$/i;
   function importImages(files, nameHint) {
-    var F = window.__FMT; if (!F || !F.imagesToHtml) return Promise.resolve({ err: 'تعذر قراءة الصور في هذه النسخة' });
+    var F = window.__FMT; if (!F || !F.imagesToHtml) return Promise.resolve({ err: M('تعذر قراءة الصور في هذه النسخة', 'Could not read the images in this version') });
     var base = nameHint || (files.length === 1 ? baseName(files[0].name) : baseName(files[0].name) + ' (' + files.length + ')');
     return files[0].arrayBuffer().then(sha1).then(function (h) {
       var hash = h + '-' + files.length + '-' + files.reduce(function (a, f) { return a + f.size; }, 0), dup = lib.books.filter(function (b) { return b.hash === hash; })[0]; if (dup) return { dup: dup };
       return (window.__liImportOpts ? window.__liImportOpts(base, 'img').catch(function () { return { tr: '' }; }) : Promise.resolve({ tr: '' })).then(function (o) {
         if (o.skip) return { skipped: true };
-        var cx = { stop: false }; busyUI('جارٍ تجهيز قراءة النص…', 0, function () { cx.stop = true; });
-        return tickUI().then(function () { return F.imagesToHtml(files, base, function (p, l) { busyUI(l || 'جارٍ القراءة…', p, function () { cx.stop = true; }); }, cx); }).then(function (r) {
+        var cx = { stop: false }; busyUI(M('جارٍ تجهيز قراءة النص…', 'Preparing text recognition…'), 0, function () { cx.stop = true; });
+        return tickUI().then(function () { return F.imagesToHtml(files, base, function (p, l) { busyUI(l || M('جارٍ القراءة…', 'Reading…'), p, function () { cx.stop = true; }); }, cx); }).then(function (r) {
           var id = 'b' + rid(6), b = { id: id, hash: hash, format: 'epub', orig: 'OCR', file: 'index.html', title: r.title || base, author: '', series: '', rating: 0, hidden: false, want: false, cover: null, added: Date.now(), lastRead: 0, progress: 0, finished: false, readSec: 0, collections: [], bytes: files.reduce(function (a, f) { return a + f.size; }, 0), tpl: false, words: wordCount(r.html), ext: null, annots: [], audio: null };
           if (o.tr) { try { localStorage.setItem('li:' + id + ':li-tr-target:' + id, o.tr); } catch (e) {} }
           return fSet(id + '/index.html', new Blob([r.html], { type: 'text/html' })).then(function () {
             var cv = r.cover; var p = cv ? (b.cover = 'cover.' + cv.ext, fSet(id + '/' + b.cover, cv.blob).then(function () { setCoverURL(b, cv.blob); })) : Promise.resolve();
             return p.then(function () { lib.books.push(b); unbusyUI(); return { book: b }; });
           });
-        }).catch(function (e) { unbusyUI(); var m = e && e.message; return { err: m === 'cancel' ? 'أُلغي التحويل' : m === 'ocr-missing' ? 'ميزة قراءة النص غير متوفرة في هذه النسخة' : m === 'noText' ? 'لم أستطع قراءة نص من الصور. جرّب صورة أوضح وإضاءة أفضل' : 'تعذر تحويل الصور إلى كتاب' }; });
+        }).catch(function (e) { unbusyUI(); var m = e && e.message; return { err: m === 'cancel' ? M('أُلغي التحويل', 'Conversion cancelled') : m === 'ocr-missing' ? M('ميزة قراءة النص غير متوفرة في هذه النسخة', 'Text recognition is not available in this version') : m === 'noText' ? M('لم أستطع قراءة نص من الصور. جرّب صورة أوضح وإضاءة أفضل', 'Could not read any text from the images. Try a clearer photo with better light') : M('تعذر تحويل الصور إلى كتاب', 'Could not turn the images into a book') }; });
       });
     });
   }
@@ -139,40 +139,40 @@
     return importFile0(file, forced).then(done, function (e) { delete INFL[key]; throw e; });
   }
   function importFile0(file, forced) {
-    if (!ALLOWED.test(file.name)) return Promise.resolve({ err: 'صيغة غير مدعومة: ' + file.name });
+    if (!ALLOWED.test(file.name)) return Promise.resolve({ err: M('صيغة غير مدعومة: ', 'Unsupported format: ') + file.name });
     return file.arrayBuffer().then(function (buf) { return sha1(buf).then(function (hash) {
       var ext = extOf(file.name), dup = ext === 'pdf' ? null : lib.books.filter(function (b) { return b.hash === hash; })[0]; if (dup) return { dup: dup };
       var id = 'b' + rid(6), base = baseName(file.name);
       var b = { id: id, hash: hash, format: 'html', file: 'index.html', title: base, author: '', series: '', rating: 0, hidden: false, want: false, cover: null, added: Date.now(), lastRead: 0, progress: 0, finished: false, readSec: 0, collections: [], bytes: file.size, tpl: false, words: 0, ext: null, annots: [], audio: null };
       var finish = function (cv) { var p = cv ? (b.cover = 'cover.' + cv.ext, fSet(id + '/' + b.cover, cv.blob).then(function () { setCoverURL(b, cv.blob); })) : Promise.resolve(); return p.then(function () { lib.books.push(b); return { book: b }; }); };
       if (/^html?$/.test(ext)) { var html = new TextDecoder('utf-8').decode(buf), m = meta(html, file.name); Object.assign(b, { title: m.title, author: m.author, tpl: /id=["']li-orig-data["']|id=["']toc-list["']/.test(html), words: wordCount(html) }); return fSet(id + '/index.html', new Blob([buf], { type: 'text/html' })).then(function () { return finish(coverFromHtml(html)); }); }
-      if (ext === 'epub') return epubToHtml(buf).then(function (r) { Object.assign(b, { format: 'epub', title: r.title, author: r.author, words: wordCount(r.html) }); return fSet(id + '/index.html', new Blob([r.html], { type: 'text/html' })).then(function () { return finish(r.cover); }); }).catch(function () { return { err: 'تعذر استيراد الملف: ' + file.name }; });
+      if (ext === 'epub') return epubToHtml(buf).then(function (r) { Object.assign(b, { format: 'epub', title: r.title, author: r.author, words: wordCount(r.html) }); return fSet(id + '/index.html', new Blob([r.html], { type: 'text/html' })).then(function () { return finish(r.cover); }); }).catch(function () { return { err: M('تعذر استيراد الملف: ', 'Could not import the file: ') + file.name }; });
       var F = window.__FMT, fin = function (r, orig) { Object.assign(b, { format: 'epub', orig: orig, title: r.title || base, author: r.author || '', words: orig === 'CBZ' ? 0 : wordCount(r.html) }); return fSet(id + '/index.html', new Blob([r.html], { type: 'text/html' })).then(function () { return finish(r.cover); }); };
-      var bad = function (e) { return { err: (e && e.message === 'drm' ? 'ملف محمي (DRM): ' : 'تعذر استيراد الملف: ') + file.name }; };
+      var bad = function (e) { return { err: (e && e.message === 'drm' ? M('ملف محمي (DRM): ', 'Protected file (DRM): ') : M('تعذر استيراد الملف: ', 'Could not import the file: ')) + file.name }; };
       var setTr = function (o) { if (o && o.tr) { try { localStorage.setItem(ext === 'pdf' && o.mode !== 'html' ? 'li-pdf-tr:' + id : 'li:' + id + ':li-tr-target:' + id, o.tr); /* same key the book page reads (its storage is prefixed per book) */ } catch (e) {} } };
       var askOpts = function () { if (forced) return Promise.resolve(forced); return window.__liImportOpts ? window.__liImportOpts(file.name, ext).catch(function () { return { mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }; }) : Promise.resolve({ mode: ext === 'pdf' ? 'pdf' : 'html', tr: '' }); };
       var busy = busyUI, unbusy = unbusyUI, tick = tickUI, cxp = null;
-      var prog = function (p, l) { busy(l || 'جارٍ تحويل الملف…', p, cxp ? function () { cxp.stop = true; } : null); };
+      var prog = function (p, l) { busy(l || M('جارٍ تحويل الملف…', 'Converting the file…'), p, cxp ? function () { cxp.stop = true; } : null); };
       var asPdf = function (o) { setTr(o); var head = new TextDecoder('latin1').decode(new Uint8Array(buf, Math.max(0, buf.byteLength - 20000))), info = function (k) { var mm = new RegExp('/' + k + '\\s*\\(([^)]{1,200})\\)').exec(head); return mm ? mm[1].replace(/\\(.)/g, '$1').trim() : ''; }; Object.assign(b, { format: 'pdf', file: 'book.pdf', title: (/^[\x20-\x7E]*$/.test(info('Title')) && info('Title')) || base, author: /^[\x20-\x7E]*$/.test(info('Author')) ? info('Author') : '' }); return fSet(id + '/book.pdf', new Blob([buf], { type: 'application/pdf' })).then(function () { return finish(null); }); };
-      if (F && ext === 'docx') return askOpts().then(function (o) { if (o.skip) return { skipped: true }; busy('جارٍ تحويل الملف…'); return tick().then(function () { return F.docxToHtml(buf, file.name); }).then(function (r) { setTr(o); return fin(r, 'DOCX'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); return bad(e); }); }).catch(bad);
+      if (F && ext === 'docx') return askOpts().then(function (o) { if (o.skip) return { skipped: true }; busy(M('جارٍ تحويل الملف…', 'Converting the file…')); return tick().then(function () { return F.docxToHtml(buf, file.name); }).then(function (r) { setTr(o); return fin(r, 'DOCX'); }).then(function (x) { unbusy(); return x; }, function (e) { unbusy(); return bad(e); }); }).catch(bad);
       if (ext === 'pdf') return askOpts().then(function (o) {
         if (o.skip) return { skipped: true };
         var asHtml = o.mode === 'html' && F && F.pdfToHtml, same = lib.books.filter(function (x) { return x.hash === hash && (asHtml ? x.format !== 'pdf' : x.format === 'pdf'); })[0];
         if (same) return { dup: same };
         if (o.mode !== 'html' || !F || !F.pdfToHtml) return asPdf(o);
-        cxp = { stop: false }; busy('جارٍ تحويل الملف…', 0);
+        cxp = { stop: false }; busy(M('جارٍ تحويل الملف…', 'Converting the file…'), 0);
         var run = function (ocr) { return F.pdfToHtml(buf, file.name, prog, { ocr: ocr, cancel: cxp }); };
         return tick().then(function () { return run(false); }).catch(function (e) {
           if (!(e && e.message === 'scanned')) throw e;
           unbusy();
-          var ask = window.__liAsk ? window.__liAsk('الملف مصوّر (صور بلا نص)', 'سنقرأ النص من الصفحات بتقنية التعرف على النص (OCR) ثم نحوّله إلى كتاب يمكن ترجمته. تُزال العلامات المائية الفاتحة تلقائياً. قد يستغرق وقتاً (' + (e.pages || '') + ' صفحة)، ويعمل بدون إنترنت.', 'تحويل إلى نص', 'فتحه كما هو') : Promise.resolve(false);
-          return ask.then(function (yes) { if (!yes) { var x = new Error('keep'); throw x; } cxp = { stop: false }; busy('جارٍ تجهيز قراءة النص…', 0); return tick().then(function () { return run(true); }); });
+          var ask = window.__liAsk ? window.__liAsk(M('الملف مصوّر (صور بلا نص)', 'Scanned file (images without text)'), M('سنقرأ النص من الصفحات بتقنية التعرف على النص (OCR) ثم نحوّله إلى كتاب يمكن ترجمته. تُزال العلامات المائية الفاتحة تلقائياً. قد يستغرق وقتاً (' + (e.pages || '') + ' صفحة)، ويعمل بدون إنترنت.', 'We will read the text from the pages with text recognition (OCR) and turn it into a book that can be translated. Light watermarks are removed automatically. This can take a while (' + (e.pages || '') + ' pages) and works offline.'), M('تحويل إلى نص', 'Convert to text'), M('فتحه كما هو', 'Open as it is')) : Promise.resolve(false);
+          return ask.then(function (yes) { if (!yes) { var x = new Error('keep'); throw x; } cxp = { stop: false }; busy(M('جارٍ تجهيز قراءة النص…', 'Preparing text recognition…'), 0); return tick().then(function () { return run(true); }); });
         }).then(function (r) { setTr(o); return fin(r, 'PDF'); }).then(function (x) { unbusy(); return x; }, function (e) {
           unbusy(); var m = e && e.message;
           if (m === 'keep') return asPdf(o);
-          if (m === 'cancel') { toast('أُلغي التحويل، فُتح الملف كما هو'); return asPdf(o); }
-          if (m === 'ocr-missing') { toast('ميزة قراءة النص غير متوفرة في هذه النسخة، فُتح الملف كما هو'); return asPdf(o); }
-          if (m === 'noText') { toast('تعذّرت قراءة نص من الملف، فُتح كما هو'); return asPdf(o); }
+          if (m === 'cancel') { toast(M('أُلغي التحويل، فُتح الملف كما هو', 'Conversion cancelled. The file was opened as it is')); return asPdf(o); }
+          if (m === 'ocr-missing') { toast(M('ميزة قراءة النص غير متوفرة في هذه النسخة، فُتح الملف كما هو', 'Text recognition is not available in this version. The file was opened as it is')); return asPdf(o); }
+          if (m === 'noText') { toast(M('تعذّرت قراءة نص من الملف، فُتح كما هو', 'Could not read any text from the file. It was opened as it is')); return asPdf(o); }
           return bad(e);
         });
       });
@@ -181,7 +181,7 @@
       if (F && ext === 'cbz') return F.cbzImport(buf, id, fSet, file.name).then(function (r) { return fin(r, 'CBZ'); }).catch(function (e) { return fDelPrefix(id + '/').then(function () { return bad(e); }); });
       if (F && /^(mobi|azw3?|prc)$/.test(ext)) return F.mobiToHtml(new Blob([buf])).then(function (r) { return fin(r, ext === 'mobi' || ext === 'prc' ? 'MOBI' : 'AZW3'); }).catch(bad);
       var name = 'audio.' + ext; Object.assign(b, { format: 'audio', file: name, audio: { pos: 0, dur: 0, bm: [] } }); return fSet(id + '/' + name, new Blob([buf], { type: file.type || 'audio/mpeg' })).then(function () { return finish(null); });
-    }); }).catch(function () { return { err: 'تعذر استيراد الملف: ' + file.name }; });
+    }); }).catch(function () { return { err: M('تعذر استيراد الملف: ', 'Could not import the file: ') + file.name }; });
   }
   function addMany(files, opts) {
     var n = 0, d = 0, errs = [], chain = Promise.resolve(), imgs = files.filter(function (f) { return IMGRE.test(f.name) || /^image\//.test(f.type || ''); });
@@ -191,7 +191,7 @@
       chain = chain.then(function () { return importImages(imgs, opts && opts.name).then(function (r) { if (r.book) n++; else if (r.dup) d++; else if (r.err) errs.push(r.err); }); });
     }
     files.forEach(function (f) { chain = chain.then(function () { return importFile(f).then(function (r) { if (r.book) n++; else if (r.dup) d++; else if (r.err) errs.push(r.err); }); }); });
-    return chain.then(function () { return save(true); }).then(function () { push(); if (n) toast('أُضيف ' + n + (n === 1 ? ' كتاب' : ' كتب')); if (d) toast('موجود مسبقاً في المكتبة (' + d + ')'); errs.forEach(toast); return lib; });
+    return chain.then(function () { return save(true); }).then(function () { push(); if (n) toast(M('أُضيف ' + n + (n === 1 ? ' كتاب' : ' كتب'), 'Added ' + n + (n === 1 ? ' book' : ' books'))); if (d) toast(M('موجود مسبقاً في المكتبة (' + d + ')', 'Already in your library (' + d + ')')); errs.forEach(toast); return lib; });
   }
   function pick(accept, multiple) { return new Promise(function (res) { var i = document.createElement('input'); i.type = 'file'; if (accept) i.accept = accept; i.multiple = !!multiple; i.style.display = 'none'; document.body.appendChild(i); var done = false; i.onchange = function () { done = true; var f = [].slice.call(i.files || []); i.remove(); res(f); }; addEventListener('focus', function once() { setTimeout(function () { if (!done) { i.remove(); res([]); } }, 800); removeEventListener('focus', once); }); i.click(); }); }
   function saveBlob(name, blob) {
@@ -726,11 +726,11 @@
     convertPdf: A(function (id, tr) {
       var b = lib.books.filter(function (x) { return x.id === id; })[0]; if (!b) return lib;
       return fGet(b.id + '/' + b.file).then(function (blob) { return importFile(new File([blob], (b.title || 'book') + '.pdf', { type: 'application/pdf' }), { mode: 'html', tr: tr || '' }); }).then(function (r) {
-        if (r && r.book) toast('أُضيف كتاب HTML إلى مكتبتك' + (tr ? ' وسيُترجم عند فتحه' : '')); else if (r && r.dup) toast('هذا الكتاب موجود بصيغة HTML'); else if (r && r.err) toast(r.err);
+        if (r && r.book) toast(M('أُضيف كتاب HTML إلى مكتبتك' + (tr ? ' وسيُترجم عند فتحه' : ''), 'The HTML book was added to your library' + (tr ? ' and will be translated when opened' : ''))); else if (r && r.dup) toast(M('هذا الكتاب موجود بصيغة HTML', 'This book already exists as HTML')); else if (r && r.err) toast(r.err);
         return lib;
       });
     }),
-    scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: (document.documentElement.lang === 'ar' || !window.LANG || window.LANG === 'ar' ? 'مسح ضوئي ' : 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
+    scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: M('مسح ضوئي ', 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
     add: A(function () { return pick('.jpg,.jpeg,.png,.webp,.bmp,image/*,.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
     addPaths: A(function () { return lib; }),
     addTranslated: A(function (srcId, tgt, html, tname) {
@@ -752,13 +752,13 @@
     clearGoals: A(function () { lib.goals.days = {}; lib.goals.notified = ''; lib.books.forEach(function (b) { b.readSec = 0; }); save(); return lib; }),
     setCover: A(function (id) { var b = find(id); if (!b) return lib; return pick('image/*', false).then(function (f) { if (!f[0]) return lib; var ext = (extOf(f[0].name) || 'png').replace('jpeg', 'jpg'), p = b.cover ? fDelPrefix(id + '/cover.') : Promise.resolve(); return p.then(function () { return fSet(id + '/cover.' + ext, f[0]); }).then(function () { b.cover = 'cover.' + ext; b.coverV = Date.now(); setCoverURL(b, f[0]); save(true); return lib; }); }); }),
     exportBook: A(function (id) { var b = find(id); if (!b) return; if (b.orig === 'CBZ') return fKeys(id + '/p/').then(function (ks) { var z = new JSZip(); return Promise.all(ks.map(function (k) { return fGet(k).then(function (bl) { z.file(k.slice(id.length + 3), bl); }); })).then(function () { return z.generateAsync({ type: 'blob' }); }); }).then(function (bl) { return saveBlob(b.title.replace(/[\\/:*?\"<>|]/g, '') + '.cbz', bl); }); return fGet(id + '/' + b.file).then(function (bl) { return saveBlob(b.title.replace(/[\\/:*?"<>|]/g, '') + (b.format === 'epub' ? '.html' : '.' + extOf(b.file)), bl); }); }),
-    exportNotes: A(function (id) { var b = find(id); if (!b) return; if (!notesOf(b).length) return toast('لا ملاحظات لهذا الكتاب'); return saveBlob(M('ملاحظات - ', 'Notes - ') + b.title.replace(/[\\/:*?"<>|]/g, '') + '.md', new Blob(['\ufeff' + md(b)], { type: 'text/markdown' })).then(function () { toast('تم تصدير الملاحظات'); }); }),
-    exportAllNotes: A(function () { var bs = lib.books.filter(function (b) { return notesOf(b).length; }); if (!bs.length) return toast('لا ملاحظات بعد'); return saveBlob(M('ملاحظاتي - Living Ideas.md', 'My Notes - Living Ideas.md'), new Blob(['\ufeff' + bs.map(md).join('\n---\n\n')], { type: 'text/markdown' })).then(function () { toast('تم تصدير ملاحظات ' + bs.length + ' كتب'); }); }),
-    backup: A(function () { return save(true).then(function () { var z = new JSZip(); z.file('library.json', JSON.stringify(lib)); return Promise.all(lib.books.map(function (b) { return fKeys(b.id + '/').then(function (ks) { return Promise.all(ks.map(function (k) { return fGet(k).then(function (bl) { z.file('books/' + k, bl); }); })); }); })).then(function () { return z.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } }); }); }).then(function (bl) { return saveBlob(M('Living-Ideas-نسخة-احتياطية-', 'Living-Ideas-backup-') + today() + '.lilib', bl); }).then(function () { toast('تم إنشاء النسخة الاحتياطية'); }).catch(function () { toast('تعذر إنشاء النسخة الاحتياطية'); }); }),
+    exportNotes: A(function (id) { var b = find(id); if (!b) return; if (!notesOf(b).length) return toast(M('لا ملاحظات لهذا الكتاب', 'This book has no notes')); return saveBlob(M('ملاحظات - ', 'Notes - ') + b.title.replace(/[\\/:*?"<>|]/g, '') + '.md', new Blob(['\ufeff' + md(b)], { type: 'text/markdown' })).then(function () { toast(M('تم تصدير الملاحظات', 'Notes exported')); }); }),
+    exportAllNotes: A(function () { var bs = lib.books.filter(function (b) { return notesOf(b).length; }); if (!bs.length) return toast(M('لا ملاحظات بعد', 'No notes yet')); return saveBlob(M('ملاحظاتي - Living Ideas.md', 'My Notes - Living Ideas.md'), new Blob(['\ufeff' + bs.map(md).join('\n---\n\n')], { type: 'text/markdown' })).then(function () { toast(M('تم تصدير ملاحظات ' + bs.length + ' كتب', 'Exported notes of ' + bs.length + ' books')); }); }),
+    backup: A(function () { return save(true).then(function () { var z = new JSZip(); z.file('library.json', JSON.stringify(lib)); return Promise.all(lib.books.map(function (b) { return fKeys(b.id + '/').then(function (ks) { return Promise.all(ks.map(function (k) { return fGet(k).then(function (bl) { z.file('books/' + k, bl); }); })); }); })).then(function () { return z.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } }); }); }).then(function (bl) { return saveBlob(M('Living-Ideas-نسخة-احتياطية-', 'Living-Ideas-backup-') + today() + '.lilib', bl); }).then(function () { toast(M('تم إنشاء النسخة الاحتياطية', 'Backup created')); }).catch(function () { toast(M('تعذر إنشاء النسخة الاحتياطية', 'Could not create the backup')); }); }),
     restore: A(function () { return pick('.lilib,application/zip,application/octet-stream', false).then(function (f) { if (!f[0]) return lib; return JSZip.loadAsync(f[0]).then(function (z) { return z.file('library.json').async('string').then(function (s) { var j = JSON.parse(s), n = 0, chain = Promise.resolve();
       (j.books || []).forEach(function (b) { if (!/^b[0-9a-f]+$/.test(b.id)) return; chain = chain.then(function () { var ex = lib.books.filter(function (x) { return x.hash === b.hash; })[0]; if (ex) { if ((b.lastRead || 0) > (ex.lastRead || 0)) ['progress', 'finished', 'lastRead', 'ext', 'annots', 'audio', 'rating', 'want', 'hidden', 'series', 'readSec'].forEach(function (k) { ex[k] = b[k]; }); return; }
         var ents = z.file(new RegExp('^books/' + b.id + '/')); return Promise.all(ents.map(function (e) { return e.async('blob').then(function (bl) { return fSet(e.name.slice(6), bl); }); })).then(function () { lib.books.push(b); n++; if (b.cover) return fGet(b.id + '/' + b.cover).then(function (bl) { if (bl) setCoverURL(b, bl); }); }); }); });
-      return chain.then(function () { (j.collections || []).forEach(function (c) { if (!lib.collections.filter(function (x) { return x.id === c.id; })[0]) lib.collections.push(c); }); if (j.goals && j.goals.days) Object.keys(j.goals.days).forEach(function (d) { lib.goals.days[d] = Math.max(lib.goals.days[d] || 0, j.goals.days[d]); }); return save(true); }).then(function () { toast('تمت الاستعادة: ' + n + ' كتاب جديد'); return lib; }); }); }).catch(function () { toast('ملف النسخة الاحتياطية غير صالح'); return lib; }); }); }),
+      return chain.then(function () { (j.collections || []).forEach(function (c) { if (!lib.collections.filter(function (x) { return x.id === c.id; })[0]) lib.collections.push(c); }); if (j.goals && j.goals.days) Object.keys(j.goals.days).forEach(function (d) { lib.goals.days[d] = Math.max(lib.goals.days[d] || 0, j.goals.days[d]); }); return save(true); }).then(function () { toast(M('تمت الاستعادة: ' + n + ' كتاب جديد', 'Restored: ' + n + ' new books')); return lib; }); }); }).catch(function () { toast(M('ملف النسخة الاحتياطية غير صالح', 'The backup file is not valid')); return lib; }); }); }),
     notify: A(notify), copy: function (t) { try { return navigator.clipboard.writeText(String(t || '')); } catch (e) { return Promise.resolve(); } },
     colAdd: A(function (n) { n = String(n || '').trim().slice(0, 60); if (n) { lib.collections.push({ id: 'c' + rid(4), name: n }); save(); } return lib; }),
     colRename: A(function (id, n) { var c = lib.collections.filter(function (x) { return x.id === id; })[0]; n = String(n || '').trim().slice(0, 60); if (c && n) { c.name = n; save(); } return lib; }),

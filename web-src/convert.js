@@ -286,8 +286,8 @@
   // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
   function ocrRun(count, getCanvas, onP, cx) {
     var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0;
-    var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + (EN() ? '~' + left + ' min left' : 'متبقي نحو ' + left + ' دقيقة')) : ''; };
-    var label = function (i) { return (EN() ? 'Reading text from page ' : 'جارٍ قراءة النص من الصفحة ') + i + (EN() ? ' of ' : ' من ') + count + eta(); };
+    var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left')) : ''; };
+    var label = function (i) { return TT('جارٍ قراءة النص من الصفحة ' + i + ' من ' + count, 'Reading text from page ' + i + ' of ' + count) + eta(); };
     var step = function (i) {
       if (i > count) return Promise.resolve();
       if (cx && cx.stop) return Promise.reject(new Error('cancel'));
@@ -306,6 +306,7 @@
     };
     return makeWorker(langs).then(function (w) { worker = w; return step(1); }).then(function () { return worker.terminate().catch(function () {}); }, function (e) { try { worker && worker.terminate(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
   }
+  var TT = function (a, e) { try { if (typeof window.T === 'function') return window.T(a, e); } catch (x) {} return EN() ? e : a; };
   var EN = function () { try { return typeof LANG !== 'undefined' && LANG !== 'ar'; } catch (e) { return false; } };
   function ocrPdf(doc, name, onP, cx) {
     return ocrRun(doc.numPages, function (i) {
