@@ -1,6 +1,9 @@
 // Runs the translation models on this computer (no server). Each language pair is a small
 // model (about 80 MB) that downloads on first use and is then read from disk, so it works offline.
 import { parentPort, workerData } from 'node:worker_threads';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
 const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'];
 let tf = null; const pipes = new Map(); let chain = Promise.resolve();
@@ -58,6 +61,71 @@ async function viaNllb(text, src, tgt) {
   for (const s of pieces(text)) { const r = await p(s, { src_lang: NLLB[src], tgt_lang: NLLB[tgt], max_new_tokens: 512, num_beams: 3 }); out.push(((r && r[0] && r[0].translation_text) || '').trim()); }
   return out.join(' ');
 }
+
+// ---- Bergamot (the engine behind Firefox's offline translation): small models (about 37 MB per direction), fast on a normal CPU.
+// Models come from Mozilla's public model list, are saved once on this computer, and then work offline. Pairs without a direct
+// model go through English. If anything fails we fall back to the Marian models below, so translation never stops.
+let berg = null, bergBad = false, bergWhy = ''; const pairBad = new Map();
+const MOZ = 'https://firefox.settings.services.mozilla.com/v1/buckets/main/collections/translations-models/records', CDN = 'https://firefox-settings-attachments.cdn.mozilla.net/';
+const verKey = (v) => { const m = /^(\d+)\.(\d+)(.*)$/.exec(String(v)); return m ? [+m[1], +m[2], m[3] ? 0 : 1] : [0, 0, 0]; };
+const verCmp = (a, b) => { const x = verKey(a), y = verKey(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return y[i] - x[i]; return 0; };
+async function bergRegistry() {
+  const file = path.join(workerData.cache, 'bergamot-registry.json');
+  try {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+    const r = await fetch(MOZ, { signal: ctl.signal }); clearTimeout(to);
+    if (!r.ok) throw new Error('registry http ' + r.status);
+    const recs = (await r.json()).data || [], by = {};
+    for (const x of recs) {
+      if (!LANGS.includes(x.fromLang) || !LANGS.includes(x.toLang) || !x.attachment || !['model', 'lex', 'vocab'].includes(x.fileType)) continue;
+      const k = x.fromLang + x.toLang; ((by[k] = by[k] || {})[x.fileType] = by[k][x.fileType] || []).push(x);
+    }
+    const reg = {};
+    for (const k of Object.keys(by)) {
+      const g = by[k]; if (!g.model || !g.lex || !g.vocab) continue;
+      const vers = [...new Set(g.model.map((x) => x.version))].filter((v) => g.lex.some((x) => x.version === v) && g.vocab.some((x) => x.version === v)).sort(verCmp);
+      if (!vers.length) continue; reg[k] = {};
+      for (const t of ['model', 'lex', 'vocab']) { const a = g[t].find((x) => x.version === vers[0]); reg[k][t] = { name: CDN + a.attachment.location, size: a.attachment.size, expectedSha256Hash: a.attachment.hash }; }
+    }
+    if (!Object.keys(reg).length) throw new Error('empty registry');
+    try { fs.mkdirSync(workerData.cache, { recursive: true }); fs.writeFileSync(file, JSON.stringify(reg)); } catch (e) {}
+    return reg;
+  } catch (e) {
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (x) { throw e; }
+  }
+}
+async function bergamot() {
+  if (bergBad) throw new Error(bergWhy || 'bergamot unavailable');
+  if (!berg) berg = (async () => {
+    try {
+      post('', 'prep');
+      const { BatchTranslator } = await import('@browsermt/bergamot-translator/translator.js');
+      const reg = await bergRegistry(), dir = path.join(workerData.cache, 'bergamot'); fs.mkdirSync(dir, { recursive: true });
+      class Cached extends BatchTranslator {
+        async fetch(url, checksum, extra) {
+          const f = path.join(dir, crypto.createHash('sha1').update(url).digest('hex') + '.bin');
+          try { const b = await fs.promises.readFile(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); } catch (e) { /* not saved yet */ }
+          const buf = await super.fetch(url, checksum, extra);
+          if (!buf || buf.byteLength < 1000) throw new Error('download failed');
+          try { await fs.promises.writeFile(f + '.tmp', Buffer.from(buf)); await fs.promises.rename(f + '.tmp', f); } catch (e) {}
+          return buf;
+        }
+      }
+      const t = new Cached({ registryUrl: 'data:application/json,' + encodeURIComponent(JSON.stringify(reg)), pivotLanguage: 'en', workers: 2, batchSize: 8, downloadTimeout: 0, cacheSize: 0 });
+      post('', 'ready'); return t;
+    } catch (e) { bergBad = true; bergWhy = why(e); berg = null; throw e; }
+  })();
+  return berg;
+}
+async function viaBergamot(text, src, tgt) {
+  const key = src + '>' + tgt, bad = pairBad.get(key); if (bad && Date.now() - bad < 120000) throw new Error('bergamot pair skipped');
+  const t = await bergamot();
+  try {
+    const out = [];
+    for (const part of text.split(/\n+/)) { if (!part.trim()) continue; const r = await t.translate({ from: src, to: tgt, text: part, html: false, qualityScores: false }); out.push(((r && r.target && r.target.text) || '').trim()); }
+    const res = out.join('\n'); if (!res.trim()) throw new Error('empty'); return res;
+  } catch (e) { pairBad.set(key, Date.now()); throw e; }
+}
 async function marian(text, src, tgt) { return (src === 'en' || tgt === 'en') ? await hop(text, src, tgt) : await hop(await hop(text, src, 'en'), 'en', tgt); }
 async function viaOnline(text, src, tgt) {
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
@@ -76,7 +144,8 @@ async function go(m) {
   try {
     let r = null, eng = 'marian', why1 = '';
     // Fast by default (small model per language pair). The big NLLB model is only used when the person asks for higher quality.
-    if (!m.hq) { try { r = await marian(text, src, tgt); } catch (e) { r = null; why1 = why(e); } }
+    if (!m.hq) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot'; } catch (e) { r = null; why1 = 'bergamot: ' + why(e); } }
+    if (!m.hq && (r == null || !String(r).trim())) { try { r = await marian(text, src, tgt); eng = 'marian' + (why1 ? ' (' + why1 + ')' : ''); } catch (e) { r = null; why1 = why1 || why(e); } }
     if (r == null && !nllbBad) { try { r = await viaNllb(text, src, tgt); eng = 'nllb'; } catch (e) { r = null; why1 = why1 || why(e); } } else if (r == null) why1 = why1 || nllbWhy;
     if (r == null && m.hq) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
     if (!r || !String(r).trim()) { try { r = await marian(text, src, tgt); eng = 'marian'; } catch (e) { r = null; } }
