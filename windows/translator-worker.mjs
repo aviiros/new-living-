@@ -4,6 +4,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'];
 let tf = null; const pipes = new Map(); let chain = Promise.resolve();
@@ -102,7 +103,19 @@ async function bergamot() {
   if (!berg) berg = (async () => {
     try {
       post('', 'prep');
-      const { BatchTranslator } = await import('@browsermt/bergamot-translator/translator.js');
+      // The package's worker file is written for CommonJS but the package is marked as a module, so Node refuses it.
+      // Use a private copy where the worker folder is marked CommonJS.
+      const srcDir = path.dirname(fileURLToPath(import.meta.resolve('@browsermt/bergamot-translator/translator.js')));
+      const pkgDir = path.join(workerData.cache, 'bergamot-pkg-' + (process.env.LI_BERG_V || '1'));
+      if (!fs.existsSync(path.join(pkgDir, 'ok'))) {
+        fs.rmSync(pkgDir, { recursive: true, force: true }); fs.mkdirSync(path.join(pkgDir, 'worker'), { recursive: true });
+        fs.copyFileSync(path.join(srcDir, 'translator.js'), path.join(pkgDir, 'translator.js'));
+        for (const f of fs.readdirSync(path.join(srcDir, 'worker'))) fs.copyFileSync(path.join(srcDir, 'worker', f), path.join(pkgDir, 'worker', f));
+        fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"type":"module"}');
+        fs.writeFileSync(path.join(pkgDir, 'worker', 'package.json'), '{"type":"commonjs"}');
+        fs.writeFileSync(path.join(pkgDir, 'ok'), '1');
+      }
+      const { BatchTranslator } = await import(pathToFileURL(path.join(pkgDir, 'translator.js')).href);
       const reg = await bergRegistry(), dir = path.join(workerData.cache, 'bergamot'); fs.mkdirSync(dir, { recursive: true });
       class Cached extends BatchTranslator {
         async fetch(url, checksum, extra) {
