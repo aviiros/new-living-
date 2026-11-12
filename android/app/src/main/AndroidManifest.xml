@@ -25,7 +25,7 @@
 
         </activity>
 
-        <service android:name=".KeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <service android:name=".KeepAliveService" android:exported="false" android:foregroundServiceType="dataSync|mediaPlayback" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -50,6 +50,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />

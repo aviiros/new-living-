@@ -112,18 +112,32 @@
     if (PG.on) { PG.toEl(el); return; }
     var r = el.getBoundingClientRect(); if (r.top < 70 || r.bottom > innerHeight - 130) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { el.scrollIntoView(); } }
   }
+  // Many sentences are handed to the speech engine ahead of time, so reading goes on by itself even when the page is frozen
+  // by the phone (screen off / another app open). The page only follows along (highlight, position) when it is awake.
+  var LOOK = 400; try { if (window.LiNative || (parent && parent.LiNative)) LOOK = 1e6; } catch (e) {} // phone: queue the whole rest of the book
   function speakUnit(i, k0) {
     if (!SSf()) { S.on = false; render(); return; }
-    if (i >= units.length || i > S.stop) { return endSpeak(true); }
-    S.i = i; var el = units[i], t = ctext(el), lang = langOf(t), cs = chunks(t), tok = ++S.tok; mark(el); var n = k0 || 0;
-    (function next() {
+    var tok = ++S.tok, Q = { ni: i, nk: k0 || 0, out: 0, cache: {} }, shown = -1;
+    function cs(ix) { return Q.cache[ix] || (Q.cache[ix] = (function () { var t = ctext(units[ix]); return { t: t, lang: langOf(t), c: chunks(t) }; })()); }
+    function top() {
       if (tok !== S.tok || !S.on) return;
-      if (n >= cs.length) { bset('li-spk', String(i + 1)); return speakUnit(i + 1, 0); }
-      S.k = n; var u = new SpeechSynthesisUtterance(cs[n++]); u.lang = lang === 'ar' ? 'ar-SA' : lang; u.rate = G.rate || 1; var v = voiceFor(lang); if (v) { u.voice = v; u.lang = v.lang; }
-      u.onend = function () { if (tok === S.tok && S.on) next(); };
-      u.onerror = function (e) { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; if (tok === S.tok && S.on) next(); };
-      try { SSf().speak(u); } catch (e) { endSpeak(); }
-    })();
+      while (Q.out < LOOK && Q.ni < units.length && Q.ni <= S.stop) {
+        var ix = Q.ni, info = cs(ix);
+        if (Q.nk >= info.c.length) { Q.ni++; Q.nk = 0; continue; }
+        (function (ix, k, info) {
+          var u = new SpeechSynthesisUtterance(info.c[k]); u.lang = info.lang === 'ar' ? 'ar-SA' : info.lang; u.rate = G.rate || 1; var v = voiceFor(info.lang); if (v) { u.voice = v; u.lang = v.lang; }
+          var last = k === info.c.length - 1, fin = false;
+          u.onstart = function () { if (tok !== S.tok || !S.on) return; S.i = ix; S.k = k; if (shown !== ix) { shown = ix; mark(units[ix]); } };
+          function done() { if (fin) return; fin = true; Q.out--; if (tok !== S.tok || !S.on) return; if (last) bset('li-spk', String(ix + 1)); top(); }
+          u.onend = done;
+          u.onerror = function (e) { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; done(); };
+          Q.out++; try { SSf().speak(u); } catch (e) { Q.out--; endSpeak(); }
+        })(ix, Q.nk, info); Q.nk++;
+        if (tok !== S.tok || !S.on) return;
+      }
+      if (Q.out <= 0 && (Q.ni >= units.length || Q.ni > S.stop)) endSpeak(true);
+    }
+    S.i = i; mark(units[i]); shown = i; top();
   }
   function cancelSpeech() { try { SSf() && SSf().cancel(); } catch (e) {} }
   function endSpeak(done) { S.on = false; S.paused = false; S.tok++; cancelSpeech(); mark(null); if (done) bset('li-spk', '0'); render(); }

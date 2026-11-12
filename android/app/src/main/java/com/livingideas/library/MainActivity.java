@@ -37,6 +37,7 @@ import java.util.Set;
  */
 public class MainActivity extends BridgeActivity {
   private volatile boolean blockMenu = false;
+  private boolean rendererGuard = false;
   private TextToSpeech tts;
   private boolean ttsReady = false, ttsFailed = false;
   private final ArrayList<Object[]> pending = new ArrayList<>();
@@ -263,6 +264,20 @@ public class MainActivity extends BridgeActivity {
     web = getBridge().getWebView();
     // Keep the layout stable: the system font scale must not blow text out of fixed boxes.
     try { web.getSettings().setTextZoom(100); } catch (Exception ignored) {}
+    // The page's rendering process must keep a high priority while the app is in the background, otherwise Android removes it
+    // after a few minutes and the app restarts when opened again.
+    try { if (Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false); } catch (Exception ignored) {}
+    try {
+      if (Build.VERSION.SDK_INT >= 26 && !rendererGuard) {
+        rendererGuard = true;
+        getBridge().setWebViewClient(new com.getcapacitor.BridgeWebViewClient(getBridge()) {
+          @Override public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
+            final WebView w = v; runOnUiThread(new Runnable() { public void run() { try { w.reload(); } catch (Exception ignored) {} } });
+            return true;
+          }
+        });
+      }
+    } catch (Exception ignored) {}
     web.addJavascriptInterface(new Object() {
       @JavascriptInterface public void blockMenu(boolean on) { blockMenu = on; }
       @JavascriptInterface public void init() { runOnUiThread(new Runnable() { public void run() { ensureTts(); } }); }

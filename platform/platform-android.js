@@ -680,24 +680,32 @@
     }
     function ptext(n) { return getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { var o = []; tc.items.forEach(function (it) { o.push(it.str); if (it.hasEOL) o.push(' '); }); return o.join(' ').replace(/\s+/g, ' ').trim(); }); }
     function lstop() { LS.on = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); }
+    // Pages are queued ahead (on the phone the whole rest of the document), so reading continues by itself while the page is frozen in the background.
     function lpage(n, tok) {
-      if (!LS.on || tok !== LS.tok) return;
-      getDoc().then(function (d) {
-        if (n > d.numPages) { lstop(); return; }
-        return ptext(n).then(function (t) {
-          if (!LS.on || tok !== LS.tok) return;
-          try { window.__pgo && window.__pgo(n); } catch (e) {}
-          if (!t) { lpage(n + 1, tok); return; }
-          var cs = lchunks(t), k = 0, lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
-          (function next() {
-            if (!LS.on || tok !== LS.tok) return; if (k >= cs.length) { lpage(n + 1, tok); return; }
-            var u = new SpeechSynthesisUtterance(cs[k++]); u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
+      var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
+      function top() {
+        if (!LS.on || tok !== LS.tok || Q.loading) return;
+        if (Q.out >= ((window.LiNative || parent.LiNative) ? 1e6 : 400)) return;
+        if (Q.total && Q.np > Q.total) { if (Q.out <= 0) lstop(); return; }
+        Q.loading = true;
+        getDoc().then(function (d) { Q.total = d.numPages; if (Q.np > d.numPages) return ''; return ptext(Q.np); }).then(function (t) {
+          Q.loading = false; if (!LS.on || tok !== LS.tok) return;
+          var pn = Q.np; Q.np++;
+          if (!t) { top(); return; }
+          var cs = lchunks(t), lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
+          cs.forEach(function (c, k) {
+            var u = new SpeechSynthesisUtterance(c); u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
             try { var vs = (window.speechSynthesis.getVoices() || []).filter(function (v) { return (v.lang || '').toLowerCase().indexOf(lg) === 0; }); var pick = vs.filter(function (v) { return v.name === G.voice; })[0] || vs[0]; if (pick) { u.voice = pick; u.lang = pick.lang; } } catch (e) {}
-            u.onend = next; u.onerror = function (ev) { if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return; next(); };
+            var fin = false; Q.out++;
+            u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { try { window.__pgo && window.__pgo(pn); } catch (e) {} } };
+            var done = function () { if (fin) return; fin = true; Q.out--; if (!LS.on || tok !== LS.tok) return; top(); };
+            u.onend = done; u.onerror = function (ev) { if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return; done(); };
             try { window.speechSynthesis.speak(u); } catch (e) { lstop(); }
-          })();
-        });
-      }).catch(function () { lstop(); });
+          });
+          top();
+        }).catch(function () { Q.loading = false; lstop(); });
+      }
+      top();
     }
     window.__liPdfStop = function () { if (LS.on) lstop(); };
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'plisten') { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; var tok = ++LS.tok; lsay(true); lpage((window.__pcur && window.__pcur()) || 1, tok); } });
