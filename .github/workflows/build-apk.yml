@@ -6,6 +6,8 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       KS: ${{ secrets.KEYSTORE_BASE64 }}
     steps:
@@ -26,9 +28,18 @@ jobs:
           chmod +x gradlew
           for i in 1 2 3 4; do ./gradlew assembleDebug --no-daemon && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Living-Ideas-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+      - name: Also publish the APK as a release download (does not use the artifact storage quota)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/*.apk Living-Ideas.apk
+          gh release view apk-latest >/dev/null 2>&1 || gh release create apk-latest --prerelease --title "Latest Android build" --notes "Automatic build of the newest version." 
+          gh release upload apk-latest Living-Ideas.apk --clobber
+          gh release edit apk-latest --notes "Built from commit ${GITHUB_SHA::7} on $(date -u +%F\ %H:%M) UTC"
       - name: Build signed release APK (only if the KEYSTORE_BASE64 secret exists)
         if: env.KS != ''
         working-directory: android
