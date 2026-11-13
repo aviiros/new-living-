@@ -6,6 +6,8 @@ on:
 jobs:
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,6 +29,7 @@ jobs:
         run: |
           for i in 1 2 3 4; do npm run dist && exit 0; echo "retry $i"; sleep 20; done; exit 1
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Living-Ideas-Windows
           path: |
@@ -42,8 +45,17 @@ jobs:
           if (-not $p.WaitForExit(900000)) { $p.Kill() }
           if (Test-Path smoke.json) { Get-Content smoke.json } else { Write-Host 'no report written'; exit 1 }
           if ((Get-Content smoke.json -Raw | ConvertFrom-Json).ok -ne $true) { exit 1 }
+      - name: Also publish the Windows files as a release download (does not use the artifact storage quota)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view windows-latest >/dev/null 2>&1 || gh release create windows-latest --prerelease --title "Latest Windows build" --notes "Automatic build of the newest version."
+          gh release upload windows-latest windows/dist/Living-Ideas-Setup-*.exe windows/dist/Living-Ideas-Portable-*.exe --clobber
+          gh release edit windows-latest --notes "Built from commit ${GITHUB_SHA::7} on $(date -u +%F) UTC"
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: windows-selftest-report
           path: smoke.json
