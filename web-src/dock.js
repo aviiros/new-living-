@@ -125,7 +125,7 @@
         var ix = Q.ni, info = cs(ix);
         if (Q.nk >= info.c.length) { Q.ni++; Q.nk = 0; continue; }
         (function (ix, k, info) {
-          var u = new SpeechSynthesisUtterance(info.c[k]); u.lang = info.lang === 'ar' ? 'ar-SA' : info.lang; u.rate = G.rate || 1; var v = voiceFor(info.lang); if (v) { u.voice = v; u.lang = v.lang; }
+          var u = new SpeechSynthesisUtterance(info.c[k]); u.__g = ix; u.lang = info.lang === 'ar' ? 'ar-SA' : info.lang; u.rate = G.rate || 1; var v = voiceFor(info.lang); if (v) { u.voice = v; u.lang = v.lang; }
           var last = k === info.c.length - 1, fin = false;
           u.onstart = function () { if (tok !== S.tok || !S.on) return; S.i = ix; S.k = k; if (shown !== ix) { shown = ix; mark(units[ix]); } };
           function done() { if (fin) return; fin = true; Q.out--; if (tok !== S.tok || !S.on) return; if (last) bset('li-spk', String(ix + 1)); top(); }

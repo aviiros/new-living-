@@ -233,27 +233,37 @@
   // (2) rebuilds speechSynthesis on top of the phone's own text-to-speech.
   function TTSX() {
     var N = window.LiNative; if (!N || !N.speak) return;
-    var seq = 0, live = {}, q = [], vc = null, ls = [], spkT = null, spkOn = false;
-    // While anything is being read aloud the app keeps a notification alive, so the voice continues with the screen off or another app open.
+    var pre = 'u' + Math.floor(Math.random() * 1e6).toString(36) + '_', seq = 0, live = {}, q = [], pend = [], vc = null, ls = [], spkT = null, spkOn = false, batchOk = !!N.speakBatch;
     function note(on) { clearTimeout(spkT); if (on) { if (!spkOn) { spkOn = true; try { parent.postMessage({ liBook: 1, type: 'speak-state', on: true }, '*'); } catch (e) {} } } else spkT = setTimeout(function () { if (!S.speaking && spkOn) { spkOn = false; try { parent.postMessage({ liBook: 1, type: 'speak-state', on: false }, '*'); } catch (e) {} } }, 2500); }
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'spkstop') { try { S.cancel(); } catch (x) {} try { window.__liDock && window.__liDock.act('sstop'); } catch (x) {} try { window.__liPdfStop && window.__liPdfStop(); } catch (x) {} } });
     function voices() { if (vc) return vc; var a = []; try { a = JSON.parse(N.voices() || '[]'); } catch (e) {} if (!a.length) return []; vc = a.map(function (v) { return { name: v[0], lang: v[1], voiceURI: v[0], localService: true, default: false }; }); return vc; }
     function U(t) { this.text = t === undefined ? '' : String(t); this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1; this.voice = null; this.onstart = this.onend = this.onerror = this.onboundary = this.onpause = this.onresume = null; }
-    function issue(ent, from) { var id = 'u' + (++seq); live[id] = ent; ent.id = id; var u = ent.u; ent.base = from || 0; N.speak(id, u.text.slice(ent.base), u.lang || (u.voice && u.voice.lang) || '', u.voice ? u.voice.name : '', +u.rate || 1, +u.pitch || 1); }
+    // Sentences are handed to the phone's own reader in one go (it keeps its queue and goes on by itself while this page sleeps).
+    function flush() {
+      var a = pend; pend = []; if (!a.length) return;
+      var arr = a.map(function (ent) { var u = ent.u; return { id: ent.id, t: u.text, l: u.lang || (u.voice && u.voice.lang) || '', v: u.voice ? u.voice.name : '', r: +u.rate || 1, p: +u.pitch || 1, g: u.__g !== undefined ? String(u.__g) : ent.id, b: u.onboundary ? 1 : 0 }; });
+      try { if (batchOk) N.speakBatch(JSON.stringify(arr), false); else arr.forEach(function (o) { N.speak(o.id, o.t, o.l, o.v, o.r, o.p); }); } catch (e) {}
+    }
+    // A book that reads sentence by sentence starts the next one from a short timer inside its "end" handler. Hidden pages slow timers down
+    // (to once a minute after a while), so such short timers started from there run at once instead and the voice never waits.
+    var inEnd = false, stOrig = window.setTimeout;
+    window.setTimeout = function (f, t) { if (inEnd && typeof f === 'function' && (+t || 0) <= 150) { var a = [].slice.call(arguments, 2); Promise.resolve().then(function () { f.apply(window, a); }); return 0; } return stOrig.apply(window, arguments); };
     var S = { speaking: false, pending: false, paused: false, onvoiceschanged: null, getVoices: voices,
-      speak: function (u) { var ent = { u: u, base: 0, off: 0 }; q.push(ent); S.speaking = true; note(true); if (!S.paused) issue(ent, 0); },
-      cancel: function () { live = {}; q = []; S.speaking = false; S.paused = false; note(false); try { N.stop(); } catch (e) {} },
-      pause: function () { if (!S.speaking || S.paused) return; S.paused = true; live = {}; try { N.stop(); } catch (e) {} q.forEach(function (e) { if (e.u.onpause && e === q[0]) try { e.u.onpause({}); } catch (x) {} }); },
-      resume: function () { if (!S.paused) return; S.paused = false; var first = true; q.forEach(function (e) { issue(e, first ? e.off : 0); first = false; }); if (q[0] && q[0].u.onresume) try { q[0].u.onresume({}); } catch (x) {} },
+      speak: function (u) { var id = pre + (++seq), ent = { u: u, id: id }; live[id] = ent; q.push(ent); S.speaking = true; note(true); pend.push(ent); if (pend.length === 1) Promise.resolve().then(flush); },
+      cancel: function () { live = {}; q = []; pend = []; S.speaking = false; S.paused = false; note(false); try { N.stop(); } catch (e) {} },
+      pause: function () { if (!S.speaking || S.paused) return; S.paused = true; try { N.ttsCmd('pause'); } catch (e) {} if (q[0] && q[0].u.onpause) try { q[0].u.onpause({}); } catch (x) {} },
+      resume: function () { if (!S.paused) return; S.paused = false; try { N.ttsCmd('resume'); } catch (e) {} if (q[0] && q[0].u.onresume) try { q[0].u.onresume({}); } catch (x) {} },
       addEventListener: function (n, f) { if (n === 'voiceschanged') ls.push(f); }, removeEventListener: function (n, f) { ls = ls.filter(function (x) { return x !== f; }); }, dispatchEvent: function () { return true; } };
     try { Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: U }); Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: function () { return S; } }); } catch (e) { window.SpeechSynthesisUtterance = U; window.speechSynthesis = S; }
     window.addEventListener('message', function (e) {
       var d = e.data; if (!d || !d.liTts) return;
       if (d.type === 'voices') { vc = null; var ev = { type: 'voiceschanged' }; if (S.onvoiceschanged) try { S.onvoiceschanged(ev); } catch (x) {} ls.slice().forEach(function (f) { try { f(ev); } catch (x) {} }); return; }
+      if (d.type === 'paused') { if (S.speaking) S.paused = true; return; }
+      if (d.type === 'resumed') { S.paused = false; return; }
       var ent = live[d.id]; if (!ent) return; var u = ent.u;
       if (d.type === 'start') { if (u.onstart) try { u.onstart({}); } catch (x) {} }
-      else if (d.type === 'boundary') { ent.off = d.a + ent.base; if (u.onboundary) try { u.onboundary({ charIndex: d.a + ent.base, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
-      else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) { S.speaking = false; note(false); } var h = d.type === 'end' ? u.onend : u.onerror; if (h) try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} }
+      else if (d.type === 'boundary') { if (u.onboundary) try { u.onboundary({ charIndex: d.a, charLength: d.b, name: 'word', utterance: u }); } catch (x) {} }
+      else { delete live[d.id]; q = q.filter(function (x) { return x !== ent; }); if (!q.length) { S.speaking = false; note(false); } var h = d.type === 'end' ? u.onend : u.onerror; if (h) { inEnd = true; try { h(d.type === 'end' ? {} : { error: 'synthesis-failed' }); } catch (x) {} inEnd = false; } }
     });
   }
   function SHIMX() {
@@ -694,7 +704,7 @@
           if (!t) { top(); return; }
           var cs = lchunks(t), lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
           cs.forEach(function (c, k) {
-            var u = new SpeechSynthesisUtterance(c); u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
+            var u = new SpeechSynthesisUtterance(c); u.__g = 'p' + pn; u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
             try { var vs = (window.speechSynthesis.getVoices() || []).filter(function (v) { return (v.lang || '').toLowerCase().indexOf(lg) === 0; }); var pick = vs.filter(function (v) { return v.name === G.voice; })[0] || vs[0]; if (pick) { u.voice = pick; u.lang = pick.lang; } } catch (e) {}
             var fin = false; Q.out++;
             u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { try { window.__pgo && window.__pgo(pn); } catch (e) {} } };

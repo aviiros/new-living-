@@ -56,6 +56,8 @@ header.top{display:flex;align-items:center;gap:12px;padding:20px 32px 10px}heade
 .modal{position:fixed;inset:0;background:rgba(10,20,25,.5);display:none;place-items:center;z-index:90}.modal.on{display:grid}.box{background:var(--card);border-radius:16px;padding:22px;width:min(460px,92vw);max-height:90vh;overflow:auto;box-shadow:var(--shadow)}.box h3{margin:0 0 12px;font:700 20px var(--ser)}.box label{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px}.box input[type=text],.box input[type=number],.box input[type=time]{width:100%;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:0 10px}.acts{display:flex;gap:8px;margin-top:16px}
 .stars{display:flex;gap:2px;direction:ltr;justify-content:flex-end}.stars button{border:0;background:none;font-size:24px;color:var(--line);padding:0}.stars button.on{color:var(--gold)}.chk{display:flex;gap:8px;align-items:center;margin:8px 0}.chk input{accent-color:var(--acc)}kbd{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:12px "Segoe UI"}.kb{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
 #drop{position:fixed;inset:10px;border:3px dashed var(--acc);border-radius:18px;background:var(--sel);display:none;place-items:center;font:700 24px var(--ser);color:var(--acc);z-index:95;pointer-events:none}
+#mini{position:fixed;z-index:25;left:50%;transform:translateX(-50%);bottom:76px;display:none;align-items:center;gap:2px;padding:5px 8px;background:var(--card);border:1px solid var(--line);border-radius:99px;box-shadow:0 6px 22px rgba(0,0,0,.28);direction:ltr}body.mini #mini{display:flex}body.mini #bgpill{bottom:136px}
+#mini button{width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer;padding:0}#mini button:active{background:var(--sel)}#mini button.pp{background:var(--acc);color:#fff;width:44px;height:44px}#mini svg{width:21px;height:21px;fill:currentColor}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#14262e;color:#f0e8d3;padding:9px 18px;border-radius:99px;font-size:13px;opacity:0;transition:.25s;z-index:99;pointer-events:none}#toast.on{opacity:1}
 
 .lang{display:flex;margin:0 4px 12px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--card)}.lang button{flex:1;border:0;background:none;height:28px;font-size:12px;font-weight:600;color:var(--mute)}.lang button.on{background:var(--acc);color:#fff}
@@ -190,6 +192,7 @@ header.top #langBtn{display:none!important}
  <div id="scroller"><label class="sbox" id="sbox" style="display:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><input id="sb" type="search" placeholder="ابحث في مكتبتك..." aria-label="بحث"></label><div class="home" id="home"></div><div class="notes" id="notes"></div><div id="grid"></div><div id="list"></div>
   <div class="empty" id="empty"><img src="assets/logo.png" alt="Living Ideas"><h2 id="et"></h2><p id="ep"></p></div></div>
 </main></div>
+<div id="mini" aria-label="player"><button data-c="voldown" title="Volume -"><svg viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg></button><button data-c="toggle" class="pp" title="Play / Pause"><svg id="mini-pp" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg></button><button data-c="volup" title="Volume +"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button><button data-c="next" title="Next paragraph"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button><button data-c="stop" title="Stop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button></div>
 <section id="reader"><div id="rbar"></div>
  <div id="stage"><iframe id="frame" class="fr" title="كتاب" allow="fullscreen" sandbox="allow-scripts allow-same-origin allow-modals allow-downloads allow-popups allow-forms"></iframe><iframe id="pframe" class="fr" title="PDF"></iframe>
   <aside id="panel" style="width:340px;padding:0;border-inline-end:0"><h3><span id="ptitle">الملاحظات والإشارات</span><button class="link" id="pclose">إغلاق</button></h3><div id="plist"></div></aside></div>
@@ -396,18 +399,28 @@ function bgPill(){
 setInterval(function(){kaUpdate(true)},5000);
 var plOn=false,spkOn=false;function pf(){return $('#pframe')}
 window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook)return;var f1=$('#frame'),f2=$('#pframe');var ok=(f1&&e.source===f1.contentWindow)||(f2&&e.source===f2.contentWindow);if(!ok)return;
-  if(d.type==='speak-state'){spkOn=!!d.on;kaUpdate(true)}
+  if(d.type==='speak-state'){spkOn=!!d.on;if(!spkOn)mpPaused=false;miniIcon();miniShow();kaUpdate(true)}
   else if(d.type==='plisten-state'){plOn=!!d.on;var r=$('#rlisten');if(r)r.classList.toggle('on',plOn)}});
+
+var mpPaused=false;
+function miniShow(){var N=window.LiNative;document.body.classList.toggle('mini',!!(spkOn&&N&&N.speakBatch))}
+function miniIcon(){var e=document.getElementById('mini-pp');if(e)e.innerHTML=mpPaused?'<path d="M8 5v14l11-7z"/>':'<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'}
+document.getElementById('mini').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var N=window.LiNative;try{N&&N.ttsCmd&&N.ttsCmd(b.getAttribute('data-c'))}catch(x){}
+  if(b.getAttribute('data-c')==='toggle'){mpPaused=!mpPaused;miniIcon()}});
+window.__liTtsB=function(a){try{for(var i=0;i<a.length;i++){var ev=a[i],t=ev[1];
+  if(t==='paused'){mpPaused=true;miniIcon()}else if(t==='resumed'){mpPaused=false;miniIcon()}
+  else if(t==='stopped'){['frame','pframe'].forEach(function(n){var f=$('#'+n);try{f&&f.contentWindow.postMessage({liCmd:'spkstop'},'*')}catch(x){}});spkOn=false;plOn=false;mpPaused=false;miniIcon();miniShow();var r=$('#rlisten');if(r)r.classList.remove('on')}
+  window.__liTts&&window.__liTts(ev[0],t,ev[2],ev[3])}}catch(e){}};
 function kaUpdate(force){
   var N=window.LiNative;if(!N||!N.keepAlive)return;
   try{if(N.kaStopped&&N.kaStopped()){if(spkOn){['frame','pframe'].forEach(function(n){var f=$('#'+n);try{f&&f.contentWindow.postMessage({liCmd:'spkstop'},'*')}catch(x){}});spkOn=false;plOn=false}if(bgCur)bgStop(false);else if(cur&&trSt[cur.id]&&trSt[cur.id].done<trSt[cur.id].total&&!spkOn){post({liCmd:'trstop'});delete trSt[cur.id]}}}catch(e){}var n=Date.now();if(!force&&n-kaLast<1500)return;kaLast=n;
   var job=null,st=null,b=null;
   if(bgCur){job=bgCur;st=bgCur.st;b=bookById(bgCur.id)}
   else if(cur&&trSt[cur.id]&&trSt[cur.id].tgt&&trSt[cur.id].done<trSt[cur.id].total){job={tgt:trSt[cur.id].tgt};st=trSt[cur.id];b=cur}
-  if(!job&&spkOn){var lb=cur?dt(cur):'';try{N.keepAlive(true,T('جارٍ الاستماع إلى الكتاب','Reading aloud'),lb,0)}catch(e){}return}
+  if(!job&&spkOn){try{N.ttsMeta&&N.ttsMeta(cur?dt(cur):'','')}catch(e){}try{N.keepAlive(false,'','',0)}catch(e){}return}
   if(!job){try{N.keepAlive(false,'','',0)}catch(e){}return}
   st=st||{done:0,total:0};var pct=st.total?Math.floor(st.done/st.total*100):0;
-  try{N.keepAlive(true,(spkOn?T('استماع + ترجمة','Listening + translating'):T('جارٍ ترجمة الكتاب','Translating book'))+' · '+pct+'%',(b?dt(b):'')+' → '+langName(job.tgt)+(st.total?' · '+st.done+'/'+st.total+' '+T('فقرة','parts'):'')+(bgq.length?' · '+T('في الانتظار: ','queued: ')+bgq.length:''),pct)}catch(e){}
+  try{N.keepAlive(true,T('جارٍ ترجمة الكتاب','Translating book')+' · '+pct+'%',(b?dt(b):'')+' → '+langName(job.tgt)+(st.total?' · '+st.done+'/'+st.total+' '+T('فقرة','parts'):'')+(bgq.length?' · '+T('في الانتظار: ','queued: ')+bgq.length:''),pct)}catch(e){}
 }
 function bgAdd(id,tgt){
   if(!id||!tgt)return;if(bgCur&&bgCur.id===id&&bgCur.tgt===tgt)return;
