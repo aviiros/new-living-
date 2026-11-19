@@ -22,16 +22,19 @@ jobs:
           Expand-Archive l.zip -DestinationPath llama -Force
           Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { $_.Name + ' ' + [int]($_.Length/1KB) + 'KB' }
           Get-ChildItem llama -Recurse -Filter *.exe | Select-Object -First 30 | ForEach-Object { $_.Name }
-      - name: Cap test (70 and 40 percent) with an independent measurement
+      - name: Cap test (70, 40, 100 percent) with an independent measurement
         shell: pwsh
         run: |
-          'const {Worker,isMainThread}=require("worker_threads");const n=require("os").cpus().length;if(isMainThread){for(let i=0;i<n;i++)new Worker(__filename);setTimeout(()=>process.exit(0),14000)}else{for(;;){}}' | Set-Content burn.js
+          'const {Worker,isMainThread}=require("worker_threads");const n=require("os").cpus().length;if(isMainThread){for(let i=0;i<n;i++)new Worker(__filename);setTimeout(()=>process.exit(0),16000)}else{for(;;){}}' | Set-Content burn.js
           foreach ($cap in 70,40,100) {
-            $j = Start-Job { (Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 10).CounterSamples.CookedValue }
-            $o = & .\li-runner.exe $cap node burn.js
-            Write-Host "== cap $cap  cores $([Environment]::ProcessorCount)"
-            $o | ForEach-Object { $_ }
-            Write-Host "independent system-wide samples:"; (Receive-Job $j -Wait) -join ' '
+            $psi = New-Object System.Diagnostics.ProcessStartInfo('.\li-runner.exe',"$cap node burn.js"); $psi.RedirectStandardInput=$true; $psi.RedirectStandardOutput=$true; $psi.UseShellExecute=$false
+            $p=[System.Diagnostics.Process]::Start($psi)
+            Start-Sleep 2
+            $s=(Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 10).CounterSamples.CookedValue
+            $p.StandardInput.Close(); $p.WaitForExit(8000) | Out-Null
+            Write-Host "== cap $cap cores $([Environment]::ProcessorCount)"
+            Write-Host ("independent system-wide %: " + (($s | ForEach-Object { [int]$_ }) -join ' ') + "  avg " + [int](($s | Measure-Object -Average).Average))
+            Write-Host ("runner lines: " + ($p.StandardOutput.ReadToEnd() -replace "`r?`n",' '))
           }
       - name: Pause / quit control
         shell: pwsh
