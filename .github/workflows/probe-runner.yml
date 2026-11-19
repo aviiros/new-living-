@@ -1,0 +1,41 @@
+name: probe runner
+on:
+  push:
+    branches: [probe2]
+jobs:
+  t:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Compile helper
+        shell: bash
+        run: |
+          which gcc || true
+          gcc -O2 -o li-runner.exe windows/native/li-runner.c -lpsapi
+          ls -la li-runner.exe
+      - name: Which CPU variants does the llama.cpp build ship?
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://github.com/ggml-org/llama.cpp/releases/download/b12532/llama-b12532-bin-win-cpu-x64.zip' -OutFile l.zip
+          Expand-Archive l.zip -DestinationPath llama -Force
+          Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { $_.Name + ' ' + [int]($_.Length/1KB) + 'KB' }
+          Get-ChildItem llama -Recurse -Filter *.exe | Select-Object -First 30 | ForEach-Object { $_.Name }
+      - name: Cap test (70 and 40 percent) with an independent measurement
+        shell: pwsh
+        run: |
+          'const {Worker,isMainThread}=require("worker_threads");const n=require("os").cpus().length;if(isMainThread){for(let i=0;i<n;i++)new Worker(__filename);setTimeout(()=>process.exit(0),14000)}else{for(;;){}}' | Set-Content burn.js
+          foreach ($cap in 70,40,100) {
+            $j = Start-Job { (Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 10).CounterSamples.CookedValue }
+            $o = & .\li-runner.exe $cap node burn.js
+            Write-Host "== cap $cap  cores $([Environment]::ProcessorCount)"
+            $o | ForEach-Object { $_ }
+            Write-Host "independent system-wide samples:"; (Receive-Job $j -Wait) -join ' '
+          }
+      - name: Pause / quit control
+        shell: pwsh
+        run: |
+          $psi = New-Object System.Diagnostics.ProcessStartInfo('.\li-runner.exe','50 node burn.js'); $psi.RedirectStandardInput=$true; $psi.RedirectStandardOutput=$true; $psi.UseShellExecute=$false
+          $p=[System.Diagnostics.Process]::Start($psi); Start-Sleep 4; $p.StandardInput.WriteLine('pause'); Start-Sleep 4; $p.StandardInput.WriteLine('resume'); Start-Sleep 3; $p.StandardInput.Close(); $p.WaitForExit(8000) | Out-Null
+          $t=$p.StandardOutput.ReadToEnd(); $t; Start-Sleep 2; 'node still alive after runner ended: ' + [bool](Get-Process node -ErrorAction SilentlyContinue)
