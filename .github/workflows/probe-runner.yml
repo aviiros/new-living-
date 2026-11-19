@@ -6,19 +6,6 @@ jobs:
   t:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Real file lists, sizes and hashes from Hugging Face
-        run: |
-          for r in tencent/HY-MT1.5-1.8B-GGUF SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF; do
-            echo "=== $r"; curl -sL "https://huggingface.co/api/models/$r?blobs=true" | python3 -c "
-import json,sys
-j=json.load(sys.stdin)
-print('license',j.get('cardData',{}).get('license'),'| sha',j.get('sha','')[:8],'| langs',(j.get('cardData',{}) or {}).get('language'))
-for s in j.get('siblings',[]):
-    if s['rfilename'].endswith('.gguf'): print(s['rfilename'],round(s.get('size',0)/1048576),'MB',(s.get('lfs') or {}).get('sha256','')[:64])
-"
-          done
-          for q in "Xiaomi-OCR" "HY-MT1.5" "PaddleOCR-VL" ; do
-            echo "=== search $q"; curl -sL "https://huggingface.co/api/models?search=$q&filter=gguf&limit=12" | python3 -c "
-import json,sys
-for m in json.load(sys.stdin): print(m['id'], m.get('downloads'), m.get('likes'))"
-          done
+        run: python3 .github/probe_hf.py
