@@ -126,6 +126,15 @@ if (process.env.LI_SMOKE) {
         const t0 = Date.now(), m = await ask('s' + (++n), text, src, tgt), good = m.kind === 'ok' && m.text && m.text !== text;
         res.translate.push({ pair: src + '>' + tgt, kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 1000) }); if (!good) ok = false;
       }
+      // Local AI engine check (downloads the model once on the build server). Reported, but a network hiccup there does not fail the build.
+      try {
+        const hqAsk = (id, text, src, tgt) => new Promise((ok) => { waiters[id] = ok; getWorker().postMessage({ id, text, src, tgt, hq: true }); });
+        res.hq = [];
+        for (const [text, src, tgt] of [['Reading is the road to knowledge, and knowledge is the road to freedom.', 'en', 'ar'], ['\u0627\u0644\u0643\u062a\u0627\u0628 \u0627\u0644\u062c\u064a\u062f \u0635\u062f\u064a\u0642 \u0644\u0627 \u064a\u062e\u0648\u0646.', 'ar', 'en']]) {
+          const t0 = Date.now(), m = await hqAsk('h' + res.hq.length, text, src, tgt);
+          res.hq.push({ pair: src + '>' + tgt, kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 1000) });
+        }
+      } catch (e) { res.hqError = String(e && e.message || e); }
       try { const pdf = await makePdf('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px Tahoma"><h1>ترجمة تجريبية</h1><p>' + 'هذه فقرة عربية للتأكد من إنشاء ملف PDF صحيح. '.repeat(40) + '</p>'); res.pdf = { bytes: pdf.length, header: pdf.slice(0, 5).toString() }; if (!(pdf.length > 3000 && res.pdf.header === '%PDF-')) ok = false; } catch (e) { res.pdf = { error: String(e) }; ok = false; }
       done(ok);
     })().catch((e) => { res.error = String((e && e.stack) || e); done(false); });
