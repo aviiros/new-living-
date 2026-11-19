@@ -26,14 +26,16 @@ jobs:
         shell: pwsh
         run: |
           'const {Worker,isMainThread}=require("worker_threads");const n=require("os").cpus().length;if(isMainThread){for(let i=0;i<n;i++)new Worker(__filename);setTimeout(()=>process.exit(0),16000)}else{for(;;){}}' | Set-Content burn.js
-          foreach ($cap in 70,40,100) {
+          $b=(Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 6).CounterSamples.CookedValue; Write-Host ('idle baseline system-wide %: ' + (($b | ForEach-Object { [int]$_ }) -join ' '))
+          foreach ($cap in 70,40) {
             $psi = New-Object System.Diagnostics.ProcessStartInfo('.\li-runner.exe',"$cap node burn.js"); $psi.RedirectStandardInput=$true; $psi.RedirectStandardOutput=$true; $psi.UseShellExecute=$false
             $p=[System.Diagnostics.Process]::Start($psi)
             Start-Sleep 2
-            $s=(Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 10).CounterSamples.CookedValue
+            $c=Get-Counter -Counter '\Processor(_Total)\% Processor Time','\Process(node*)\% Processor Time' -SampleInterval 1 -MaxSamples 10; $s=$c | ForEach-Object { ($_.CounterSamples | Where-Object { $_.Path -like '*(_total)*' } | Select-Object -First 1).CookedValue }; $n=$c | ForEach-Object { (($_.CounterSamples | Where-Object { $_.Path -like '*process(node*' } | Measure-Object CookedValue -Sum).Sum)/[Environment]::ProcessorCount }
             $p.StandardInput.Close(); $p.WaitForExit(8000) | Out-Null
             Write-Host "== cap $cap cores $([Environment]::ProcessorCount)"
             Write-Host ("independent system-wide %: " + (($s | ForEach-Object { [int]$_ }) -join ' ') + "  avg " + [int](($s | Measure-Object -Average).Average))
+            Write-Host ("independent node-only % of all cores: " + (($n | ForEach-Object { [int]$_ }) -join ' ') + "  avg " + [int](($n | Measure-Object -Average).Average))
             Write-Host ("runner lines: " + ($p.StandardOutput.ReadToEnd() -replace "`r?`n",' '))
           }
       - name: Pause / quit control
