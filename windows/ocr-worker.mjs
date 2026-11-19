@@ -4,21 +4,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as E from './ai-engine.mjs';
 
-const BASE = 'https://huggingface.co/SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF/resolve/main/';
-const FILES = { model: 'nuqta-ocr-0.8b-Q4_K_M.gguf', mm: 'nuqta-ocr-0.8b-mmproj-f16.gguf' };
+import * as R from './ai-registry.mjs';
 const PROMPT = 'Extract all the text from this page as Markdown. Keep headings and tables.';
 const post = (m) => parentPort.postMessage(m);
 const why = (e) => String((e && e.message) || e || 'error').slice(0, 300);
 let srv = null, starting = null;
-const dir = () => E.llamaDir(workerData.cache);
-const have = () => E.hasLlama(workerData.cache) && fs.existsSync(path.join(dir(), FILES.model)) && fs.existsSync(path.join(dir(), FILES.mm));
+const cur = () => R.resolve(workerData.cache, 'ocr');
+const have = () => E.hasLlama(workerData.cache) && R.have(workerData.cache, cur());
 
 async function start() {
   if (srv) return srv;
   if (!E.ramOk(3.5)) throw new Error('not enough memory for the local AI model');
-  const exe = await E.ensureLlama(workerData.cache, (n) => post({ kind: 'prog', text: n + '%' }));
-  for (const k of ['model', 'mm']) { const f = path.join(dir(), FILES[k]); if (!fs.existsSync(f)) await E.download(BASE + FILES[k], f, (n) => post({ kind: 'prog', text: n + '%' })); }
-  srv = await E.startServer(exe, ['-m', path.join(dir(), FILES.model), '--mmproj', path.join(dir(), FILES.mm), '-t', String(E.threads()), '-c', '8192', '--image-max-tokens', '2048'], () => { srv = null; });
+  const m = cur(), prog = (n) => post({ kind: 'prog', text: n + '%' });
+  const exe = await E.ensureLlama(workerData.cache, prog);
+  if (!R.have(workerData.cache, m)) {
+    if (!m.builtin) throw new Error('model file not found');
+    if (!fs.existsSync(m.model)) await E.download(m.url, m.model, prog);
+    if (m.mm && !fs.existsSync(m.mm)) await E.download(m.mmUrl, m.mm, prog);
+  }
+  const args = ['-m', m.model, '-t', String(E.threads()), '-c', '8192', '--image-max-tokens', '2048']; if (m.mm) args.push('--mmproj', m.mm);
+  srv = await E.startServer(exe, args, () => { srv = null; });
   return srv;
 }
 async function page(dataUrl) {

@@ -160,20 +160,17 @@ async function viaOnline(text, src, tgt) {
 // ---------- Local AI translation (HY-MT, Tencent) for "higher quality on this PC" ----------
 // One small program (llama.cpp, about 25 MB) runs the model (about 1.1 GB). Both download once and then work offline.
 // Every answer is checked; if the model is unavailable or an answer looks wrong the faster engines are used instead.
-const AI = {
-  modelUrl: 'https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF/resolve/main/HY-MT1.5-1.8B-Q4_K_M.gguf',
-  modelFile: 'HY-MT1.5-1.8B-Q4_K_M.gguf'
-};
+import * as R from './ai-registry.mjs';
 const LNAME = { ar: 'Arabic', en: 'English', fr: 'French', es: 'Spanish', it: 'Italian', id: 'Indonesian' };
 let ai = null, aiBad = false, aiWhy = '';
 const pct = (n) => post('', 'prep', n + '%');
 async function aiStart() {
   if (!E.ramOk(5.5)) throw new Error('not enough memory for the local AI model (needs about 6 GB)');
   post('', 'prep');
+  const m = R.resolve(workerData.cache, 'translate');
   const exe = await E.ensureLlama(workerData.cache, pct);
-  const model = path.join(E.llamaDir(workerData.cache), AI.modelFile);
-  if (!fs.existsSync(model)) await E.download(AI.modelUrl, model, pct);
-  const srv = await E.startServer(exe, ['-m', model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; });
+  if (!R.have(workerData.cache, m)) { if (!m.builtin) throw new Error('model file not found: ' + m.model); await E.download(m.url, m.model, pct); }
+  const srv = await E.startServer(exe, ['-m', m.model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; });
   post('', 'ready');
   return srv;
 }

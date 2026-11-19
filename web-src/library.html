@@ -171,6 +171,7 @@ header.top #langBtn{display:none!important}
 #box{position:relative}.mx{position:absolute;top:8px;inset-inline-end:10px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:26px;line-height:1;cursor:pointer}.mx:hover{background:var(--line)}
 #bgpill{position:fixed;z-index:60;inset-inline-start:12px;bottom:78px;width:min(320px,calc(100vw - 24px));padding:10px 38px 10px 14px;border-radius:14px;background:var(--card,#fbf7ec);color:var(--ink,#1d2b33);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.22);display:none;font-size:12.5px;line-height:1.5}#bgpill.on{display:block}.bgt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bgb{height:6px;border-radius:4px;background:var(--line);margin:7px 0 4px;overflow:hidden}.bgb i{display:block;height:100%;background:var(--acc);transition:width .4s}.bgs{opacity:.75}#bgx{position:absolute;top:6px;inset-inline-end:6px;width:28px;height:28px;border:0;background:transparent;font-size:20px;color:inherit;cursor:pointer}@media(min-width:900px){#bgpill{bottom:16px}}
 .libhead{flex-wrap:wrap;row-gap:8px}.libhead .ib{white-space:nowrap}.libhead .ib svg{width:18px;height:18px}.cami{display:inline-flex;vertical-align:middle;margin-inline-end:7px}.cami svg{width:19px;height:19px}#scanBtn{display:inline-flex;align-items:center}
+.airow{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line)}.ainf{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ainf small{color:var(--mute);font-size:12px;line-height:1.6}.aibt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.ainote{margin:6px 2px;font-size:12.5px;line-height:1.8;color:var(--mute)}
 </style></head>
 <body><div id="bgpill"></div>
 <div id="app">
@@ -724,6 +725,7 @@ function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'alway
    +'<button class="srow" data-sa="goals">'+T('أهداف القراءة والتذكير بالاقتباس','Reading goals and quote reminders')+'<small>›</small></button>'
    +'<button class="srow" data-sa="saved">'+T('الأفكار المحفوظة','Saved thoughts')+'<small>'+AR(savedList().length)+'</small></button>'
    +'<button class="srow" data-sa="hidden">'+T('إظهار الكتب المخفية','Show hidden books')+'<small>'+(s.showHidden?T('مفعّل','On'):T('متوقف','Off'))+'</small></button>'
+   +(window.liDesk&&window.liDesk.aiList?'<div class="sh">'+T('الذكاء الاصطناعي','LOCAL AI')+'</div><button class="srow" data-sa="ai">'+T('نماذج الذكاء الاصطناعي المحلية','Local AI models')+'<small>›</small></button>':'')
    +'<div class="sh">'+T('بياناتك','YOUR DATA')+'</div>'
    +'<button class="srow" data-sa="backup">'+T('نسخة احتياطية للمكتبة…','Back up library…')+'<small>›</small></button>'
    +'<button class="srow" data-sa="restore">'+T('استعادة نسخة احتياطية…','Restore backup…')+'<small>›</small></button>'
@@ -738,7 +740,31 @@ function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'alway
     else if(k==='goals'){closeModal();goalDlg()}else if(k==='saved'){closeModal();savedDlg()}
     else if(k==='hidden'){window.api.settings({showHidden:!S.settings.showHidden}).then(function(x){setState(x);settingsDlg()})}
     else if(k==='backup'){closeModal();window.api.backup()}else if(k==='restore'){closeModal();window.api.restore().then(setState)}
+    else if(k==='ai'){aiDlg()}
     else if(k==='notes'){closeModal();window.api.exportAllNotes()}else if(k==='about'){closeModal();aboutDlg()}}}
+function aiDlg(msg){var D=window.liDesk;if(!D||!D.aiList)return;
+  D.aiList().then(function(L){var on=true;try{on=localStorage.getItem('li-ai-ocr')!=='0'}catch(e){}
+    var sec=function(kind,title){var h='<div class="sh">'+title+'</div>';
+      L.filter(function(m){return m.kind===kind}).forEach(function(m){
+        var st=m.have?T('تم التنزيل','Downloaded'):T('لم يُنزَّل بعد (يُنزَّل عند أول حاجة)','Not downloaded yet (it downloads when first needed)');
+        var origin=m.builtin?T('مدمج','Built-in'):T('من هذا الجهاز','From this computer');
+        var del=m.builtin?(m.have?'<button class="chip" data-ai="rm" data-id="'+esc(m.id)+'">'+T('حذف التنزيل','Delete download')+'</button>':''):'<button class="chip" data-ai="rm" data-id="'+esc(m.id)+'">'+T('إزالة من القائمة','Remove from list')+'</button>';
+        h+='<div class="airow"><div class="ainf"><b>'+esc(m.name)+'</b><small>'+origin+(m.mb?' · '+AR(m.mb)+' '+T('ميجابايت','MB'):'')+' · '+st+'</small></div><div class="aibt">'
+          +(m.active?'<span class="chip on">'+T('قيد الاستخدام','In use')+'</span>':'<button class="chip" data-ai="use" data-k="'+kind+'" data-id="'+esc(m.id)+'">'+T('استخدام','Use')+'</button>')+del+'</div></div>'});
+      return h+'<button class="srow" data-ai="add" data-k="'+kind+'">'+T('إضافة نموذج من هذا الجهاز…','Add a model from this computer…')+'<small>›</small></button>'+(kind==='ocr'?'<p class="ainote">'+T('في نماذج القراءة تختار ملفين: النموذج ثم ملف الرؤية الخاص به.','For reading models you choose two files: the model, then its vision file.')+'</p>':'')};
+    modal('<div id="sheet"><h3>'+T('نماذج الذكاء الاصطناعي المحلية','Local AI models')+'</h3><p class="ainote">'+T('تعمل على هذا الجهاز دون إنترنت بعد تنزيل واحد.','Run on this computer without internet after a one-time download.')+' '+T('يُنصح بنحو ٤ جيجابايت من الذاكرة الحرة.','About 4 GB of free memory is recommended.')+'</p>'
+      +(msg?'<p class="ainote" style="color:var(--acc)">'+esc(msg)+'</p>':'')
+      +sec('translate',T('الترجمة','Translation'))+sec('ocr',T('قراءة الصفحات الممسوحة','Reading scanned pages'))
+      +'<button class="srow" data-ai="ocr">'+T('استخدام الذكاء الاصطناعي المحلي لقراءة الصفحات الممسوحة','Use local AI for reading scanned pages')+'<small>'+(on?T('مفعّل','On'):T('متوقف','Off'))+'</small></button>'
+      +'<div class="acts"><button class="btn" id="aiBack">'+T('رجوع','Back')+'</button></div></div>');
+    $('#aiBack').onclick=settingsDlg;
+    $('#box').onclick=function(e){var b=e.target.closest('[data-ai]');if(!b||b.disabled)return;var k=b.dataset.ai,id=b.dataset.id;
+      if(k==='use'){D.aiSelect(b.dataset.k,id).then(function(){aiDlg()})}
+      else if(k==='ocr'){try{localStorage.setItem('li-ai-ocr',on?'0':'1')}catch(x){}aiDlg()}
+      else if(k==='rm'){var m=L.filter(function(x){return x.id===id})[0];window.__liAsk(m&&m.builtin?T('حذف التنزيل','Delete download'):T('إزالة من القائمة','Remove from list'),m&&m.builtin?T('حذف الملفات التي تم تنزيلها لهذا النموذج؟ يمكنك تنزيله مرة أخرى لاحقًا.','Delete the downloaded files of this model? You can download it again later.'):T('إزالة هذا النموذج من القائمة؟ ملفاتك الأصلية لا تُحذف.','Remove this model from the list? Your original files are not deleted.'),T('نعم','Yes'),T('إلغاء','Cancel')).then(function(y){if(!y){aiDlg();return}D.aiRemove(id).then(function(){aiDlg()})})}
+      else if(k==='add'){b.disabled=true;b.firstChild.textContent=T('جارٍ فحص النموذج…','Checking the model…');
+        D.aiAdd(b.dataset.k).then(function(r){if(r&&r.ok)aiDlg(T('تمت إضافة النموذج واختياره.','Model added and selected.'));else if(r&&r.cancel)aiDlg();
+          else aiDlg(r&&r.text==='badfile'?T('هذا الملف ليس ملف نموذج صالحًا.','This file is not a valid model file.'):T('لا يستطيع البرنامج تشغيل هذا النموذج. يلزم ملف نموذج يعمل مع المحرك المدمج.','This program cannot run this model. It needs a model file that works with the built-in engine.'))},function(){aiDlg()})}}})}
 // dock
 function dockGo(id){document.body.classList.remove('drawer');
   if(id==='dReads'){view='reads';query='';$('#q').value='';render();$('#scroller').scrollTop=0}

@@ -128,6 +128,56 @@ ipcMain.handle('ai:ocr:prep', () => ocrCall({ kind: 'prep' }, true));
 ipcMain.handle('ai:ocr:page', (_e, image) => ocrCall({ kind: 'page', image: String(image) }, true));
 ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
 
+
+// ---------- the list of local AI models (built-in + added from this computer) ----------
+const MODELS = () => path.join(app.getPath('userData'), 'models');
+let regMod = null, engMod = null;
+async function reg() { return regMod || (regMod = await import('./ai-registry.mjs')); }
+async function eng() { return engMod || (engMod = await import('./ai-engine.mjs')); }
+function freeServers() { try { if (worker) worker.postMessage({ aistop: true }); } catch (e) {} ocrCall({ kind: 'stop' }); }
+async function aiList() {
+  const R = await reg(), r = R.load(MODELS());
+  return R.all(MODELS()).map((m) => {
+    const full = Object.assign({}, m, { model: m.builtin ? path.join(path.join(MODELS(), 'hymt'), m.file) : m.file, mm: m.mm ? (m.builtin ? path.join(path.join(MODELS(), 'hymt'), m.mm) : m.mm) : '' });
+    let mb = m.mb || 0; if (!m.builtin) { try { mb = Math.round(fs.statSync(m.file).size / 1048576) + (m.mm ? Math.round(fs.statSync(m.mm).size / 1048576) : 0); } catch (e) {} }
+    return { id: m.id, kind: m.kind, name: m.name, builtin: !!m.builtin, mb, have: R.have(MODELS(), full), active: r.active[m.kind] === m.id };
+  });
+}
+ipcMain.handle('ai:list', () => aiList());
+ipcMain.handle('ai:select', async (_e, kind, id) => {
+  const R = await reg(), r = R.load(MODELS());
+  if (!R.all(MODELS()).some((m) => m.kind === kind && m.id === id)) return { ok: false };
+  r.active[kind] = id; R.save(MODELS(), r); freeServers(); return { ok: true };
+});
+const isGguf = (f) => { try { const fd = fs.openSync(f, 'r'), b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd); return b.toString('latin1') === 'GGUF' && fs.statSync(f).size > 20 * 1048576; } catch (e) { return false; } };
+ipcMain.handle('ai:add', async (_e, kind) => {
+  try {
+    const R = await reg(), E = await eng();
+    const pick = async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ['openFile'], filters: [{ name: 'GGUF model', extensions: ['gguf'] }] }); return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]; };
+    const isOcr = kind === 'ocr';
+    const f = await pick(isOcr ? 'Choose the reading model file (.gguf)' : 'Choose the translation model file (.gguf)'); if (!f) return { ok: false, cancel: true };
+    if (!isGguf(f)) return { ok: false, text: 'badfile' };
+    let mm = '';
+    if (isOcr) { mm = await pick('Choose its vision file (mmproj .gguf)'); if (!mm) return { ok: false, cancel: true }; if (!isGguf(mm)) return { ok: false, text: 'badfile' }; }
+    // Try to load it before accepting: a model this program cannot run is rejected with a clear message.
+    freeServers();
+    const exe = await E.ensureLlama(MODELS());
+    const args = ['-m', f, '-t', '2', '-c', '1024']; if (mm) args.push('--mmproj', mm);
+    let srv; try { srv = await E.startServer(exe, args); } catch (e) { return { ok: false, text: 'cannotload' }; }
+    try { srv.proc.kill(); } catch (e) {}
+    const r = R.load(MODELS()), id = 'c' + Date.now().toString(36);
+    r.custom.push({ id, kind, name: path.basename(f).replace(/\.gguf$/i, ''), file: f, mm, mb: 0 }); r.active[kind] = id; R.save(MODELS(), r);
+    return { ok: true, id };
+  } catch (e) { return { ok: false, text: String((e && e.message) || e).slice(0, 120) }; }
+});
+ipcMain.handle('ai:remove', async (_e, id) => {
+  const R = await reg(), r = R.load(MODELS()), m = R.all(MODELS()).find((x) => x.id === id); if (!m) return { ok: false };
+  freeServers();
+  if (m.builtin) { const d = path.join(MODELS(), 'hymt'); for (const f of [m.file, m.mm]) if (f) { try { fs.rmSync(path.join(d, f), { force: true }); } catch (e) {} } }
+  else { r.custom = r.custom.filter((x) => x.id !== id); Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt' : 'nuqta'; }); R.save(MODELS(), r); }
+  return { ok: true };
+});
+
 // ---------- self-test used by the build server only (LI_SMOKE=1): opens the app, translates a few sentences, writes a report, exits ----------
 if (process.env.LI_SMOKE) {
   const fs = require('fs'), out = process.env.LI_SMOKE_OUT || 'smoke.json', res = { app: [], translate: [] };
