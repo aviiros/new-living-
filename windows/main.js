@@ -105,6 +105,29 @@ ipcMain.on('tr:go', (_e, id, text, src, tgt, online, hq) => {
   catch (e) { pending.delete(id); toUI({ id: '', kind: 'nomodel', text: String((e && e.message) || e).slice(0, 90) }); toUI({ id, kind: 'err', text: 'worker' }); }
 });
 
+
+// ---------- scanned pages / photos -> text with the local AI model (Arabic + English) ----------
+let ocrW = null; const ocrWait = new Map(); let ocrSeq = 0;
+function getOcr() {
+  if (ocrW) return ocrW;
+  const w = new Worker(path.join(__dirname, 'ocr-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models') } });
+  w.on('message', (m) => { if (m.kind === 'prog') { if (win && !win.isDestroyed()) win.webContents.send('ai:prog', m.text); return; } const f = ocrWait.get(m.id); if (f) { ocrWait.delete(m.id); f(m); } });
+  const dead = (why) => { if (ocrW === w) ocrW = null; ocrWait.forEach((f, id) => f({ kind: 'err', id, text: why })); ocrWait.clear(); };
+  w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 120))); w.on('exit', () => dead('stopped'));
+  ocrW = w; return w;
+}
+function ocrCall(msg, freeTranslator) {
+  return new Promise((ok) => {
+    if (freeTranslator && worker) { try { worker.postMessage({ aistop: true }); } catch (e) {} }
+    const id = ++ocrSeq; ocrWait.set(id, ok);
+    try { getOcr().postMessage(Object.assign({ id }, msg)); } catch (e) { ocrWait.delete(id); ok({ kind: 'err', id, text: String((e && e.message) || e) }); }
+  });
+}
+ipcMain.handle('ai:ocr:status', () => ocrCall({ kind: 'status' }));
+ipcMain.handle('ai:ocr:prep', () => ocrCall({ kind: 'prep' }, true));
+ipcMain.handle('ai:ocr:page', (_e, image) => ocrCall({ kind: 'page', image: String(image) }, true));
+ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
+
 // ---------- self-test used by the build server only (LI_SMOKE=1): opens the app, translates a few sentences, writes a report, exits ----------
 if (process.env.LI_SMOKE) {
   const fs = require('fs'), out = process.env.LI_SMOKE_OUT || 'smoke.json', res = { app: [], translate: [] };
@@ -135,6 +158,12 @@ if (process.env.LI_SMOKE) {
           res.hq.push({ pair: src + '>' + tgt, kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 1000) });
         }
       } catch (e) { res.hqError = String(e && e.message || e); }
+      // Local AI reader check: draw an Arabic page in the app, send it through the same path the import uses. Reported, not required.
+      try {
+        const t0 = Date.now();
+        res.ocr = await win.webContents.executeJavaScript(`(async()=>{const D=window.liDesk;const cv=document.createElement('canvas');cv.width=1000;cv.height=700;const c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,1000,700);c.fillStyle='#000';c.direction='rtl';c.textAlign='right';c.font='bold 44px Tahoma, Arial';c.fillText('\u0627\u0644\u0641\u0635\u0644 \u0627\u0644\u0623\u0648\u0644: \u0627\u0644\u0639\u0642\u0644 \u0648\u0627\u0644\u0625\u0631\u0627\u062f\u0629',940,100);c.font='30px Tahoma, Arial';c.fillText('\u064a\u0631\u0649 \u0634\u0648\u0628\u0646\u0647\u0627\u0648\u0631 \u0623\u0646 \u0627\u0644\u0639\u0627\u0644\u0645 \u0647\u0648 \u062a\u0645\u062b\u0644\u064a\u060c \u0648\u0623\u0646 \u0627\u0644\u0625\u0631\u0627\u062f\u0629 \u0647\u064a \u0627\u0644\u062c\u0648\u0647\u0631 \u0627\u0644\u062e\u0641\u064a.',940,200);const st=await D.ocrStatus();const pr=await D.ocrPrep();const r=await D.ocrPage(cv.toDataURL('image/png'));return {status:st,prep:pr.kind+(pr.text||''),kind:r.kind,text:r.text};})()`);
+        res.ocr.sec = Math.round((Date.now() - t0) / 1000);
+      } catch (e) { res.ocrError = String(e && e.message || e); }
       try { const pdf = await makePdf('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px Tahoma"><h1>ترجمة تجريبية</h1><p>' + 'هذه فقرة عربية للتأكد من إنشاء ملف PDF صحيح. '.repeat(40) + '</p>'); res.pdf = { bytes: pdf.length, header: pdf.slice(0, 5).toString() }; if (!(pdf.length > 3000 && res.pdf.header === '%PDF-')) ok = false; } catch (e) { res.pdf = { error: String(e) }; ok = false; }
       done(ok);
     })().catch((e) => { res.error = String((e && e.stack) || e); done(false); });

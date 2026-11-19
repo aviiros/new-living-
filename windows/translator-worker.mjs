@@ -4,10 +4,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import os from 'node:os';
-import https from 'node:https';
-import net from 'node:net';
-import { spawn, spawnSync } from 'node:child_process';
+import * as E from './ai-engine.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'];
@@ -164,62 +161,23 @@ async function viaOnline(text, src, tgt) {
 // One small program (llama.cpp, about 25 MB) runs the model (about 1.1 GB). Both download once and then work offline.
 // Every answer is checked; if the model is unavailable or an answer looks wrong the faster engines are used instead.
 const AI = {
-  llamaUrl: 'https://github.com/ggml-org/llama.cpp/releases/download/b12532/llama-b12532-bin-win-cpu-x64.zip',
   modelUrl: 'https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF/resolve/main/HY-MT1.5-1.8B-Q4_K_M.gguf',
   modelFile: 'HY-MT1.5-1.8B-Q4_K_M.gguf'
 };
 const LNAME = { ar: 'Arabic', en: 'English', fr: 'French', es: 'Spanish', it: 'Italian', id: 'Indonesian' };
 let ai = null, aiBad = false, aiWhy = '';
-function aiDir() { const d = path.join(workerData.cache, 'hymt'); fs.mkdirSync(d, { recursive: true }); return d; }
-function download(url, dest, hops = 0) {
-  return new Promise((resolve, reject) => {
-    if (hops > 6) return reject(new Error('too many redirects'));
-    const part = dest + '.part'; let have = 0; try { have = fs.statSync(part).size; } catch (e) {}
-    const req = https.get(url, { headers: have ? { Range: 'bytes=' + have + '-', 'User-Agent': 'LivingIdeas' } : { 'User-Agent': 'LivingIdeas' } }, (r) => {
-      if ([301, 302, 303, 307, 308].includes(r.statusCode) && r.headers.location) { r.resume(); return resolve(download(new URL(r.headers.location, url).href, dest, hops + 1)); }
-      if (r.statusCode === 416) { try { fs.renameSync(part, dest); } catch (e) {} return resolve(dest); }
-      if (r.statusCode !== 200 && r.statusCode !== 206) { r.resume(); return reject(new Error('download http ' + r.statusCode)); }
-      const total = (r.statusCode === 206 ? have : 0) + Number(r.headers['content-length'] || 0); let got = r.statusCode === 206 ? have : 0, last = 0;
-      const out = fs.createWriteStream(part, { flags: r.statusCode === 206 ? 'a' : 'w' });
-      r.on('data', (c) => { got += c.length; const now = Date.now(); if (now - last > 1500 && total) { last = now; post('', 'prep', Math.round(got * 100 / total) + '%'); } });
-      r.pipe(out); out.on('finish', () => { if (total && got < total) return reject(new Error('download cut off')); fs.renameSync(part, dest); resolve(dest); });
-      r.on('error', reject); out.on('error', reject);
-    });
-    req.on('error', reject); req.setTimeout(60000, () => req.destroy(new Error('download timed out')));
-  });
-}
-function freePort() { return new Promise((res, rej) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); s.on('error', rej); }); }
+const pct = (n) => post('', 'prep', n + '%');
 async function aiStart() {
-  if (os.totalmem() < 5.5 * 1073741824) throw new Error('not enough memory for the local AI model (needs about 6 GB)');
-  if (process.platform !== 'win32') throw new Error('local AI model is only available on Windows');
-  const dir = aiDir(); post('', 'prep');
-  let exe = null; const find = (d) => { for (const f of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) { const r = find(p); if (r) return r; } else if (f.name === 'llama-server.exe') return p; } return null; };
-  try { exe = find(path.join(dir, 'bin')); } catch (e) {}
-  if (!exe) {
-    const zip = await download(AI.llamaUrl, path.join(dir, 'llama.zip'));
-    fs.rmSync(path.join(dir, 'bin'), { recursive: true, force: true }); fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
-    let r = spawnSync('tar', ['-xf', zip, '-C', path.join(dir, 'bin')], { windowsHide: true });
-    if (r.status !== 0) r = spawnSync('powershell', ['-NoProfile', '-Command', 'Expand-Archive -LiteralPath "' + zip + '" -DestinationPath "' + path.join(dir, 'bin') + '" -Force'], { windowsHide: true });
-    if (r.status !== 0) throw new Error('could not unpack the AI engine');
-    fs.rmSync(zip, { force: true }); exe = find(path.join(dir, 'bin'));
-    if (!exe) throw new Error('AI engine files are missing');
-  }
-  const model = path.join(dir, AI.modelFile);
-  if (!fs.existsSync(model)) await download(AI.modelUrl, model);
-  const port = await freePort(), threads = Math.max(2, Math.min(8, Math.floor(os.cpus().length / 2) || 2));
-  const proc = spawn(exe, ['-m', model, '-t', String(threads), '-c', '2048', '--port', String(port), '--host', '127.0.0.1', '--parallel', '1'], { windowsHide: true, stdio: 'ignore' });
-  let dead = false; proc.on('exit', () => { dead = true; if (ai && ai.proc === proc) ai = null; });
-  process.on('exit', () => { try { proc.kill(); } catch (e) {} });
-  const t0 = Date.now();
-  for (;;) {
-    if (dead) throw new Error('AI engine stopped while starting (this PC may be too old for it)');
-    if (Date.now() - t0 > 180000) { try { proc.kill(); } catch (e) {} throw new Error('AI engine took too long to start'); }
-    try { const r = await fetch('http://127.0.0.1:' + port + '/health'); if (r.ok) break; } catch (e) {}
-    await new Promise((r) => setTimeout(r, 1000));
-  }
+  if (!E.ramOk(5.5)) throw new Error('not enough memory for the local AI model (needs about 6 GB)');
+  post('', 'prep');
+  const exe = await E.ensureLlama(workerData.cache, pct);
+  const model = path.join(E.llamaDir(workerData.cache), AI.modelFile);
+  if (!fs.existsSync(model)) await E.download(AI.modelUrl, model, pct);
+  const srv = await E.startServer(exe, ['-m', model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; });
   post('', 'ready');
-  return { proc, port };
+  return srv;
 }
+function aiStop() { const cur = ai; ai = null; if (cur) cur.then((s) => { try { s.proc.kill(); } catch (e) {} }).catch(() => {}); }
 async function aiGet() {
   if (aiBad) throw new Error(aiWhy);
   if (!ai) ai = aiStart().catch((e) => { ai = null; aiBad = true; aiWhy = why(e); throw e; });
@@ -237,7 +195,7 @@ function aiOk(src, out, tgt) {
   return true;
 }
 async function viaAi(text, src, tgt) {
-  const { port } = await (await aiGet());
+  const { port } = await aiGet();
   const out = [];
   for (const s of pieces(text)) {
     let t = '';
@@ -275,4 +233,4 @@ async function go(m) {
     post(id, 'ok', r, eng);
   } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
 }
-parentPort.on('message', (m) => { if (m.online && process.env.LI_SMOKE !== '1') { go(m).catch(() => {}); return; } chain = chain.then(() => go(m)).catch(() => {}); });
+parentPort.on('message', (m) => { if (m.aistop) { aiStop(); return; } if (m.online && process.env.LI_SMOKE !== '1') { go(m).catch(() => {}); return; } chain = chain.then(() => go(m)).catch(() => {}); });

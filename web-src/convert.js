@@ -283,28 +283,77 @@
     var best = 'eng', bs = -1; Object.keys(STOP).forEach(function (k) { var c = (tx.match(STOP[k]) || []).length; if (c > bs) { bs = c; best = k; } });
     return bs >= 3 ? (best === 'eng' ? 'eng' : best + '+eng') : 'ara+eng+fra+spa+ita+ind';
   }
+  // ---- Local AI reading (Windows only): the Nuqta model reads Arabic and English pages much more accurately than the built-in reader ----
+  function aiAvail() { var D = window.liDesk; return !!(D && D.ocrPage && D.ocrStatus); }
+  function aiGate(onP) {
+    if (!aiAvail()) return Promise.resolve(false);
+    try { if (localStorage.getItem('li-ai-ocr') === '0') return Promise.resolve(false); } catch (e) {}
+    var D = window.liDesk;
+    return D.ocrStatus().then(function (st) {
+      if (!st || !st.win || !st.ram) return false;
+      if (st.have) return true;
+      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 750 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 750 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      return ask.then(function (yes) {
+        if (!yes) { try { localStorage.setItem('li-ai-ocr', '0'); } catch (e) {} return false; }
+        if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
+        try { D.onAiProg && D.onAiProg(function (t) { if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة) ', 'Downloading the reading model (one time) ') + t); }); } catch (e) {}
+        return D.ocrPrep().then(function (r) { return !!(r && r.kind === 'ok'); });
+      });
+    }).catch(function () { return false; });
+  }
+  // The model answers in Markdown (# headings, paragraphs, sometimes an HTML table) -> paragraphs [{t, big}]
+  function mdParas(md) {
+    var out = [], s = String(md || '').replace(/\r/g, '');
+    s = s.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, function (m, row) { var cells = []; row.replace(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi, function (x, c) { cells.push(c.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()); return ''; }); return '\n\n' + cells.filter(Boolean).join(' | ') + '\n\n'; });
+    s = s.replace(/<\/?(table|thead|tbody|md|br)[^>]*>/gi, '\n');
+    s.split(/\n\s*\n/).forEach(function (blk) {
+      var lines = blk.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l && !/^\|?[\s:\-|]+\|?$/.test(l); });
+      lines.forEach(function (l, i) {
+        var h = /^(#{1,6})\s+(.*)$/.exec(l);
+        if (h) { out.push({ t: h[2].replace(/[*_`]+/g, '').trim(), big: true }); lines[i] = null; }
+      });
+      var rest = lines.filter(Boolean).map(function (l) { return l.replace(/^\|\s*|\s*\|$/g, '').replace(/\s*\|\s*/g, ' | ').replace(/[*_`]+/g, ''); });
+      if (rest.length) out.push({ t: rest.join(' ').replace(/\s+/g, ' ').trim(), big: false });
+    });
+    return out.filter(function (x) { var L = (x.t.match(arRe) || []).length + (x.t.match(laRe) || []).length; return L >= 2 && !/^[\d\u0660-\u0669\u06f0-\u06f9\s.\-–—]+$/.test(x.t); });
+  }
+  function canvasPng(cv, maxSide) {
+    var sc = Math.min(1, maxSide / Math.max(cv.width, cv.height)), c = cv;
+    if (sc < 1) { c = document.createElement('canvas'); c.width = Math.round(cv.width * sc); c.height = Math.round(cv.height * sc); var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0, c.width, c.height); }
+    return c.toDataURL('image/png');
+  }
   // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
   function ocrRun(count, getCanvas, onP, cx) {
-    var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0;
+    var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0, useAI = false;
     var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left')) : ''; };
     var label = function (i) { return TT('جارٍ قراءة النص من الصفحة ' + i + ' من ' + count, 'Reading text from page ' + i + ' of ' + count) + eta(); };
+    var ensureWorker = function () { return worker ? Promise.resolve() : makeWorker(langs).then(function (w) { worker = w; }); };
+    var tessPage = function (i, cv) {
+      return ensureWorker().then(function () { cleanCanvas(cv); return worker.recognize(cv, {}, { blocks: true, text: true }); }).then(function (r) {
+        cv.width = cv.height = 1;
+        var pp = pageParas(r.data); all.push(pp); done++;
+        if (i === 1 && count > 1) {
+          var nl = detectLang(pp.map(function (x) { return x.t; }).join(' '));
+          if (nl && nl !== langs) { langs = nl; return worker.terminate().then(function () { return makeWorker(nl); }).then(function (w) { worker = w; }); }
+        }
+      });
+    };
     var step = function (i) {
       if (i > count) return Promise.resolve();
       if (cx && cx.stop) return Promise.reject(new Error('cancel'));
       if (onP) onP(Math.round((i - 1) / count * 95), label(i));
       return getCanvas(i).then(function (cv) {
-        cleanCanvas(cv);
-        return worker.recognize(cv, {}, { blocks: true, text: true }).then(function (r) {
-          cv.width = cv.height = 1;
-          var pp = pageParas(r.data); all.push(pp); done++;
-          if (i === 1 && count > 1) {
-            var nl = detectLang(pp.map(function (x) { return x.t; }).join(' '));
-            if (nl && nl !== langs) { langs = nl; return worker.terminate().then(function () { return makeWorker(nl); }).then(function (w) { worker = w; }); }
-          }
+        if (!useAI) return tessPage(i, cv);
+        var png = canvasPng(cv, 1700); cv.width = cv.height = 1;
+        return window.liDesk.ocrPage(png).then(function (r) {
+          if (r && r.kind === 'ok' && r.text) { var pp = mdParas(r.text); all.push(pp); done++; return; }
+          // The AI reader failed on this page: continue with the built-in reader (redraw the page for it)
+          useAI = false; return getCanvas(i).then(function (cv2) { return tessPage(i, cv2); });
         });
       }).then(function () { return step(i + 1); });
     };
-    return makeWorker(langs).then(function (w) { worker = w; return step(1); }).then(function () { return worker.terminate().catch(function () {}); }, function (e) { try { worker && worker.terminate(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
+    var fin = function () { var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} return p; };
+    return aiGate(onP).then(function (ok) { useAI = ok; return step(1); }).then(fin, function (e) { try { fin(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
   }
   var TT = function (a, e) { try { if (typeof window.T === 'function') return window.T(a, e); } catch (x) {} return EN() ? e : a; };
   var EN = function () { try { return typeof LANG !== 'undefined' && LANG !== 'ar'; } catch (e) { return false; } };
@@ -441,5 +490,5 @@
     return bookPage(title, author, rtl, parts, 'PDF');
   }
 
-  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.imagesToHtml = imagesToHtml; F._ocr = { cleanCanvas: cleanCanvas, pageParas: pageParas, ocrBuild: ocrBuild }; F.IMG = /\.(jpe?g|png|webp|bmp)$/i; F.EXT2 = /\.(docx)$/i;
+  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.imagesToHtml = imagesToHtml; F._ocr = { mdParas: mdParas, cleanCanvas: cleanCanvas, pageParas: pageParas, ocrBuild: ocrBuild }; F.IMG = /\.(jpe?g|png|webp|bmp)$/i; F.EXT2 = /\.(docx)$/i;
 })();
