@@ -293,6 +293,7 @@ if (process.env.LI_SMOKE) {
       await wait(5000);
       const info = await win.webContents.executeJavaScript("(async()=>{const s=await window.api.state();return {books:s.books.length,desk:!!window.liDesk,platform:window.api.platform,pdfjs:(await fetch('/pdfjs/pdf.min.js')).status}})()");
       res.info = info;
+      await aiSelect('translate', 'hymt'); // the 3.19 checks run on the previous model (this also proves going back works); the new one is compared in smoke-pp.js
       const jobs = [['\u0645\u0631\u062d\u0628\u0627 \u0628\u0643\u0645 \u0641\u064a \u0647\u0630\u0627 \u0627\u0644\u0643\u062a\u0627\u0628 \u0627\u0644\u062c\u0645\u064a\u0644.', 'ar', 'en'], ['Reading is a conversation across time.', 'en', 'ar'], ['Reading is a conversation across time.', 'en', 'id'], ['Le livre est sur la table.', 'fr', 'ar']];
       let ok = info.books > 0 && info.desk && info.platform === 'win32' && info.pdfjs === 200, n = 0;
       for (const [text, src, tgt] of jobs) {
