@@ -5,7 +5,7 @@ import { llamaDir, fileOk } from './ai-engine.mjs';
 
 const HY = 'https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF/resolve/main/', NQ = 'https://huggingface.co/SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF/resolve/main/';
 const H2 = 'https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/', PP = 'https://huggingface.co/PaddlePaddle/';
-const mt2 = (id, q, ramMB, bytes, sha) => ({ id, kind: 'translate', name: 'HY-MT 2 (1.8B)', quant: q, version: '2', tested: false, ramMB, langs: { n: 36, app: true }, license: 'Apache-2.0', repo: 'tencent/Hy-MT2-1.8B-GGUF', files: [{ name: 'Hy-MT2-1.8B-' + q + '.gguf', url: H2 + 'Hy-MT2-1.8B-' + q + '.gguf', bytes, sha256: sha }] });
+const mt2 = (id, q, ramMB, bytes, sha) => ({ id, kind: 'translate', name: 'HY-MT 2 (1.8B)', quant: q, version: '2', tested: q === 'Q4_K_M', ramMB, langs: { n: 36, app: true }, license: 'Apache-2.0', repo: 'tencent/Hy-MT2-1.8B-GGUF', files: [{ name: 'Hy-MT2-1.8B-' + q + '.gguf', url: H2 + 'Hy-MT2-1.8B-' + q + '.gguf', bytes, sha256: sha }] });
 // PaddleOCR page-reading bundle: detector + recognizer pairs (ONNX) with their setting files. Fingerprints: first 16 characters as published; the small setting files are checked by size.
 const pp = (name, repo, file, bytes, sha) => ({ name, url: PP + repo + '/resolve/main/' + file, bytes, sha256: sha });
 const NQMM = { name: 'nuqta-ocr-0.8b-mmproj-f16.gguf', url: NQ + 'nuqta-ocr-0.8b-mmproj-f16.gguf', bytes: 204986688, sha256: 'ca24aaf3a572147676411ba661f754eeadb66aa1daf8d133dc001e556370ed41' };
@@ -26,7 +26,7 @@ CATALOG.push(
   mt2('hymt2', 'Q4_K_M', 2200, 1133080448, 'dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699'),
   mt2('hymt2-q6', 'Q6_K', 2700, 1474785120, 'd98fe604dec1f28f58f80d7d560f7177e584d3b8e5835862687660e5ff97cb40'),
   mt2('hymt2-q8', 'Q8_0', 3200, 1908528192, '5c3fe0b1408a5ceb0143184ef247b11b579c525f4b02b060e6c851bb76fef1a4'),
-  { id: 'ppocr', kind: 'ocr', engine: 'ppocr', name: 'PaddleOCR (v6 Latin + v5 Arabic)', quant: '', version: 'PP-OCRv6 small / PP-OCRv5 mobile', tested: false, ramMB: 900, langs: { ar: true, en: true, latin: true }, license: 'Apache-2.0', repo: 'PaddlePaddle/PP-OCRv6_small_det_onnx',
+  { id: 'ppocr', kind: 'ocr', engine: 'ppocr', name: 'PaddleOCR (v6 Latin + v5 Arabic)', quant: '', version: 'PP-OCRv6 small / PP-OCRv5 mobile', tested: true, ramMB: 1100, langs: { ar: true, en: true, latin: true }, license: 'Apache-2.0', repo: 'PaddlePaddle/PP-OCRv6_small_det_onnx',
     files: [
       pp('ppocrv6-small-det.onnx', 'PP-OCRv6_small_det_onnx', 'inference.onnx', 9880512, 'd73e0058b7a8086b'), pp('ppocrv6-small-det.yml', 'PP-OCRv6_small_det_onnx', 'inference.yml', 885),
       pp('ppocrv6-small-rec.onnx', 'PP-OCRv6_small_rec_onnx', 'inference.onnx', 21159378, '5435fd747c9e0efe'), pp('ppocrv6-small-rec.yml', 'PP-OCRv6_small_rec_onnx', 'inference.yml', 150579),
@@ -38,9 +38,14 @@ CATALOG.push(
 export const BUILTIN = CATALOG.filter((m) => m.builtin);
 const DEFAULTS = { idleMin: 5, cpu: 'auto' };
 const regFile = (cache) => path.join(llamaDir(cache), 'registry.json');
+// Default translation model: HY-MT 2, unless only HY-MT 1.5 is on this computer (then it stays until the person switches, so nothing is downloaded behind their back).
+function defTr(cache) {
+  try { const d = llamaDir(cache), ok = (m) => m.files.every((f) => fileOk(path.join(d, f.name), f.bytes)), by = (id) => CATALOG.find((m) => m.id === id); if (!ok(by('hymt2')) && ok(by('hymt'))) return 'hymt'; } catch (e) {}
+  return 'hymt2';
+}
 export function load(cache) {
   let r = {}; try { r = JSON.parse(fs.readFileSync(regFile(cache), 'utf8')) || {}; } catch (e) {}
-  return { active: Object.assign({ translate: 'hymt', ocr: 'nuqta' }, r.active || {}), custom: Array.isArray(r.custom) ? r.custom : [], settings: Object.assign({}, DEFAULTS, r.settings || {}) };
+  return { active: Object.assign({ translate: defTr(cache), ocr: 'ppocr' }, r.active || {}), custom: Array.isArray(r.custom) ? r.custom : [], settings: Object.assign({}, DEFAULTS, r.settings || {}) };
 }
 export function save(cache, r) { fs.writeFileSync(regFile(cache), JSON.stringify(r, null, 1)); }
 export function settings(cache) { return load(cache).settings; }
@@ -52,12 +57,25 @@ export function all(cache) { return CATALOG.concat(load(cache).custom.map((c) =>
 export function resolve(cache, kind) {
   const r = load(cache), list = all(cache).filter((m) => m.kind === kind);
   const m = list.find((x) => x.id === r.active[kind]) || list[0], d = llamaDir(cache);
+  if (m.engine === 'ppocr' && !m.files) return Object.assign({}, m, { cache, model: m.file, mm: '', dir: d });
   if (m.engine === 'ppocr' && m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: '', dir: d });
   if (m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: m.files[1] ? path.join(d, m.files[1].name) : '' });
   return Object.assign({}, m, { cache, model: m.file, mm: m.mm || '' });
 }
+// PaddleOCR: the files of the built-in bundle, and the spec the reader process starts from (a model added from this computer replaces the recognizer, and the detector if it came with one, of its script)
+export const ppBase = () => CATALOG.find((m) => m.id === 'ppocr');
+export function ppSpec(cache, m, threads) {
+  const d = llamaDir(cache), f = (n) => path.join(d, n);
+  const sp = { threads: Math.max(1, threads || 2), pipelines: {
+    latin: { det: f('ppocrv6-small-det.onnx'), detYml: f('ppocrv6-small-det.yml'), rec: f('ppocrv6-small-rec.onnx'), recYml: f('ppocrv6-small-rec.yml') },
+    latin5: { det: f('ppocrv5-mobile-det.onnx'), detYml: f('ppocrv5-mobile-det.yml'), rec: f('ppocrv5-latin-rec.onnx'), recYml: f('ppocrv5-latin-rec.yml') },
+    arabic: { det: f('ppocrv5-mobile-det.onnx'), detYml: f('ppocrv5-mobile-det.yml'), rec: f('ppocrv5-arabic-rec.onnx'), recYml: f('ppocrv5-arabic-rec.yml'), reverse: true } } };
+  if (m && m.custom && m.engine === 'ppocr') { const k = m.script === 'arabic' ? 'arabic' : 'latin', p = sp.pipelines[k]; p.rec = m.rec; p.recYml = m.recYml; if (m.det) { p.det = m.det; p.detYml = m.detYml; } if (k === 'latin') sp.pipelines.latin5 = p; }
+  return sp;
+}
 export function have(cache, m) {
   try {
+    if (m.engine === 'ppocr' && !m.files) return [m.rec, m.recYml, m.det, m.detYml].filter(Boolean).every((x) => fileOk(x)) && have(cache, ppBase());
     if (m.files) { const d = llamaDir(cache); return m.files.every((f) => fileOk(path.join(d, f.name), f.bytes)); }
     return fileOk(m.model) && (!m.mm || fileOk(m.mm));
   } catch (e) { return false; }

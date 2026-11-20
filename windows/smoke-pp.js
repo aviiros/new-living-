@@ -26,7 +26,7 @@ const SENT = [
   ['Ideas stay alive when people use them.', 'en', 'id', 'Gagasan tetap hidup ketika orang menggunakannya.']
 ];
 // draws one page in the app window and returns it as a PNG data URL
-const DRAW = `window.__mkPage=function(lines,rtl,deg){var W=1100,pad=60,sz=deg?24:32,lh=sz*2.1,H=Math.max(420,pad*2+lines.length*lh+40),cv=document.createElement('canvas');cv.width=W;cv.height=H;var c=cv.getContext('2d');c.fillStyle=deg?'#e4dfd2':'#fff';c.fillRect(0,0,W,H);c.fillStyle=deg?'#3a3a3a':'#000';c.textBaseline='top';
+const DRAW = `window.__mkPage=function(lines,rtl,deg){var W=1100,pad=60,sz=deg?24:32;var m0=document.createElement('canvas').getContext('2d');m0.font=sz+'px Tahoma, Arial';var mw=0;lines.forEach(function(t){mw=Math.max(mw,m0.measureText(t).width)});if(mw>W-2*pad)sz=Math.floor(sz*(W-2*pad)/mw)-1;var lh=sz*2.1,H=Math.max(420,pad*2+lines.length*lh+40),cv=document.createElement('canvas');cv.width=W;cv.height=H;var c=cv.getContext('2d');c.fillStyle=deg?'#e4dfd2':'#fff';c.fillRect(0,0,W,H);c.fillStyle=deg?'#3a3a3a':'#000';c.textBaseline='top';
 lines.forEach(function(t,i){var big=i===0&&lines.length>4;c.font=(big?'bold ':'')+(big?sz+6:sz)+'px Tahoma, Arial';var arab=/[\\u0600-\\u06ff]/.test(t);c.direction=arab?'rtl':'ltr';c.textAlign=arab?'right':'left';c.fillText(t,arab?W-pad:pad,pad+i*lh)});
 if(deg){var o=document.createElement('canvas');o.width=W*0.7;o.height=H*0.7;var q=o.getContext('2d');q.filter='blur(0.6px)';q.drawImage(cv,0,0,o.width,o.height);var d=document.createElement('canvas');d.width=W;d.height=H;var e=d.getContext('2d');e.drawImage(o,0,0,W,H);var im=e.getImageData(0,0,W,H),p=im.data,s=7;for(var k=0;k<p.length;k+=4){var n=(Math.random()-0.5)*40;p[k]+=n;p[k+1]+=n;p[k+2]+=n}e.putImageData(im,0,0);return d.toDataURL('image/png')}
 return cv.toDataURL('image/png')};true`;
@@ -89,5 +89,19 @@ module.exports = async function (c) {
       await api.aiSelect('translate', act.translate || 'hymt');
     }
   } catch (e) { x.tr.error = String((e && e.stack) || e).slice(0, 600); try { await api.aiSelect('translate', act.translate || 'hymt'); } catch (e2) {} }
+
+  // ---- C. adding PaddleOCR folders from this computer (an Arabic path, recognizer + detector together) ----
+  try {
+    const d = path.join(require('os').tmpdir(), 'مجلد اختبار'), R2 = await c.reg(), E2 = await c.eng(), L = E2.llamaDir(M), a = x.add = {};
+    const mk = (n, o, y) => { const q = path.join(d, n); fs.mkdirSync(q, { recursive: true }); fs.copyFileSync(path.join(L, o), path.join(q, 'inference.onnx')); fs.copyFileSync(path.join(L, y), path.join(q, 'inference.yml')); return q; };
+    const rec = mk('rec', 'ppocrv5-latin-rec.onnx', 'ppocrv5-latin-rec.yml'), det = mk('det', 'ppocrv6-small-det.onnx', 'ppocrv6-small-det.yml'), bad = path.join(d, 'bad'); fs.mkdirSync(bad, { recursive: true }); fs.writeFileSync(path.join(bad, 'inference.onnx'), 'not a model'); fs.writeFileSync(path.join(bad, 'inference.yml'), 'a: 1');
+    a.bad = (await api.aiAddPP([bad])).text; a.two = (await api.aiAddPP([rec, rec])).text;
+    const r = await api.aiAddPP([rec, det]); a.ok = r.ok; a.err = r.text;
+    if (r.ok) {
+      const img = await js('window.__mkPage(' + JSON.stringify(PAGES.fr) + ',false,false)'), o = await js('(async()=>{const r=await window.liDesk.ocrPage(' + JSON.stringify(img) + ',"latin");return {kind:r.kind,text:r.text}})()');
+      a.cer = o.kind === 'ok' ? cer(PAGES.fr.join(' '), o.text) : null; await api.aiRemove(r.id); a.removed = !R2.load(M).custom.some((z) => z.id === r.id); a.activeAfter = R2.load(M).active.ocr;
+    }
+    try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) {}
+  } catch (e) { x.add = { error: String((e && e.stack) || e).slice(0, 400) }; }
   return true;
 };

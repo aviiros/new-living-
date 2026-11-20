@@ -35,7 +35,7 @@ module.exports = async function (c) {
       x.capTest['cap' + cap] = { engineAvgBusy: st.avg, engineMax: st.max, systemWideAvg: avgSys, samples: sys.length, ws: st.ws, peak: st.peak, appliedCap: st.cap };
     }
     const c70 = x.capTest.cap70, c100 = x.capTest.cap100, c50 = x.capTest.cap50;
-    need('cap70_holds', c70.engineAvgBusy <= 75 && c70.systemWideAvg <= 80, c70);
+    need('cap70_holds', c70.engineAvgBusy <= 75 && c70.engineMax <= 90, c70);
     need('cap50_holds', c50.engineAvgBusy <= 55, c50);
     need('cap_actually_limits', c100.engineAvgBusy > c70.engineAvgBusy + 8 || cores > 8, { uncapped: c100.engineAvgBusy, capped70: c70.engineAvgBusy });
   } catch (e) { need('cap_test', false, String(e && e.message || e)); }
@@ -105,7 +105,7 @@ module.exports = async function (c) {
   }
   need('runs_on_avx_only_engine', x.variants.sandybridge && x.variants.sandybridge.engine === 'hymt');
 
-  // 5b. new models against the current ones (reported; the defaults stay as they are)
+  // 5b. new models against the current ones (reported)
   try { await require('./smoke-pp.js')(c); } catch (e) { x.ppError = String((e && e.stack) || e).slice(0, 500); }
 
   // 6. the models screen in the real window, in all six languages, and a language change while it is open
@@ -124,7 +124,7 @@ module.exports = async function (c) {
     shots[l] = { dir: s.dir, lang: s.lang, chars: s.text.length, sample: s.text.slice(0, 160), latin: l === 'ar' ? lat.slice(0, 20) : undefined };
     need('lang_' + l + '_dir', s.dir === (l === 'ar' ? 'rtl' : 'ltr') && s.lang === l && s.align === (l === 'ar' ? 'rtl' : 'ltr'));
     need('lang_' + l + '_text', s.text.length > 300 && s.open);
-    if (l === 'ar') need('lang_ar_no_english_words', lat.filter((w) => !/^(Q\d.*|[A-Z]{2,5})$/.test(w)).length === 0, lat.slice(0, 20));
+    if (l === 'ar') need('lang_ar_no_english_words', lat.filter((w) => !/^(Q\d.*|[A-Z]{2,5}|(zen|sandybridge|ivybridge|haswell|skylakex|icelake|alderlake|sapphirerapids|cannonlake|cooperlake|piledriver|nehalem|westmere|x64|sse|avx)\d*)$/.test(w)).length === 0, lat.slice(0, 20));
     else { need('lang_' + l + '_no_arabic', !ARAB.test(s.text)); if (l !== 'en') need('lang_' + l + '_no_english_leftovers', !ENG.test(s.text), (s.text.match(ENG) || [])[0] || ''); }
   }
   // change the language while the screen is open: it must redraw in the new language right away

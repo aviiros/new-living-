@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('liDesk', {
   aiList: () => ipcRenderer.invoke('ai:list'),
   aiSelect: (k, id) => ipcRenderer.invoke('ai:select', k, id),
   aiAdd: (k) => ipcRenderer.invoke('ai:add', k),
+  aiAddPP: () => ipcRenderer.invoke('ai:addpp'),
   aiRemove: (id) => ipcRenderer.invoke('ai:remove', id),
   aiState: () => ipcRenderer.invoke('ai:state'),
   aiSet: (p) => ipcRenderer.invoke('ai:set', p),

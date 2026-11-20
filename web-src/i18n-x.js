@@ -326,7 +326,11 @@ window.__I18X={
 "Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arabe, anglais et les langues à écriture latine (français, espagnol, italien, indonésien, allemand, néerlandais…)",
 "Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Lit le texte avec PaddleOCR (ONNX Runtime) : rapide, léger, sans carte graphique",
 "PaddleOCR with ONNX Runtime": "PaddleOCR avec ONNX Runtime",
-"Light and fast: good for old PCs": "Léger et rapide : adapté aux anciens PC"
+"Light and fast: good for old PCs": "Léger et rapide : adapté aux anciens PC",
+"Add a PaddleOCR model folder…": "Dossier PaddleOCR : ajouter un modèle…",
+"A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Un dossier PaddleOCR contient inference.onnx et inference.yml. Vous pouvez choisir ensemble le dossier du lecteur et celui du détecteur.",
+"This folder is not a valid PaddleOCR model folder.": "Ce dossier n’est pas un dossier de modèle PaddleOCR valide.",
+"This program cannot run this model.": "Ce programme ne peut pas exécuter ce modèle."
 },
 "it": {
 "This PC: # cores · # MB memory (# MB free)": "Questo computer: # core · # MB di memoria (# MB liberi)",
@@ -654,7 +658,11 @@ window.__I18X={
 "Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arabo, inglese e le lingue con alfabeto latino (francese, spagnolo, italiano, indonesiano, tedesco, olandese…)",
 "Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Legge il testo con PaddleOCR (ONNX Runtime): veloce, leggero, senza scheda grafica",
 "PaddleOCR with ONNX Runtime": "PaddleOCR con ONNX Runtime",
-"Light and fast: good for old PCs": "Leggero e veloce: adatto ai PC datati"
+"Light and fast: good for old PCs": "Leggero e veloce: adatto ai PC datati",
+"Add a PaddleOCR model folder…": "Aggiungi una cartella modello PaddleOCR…",
+"A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Una cartella PaddleOCR contiene inference.onnx e inference.yml. Puoi scegliere insieme la cartella del riconoscitore e quella del rilevatore.",
+"This folder is not a valid PaddleOCR model folder.": "Questa cartella non è una cartella modello PaddleOCR valida.",
+"This program cannot run this model.": "Questo programma non può eseguire questo modello."
 },
 "es": {
 "This PC: # cores · # MB memory (# MB free)": "Este equipo: # núcleos · # MB de memoria (# MB libres)",
@@ -982,7 +990,11 @@ window.__I18X={
 "Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Árabe, inglés y los idiomas de escritura latina (francés, español, italiano, indonesio, alemán, neerlandés…)",
 "Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Lee el texto con PaddleOCR (ONNX Runtime): rápido, ligero, sin tarjeta gráfica",
 "PaddleOCR with ONNX Runtime": "PaddleOCR con ONNX Runtime",
-"Light and fast: good for old PCs": "Ligero y rápido: adecuado para PC antiguos"
+"Light and fast: good for old PCs": "Ligero y rápido: adecuado para PC antiguos",
+"Add a PaddleOCR model folder…": "Añadir una carpeta de modelo PaddleOCR…",
+"A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Una carpeta de PaddleOCR contiene inference.onnx e inference.yml. Puedes elegir juntas la carpeta del reconocedor y la del detector.",
+"This folder is not a valid PaddleOCR model folder.": "Esta carpeta no es una carpeta de modelo PaddleOCR válida.",
+"This program cannot run this model.": "Este programa no puede ejecutar este modelo."
 },
 "id": {
 "This PC: # cores · # MB memory (# MB free)": "Komputer ini: # inti · # MB memori (# MB kosong)",
@@ -1310,6 +1322,10 @@ window.__I18X={
 "Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arab, Inggris, dan bahasa beraksara Latin (Prancis, Spanyol, Italia, Indonesia, Jerman, Belanda…)",
 "Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Membaca teks dengan PaddleOCR (ONNX Runtime): cepat, kecil, tanpa kartu grafis",
 "PaddleOCR with ONNX Runtime": "PaddleOCR dengan ONNX Runtime",
-"Light and fast: good for old PCs": "Ringan dan cepat: cocok untuk PC lama"
+"Light and fast: good for old PCs": "Ringan dan cepat: cocok untuk PC lama",
+"Add a PaddleOCR model folder…": "Tambahkan folder model PaddleOCR…",
+"A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Folder PaddleOCR berisi inference.onnx dan inference.yml. Anda dapat memilih folder pengenal dan folder pendeteksi sekaligus.",
+"This folder is not a valid PaddleOCR model folder.": "Folder ini bukan folder model PaddleOCR yang valid.",
+"This program cannot run this model.": "Program ini tidak dapat menjalankan model ini."
 }
 };

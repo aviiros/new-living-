@@ -19,13 +19,12 @@ const keepLast = (s) => { if (s) last = Object.assign(s.stats(), { state: 'stopp
 // PaddleOCR: our own small reader process (ONNX Runtime inside Electron's node), under the same CPU limit as the other engines
 async function startPP(m) {
   const prog = (n) => post({ kind: 'prog', text: n + '%' });
-  if (!R.have(workerData.cache, m)) await E.fetchModel(m, { pct: prog });
+  const base = Object.assign({ cache: workerData.cache }, R.ppBase());
+  if (!R.have(workerData.cache, base)) await E.fetchModel(base, { pct: prog });
+  if (!R.have(workerData.cache, m)) throw new Error('model files not found');
   if (!E.memOk(700)) throw new Error('not enough free memory right now (700 MB needed)');
-  const d = m.dir, f = (n) => path.join(d, n), spec = path.join(d, 'ppocr-spec.json');
-  fs.writeFileSync(spec, JSON.stringify({ threads: Math.max(1, E.threads()), pipelines: {
-    latin: { det: f('ppocrv6-small-det.onnx'), detYml: f('ppocrv6-small-det.yml'), rec: f('ppocrv6-small-rec.onnx'), recYml: f('ppocrv6-small-rec.yml') },
-    latin5: { det: f('ppocrv5-mobile-det.onnx'), detYml: f('ppocrv5-mobile-det.yml'), rec: f('ppocrv5-latin-rec.onnx'), recYml: f('ppocrv5-latin-rec.yml') },
-    arabic: { det: f('ppocrv5-mobile-det.onnx'), detYml: f('ppocrv5-mobile-det.yml'), rec: f('ppocrv5-arabic-rec.onnx'), recYml: f('ppocrv5-arabic-rec.yml'), reverse: true } } }));
+  const spec = path.join(m.dir, 'ppocr-spec.json');
+  fs.writeFileSync(spec, JSON.stringify(R.ppSpec(workerData.cache, m, E.threads())));
   loading = true;
   try {
     const s = await E.startServer(process.execPath, [SERVER, '--spec', spec], () => { if (srv === s) srv = null; }, { runner: workerData.runner || '', env: { ELECTRON_RUN_AS_NODE: '1' }, engine: 'PaddleOCR · ONNX Runtime', name: m.name, kind: 'ocr', cap: () => R.capOf(workerData.cache), idleMs: () => R.idleMsOf(workerData.cache), onIdle: (x) => { keepLast(x); if (srv === x) srv = null; } });

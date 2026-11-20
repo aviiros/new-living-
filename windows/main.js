@@ -147,7 +147,7 @@ async function aiState() {
   const R = await reg(), E = await eng(), r = R.load(MODELS());
   const [t, o] = await Promise.all([trCtl('stats'), ocrCtl('stats')]);
   const models = R.all(MODELS()).map((m) => {
-    const have = R.have(MODELS(), m.files ? m : { model: m.file, mm: m.mm || '' });
+    const have = R.have(MODELS(), m.files ? m : Object.assign({}, m, { model: m.file, mm: m.mm || '' }));
     let mb = m.files ? MB(m.files.reduce((a, f) => a + f.bytes, 0)) : 0;
     if (!m.files) { try { mb = MB(fs.statSync(m.file).size) + (m.mm ? MB(fs.statSync(m.mm).size) : 0); } catch (e) {} }
     const d = dls.get(m.id);
@@ -207,6 +207,39 @@ async function addModel(kind, f, mm) {
   r.custom.push({ id, kind, name: path.basename(f).replace(/\.gguf$/i, ''), file: f, mm: kind === 'ocr' ? mm : '', mb: 0 }); r.active[kind] = id; R.save(MODELS(), r);
   return { ok: true, id };
 }
+// Add PaddleOCR model folders from this computer (a recognizer, and a detector if it came with one). Each folder holds inference.onnx and inference.yml.
+function ppFolder(dir) {
+  try {
+    const names = fs.readdirSync(dir), onnx = names.find((n) => n.toLowerCase() === 'inference.onnx') || names.find((n) => /\.onnx$/i.test(n)), yml = names.find((n) => n.toLowerCase() === 'inference.yml') || names.find((n) => /\.ya?ml$/i.test(n));
+    if (!onnx || !yml) return null;
+    const o = path.join(dir, onnx), y = path.join(dir, yml); if (fs.statSync(o).size < 500000) return null;
+    const b = Buffer.alloc(2); const fd = fs.openSync(o, 'r'); fs.readSync(fd, b, 0, 2, 0); fs.closeSync(fd); if (b[0] !== 0x08 && b[0] !== 0x0a) return null; // an ONNX file starts like a protobuf message
+    const YAML = require('yaml'), c = YAML.parse(fs.readFileSync(y, 'utf8')) || {}, pp = c.PostProcess || {};
+    const det = /DBPostProcess/i.test(String(pp.name || '')), dict = Array.isArray(pp.character_dict) ? pp.character_dict : [];
+    if (!det && !dict.length) return null;
+    return { dir, onnx: o, yml: y, det, name: String((c.Global && c.Global.model_name) || path.basename(dir)), arabic: dict.filter((ch) => /[\u0600-\u06ff]/.test(ch)).length > dict.length * 0.1 };
+  } catch (e) { return null; }
+}
+async function aiAddPP(paths) {
+  try {
+    const R = await reg(), E = await eng();
+    let list = paths;
+    if (!list) { const pick = await dialog.showOpenDialog(win, { title: 'Choose the PaddleOCR model folder(s): the recognizer, and the detector if you have it', properties: ['openDirectory', 'multiSelections'] }); if (pick.canceled || !pick.filePaths.length) return { ok: false, cancel: true }; list = pick.filePaths; }
+    const fs_ = list.map(ppFolder); if (fs_.some((x) => !x)) return { ok: false, text: 'badfolder' };
+    const rec = fs_.find((x) => !x.det), det = fs_.find((x) => x.det);
+    if (!rec || fs_.filter((x) => !x.det).length > 1 || fs_.filter((x) => x.det).length > 1) return { ok: false, text: 'badfolder' };
+    freeServers();
+    const base = Object.assign({ cache: MODELS() }, R.ppBase());
+    if (!R.have(MODELS(), base)) await E.fetchModel(base, {});
+    const entry = { id: 'p' + Date.now().toString(36), kind: 'ocr', engine: 'ppocr', name: 'PaddleOCR: ' + rec.name, version: '', script: rec.arabic ? 'arabic' : 'latin', file: rec.onnx, rec: rec.onnx, recYml: rec.yml, det: det ? det.onnx : '', detYml: det ? det.yml : '', mm: '', langs: { ar: rec.arabic, en: true, latin: !rec.arabic }, ramMB: 900, custom: true, builtin: false };
+    // really load it (the reader process starts only if every file loads)
+    const spec = path.join(E.llamaDir(MODELS()), 'ppocr-test.json'); fs.writeFileSync(spec, JSON.stringify(R.ppSpec(MODELS(), entry, 2)));
+    let srv; try { srv = await E.startServer(process.execPath, [path.join(__dirname, 'pp-ocr-server.mjs'), '--spec', spec], null, { runner: RUNNER(), env: { ELECTRON_RUN_AS_NODE: '1' }, cap: () => R.capOf(MODELS()), name: 'test', kind: 'ocr', noVariant: true }); } catch (e) { return { ok: false, text: 'cannotload' }; }
+    srv.kill();
+    const r = R.load(MODELS()); r.custom.push(entry); r.active.ocr = entry.id; R.save(MODELS(), r);
+    return { ok: true, id: entry.id };
+  } catch (e) { return { ok: false, text: String((e && e.message) || e).slice(0, 120) }; }
+}
 async function aiAdd(kind) {
   try {
     const pick = async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ['openFile'], filters: [{ name: 'GGUF model', extensions: ['gguf'] }] }); return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]; };
@@ -227,7 +260,7 @@ async function aiRemove(id) {
       if (!shared) { for (let i = 0; i < 20; i++) { try { fs.rmSync(path.join(d, f.name), { force: true }); } catch (e) {} if (!fs.existsSync(path.join(d, f.name))) break; await new Promise((r) => setTimeout(r, 500)); } }
     }
   } else r.custom = r.custom.filter((x) => x.id !== id);
-  Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt' : 'nuqta'; });
+  Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt2' : 'ppocr'; });
   R.save(MODELS(), r); return { ok: true };
 }
 ipcMain.handle('ai:list', async () => (await aiState()).models);
@@ -242,6 +275,7 @@ ipcMain.handle('ai:dlpause', (_e, id) => aiDlPause(String(id)));
 ipcMain.handle('ai:dlcancel', (_e, id) => aiDlCancel(String(id)));
 ipcMain.handle('ai:verify', (_e, id) => aiVerify(String(id)));
 ipcMain.handle('ai:add', (_e, k) => aiAdd(k));
+ipcMain.handle('ai:addpp', () => aiAddPP());
 ipcMain.handle('ai:remove', (_e, id) => aiRemove(String(id)));
 
 // ---------- self-test used by the build server only (LI_SMOKE=1): opens the app, translates a few sentences, writes a report, exits ----------
@@ -282,7 +316,7 @@ if (process.env.LI_SMOKE) {
       } catch (e) { res.ocrError = String(e && e.message || e); }
       try {
         const hqAsk2 = (id, text, src, tgt) => new Promise((ok2) => { waiters[id] = ok2; getWorker().postMessage({ id, text, src, tgt, hq: true }); });
-        const extra = await require('./smoke-extra.js')({ res, win, wait, hqAsk: hqAsk2, runner: RUNNER, reg, eng, models: MODELS, addModel, api: { aiState, aiSet, aiUnload, aiDl, aiDlPause, aiVerify, aiSelect, aiRemove } });
+        const extra = await require('./smoke-extra.js')({ res, win, wait, hqAsk: hqAsk2, runner: RUNNER, reg, eng, models: MODELS, addModel, api: { aiAddPP, aiState, aiSet, aiUnload, aiDl, aiDlPause, aiVerify, aiSelect, aiRemove } });
         if (!extra) ok = false;
       } catch (e) { res.extraError = String((e && e.stack) || e); ok = false; }
       try { const pdf = await makePdf('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px Tahoma"><h1>ترجمة تجريبية</h1><p>' + 'هذه فقرة عربية للتأكد من إنشاء ملف PDF صحيح. '.repeat(40) + '</p>'); res.pdf = { bytes: pdf.length, header: pdf.slice(0, 5).toString() }; if (!(pdf.length > 3000 && res.pdf.header === '%PDF-')) ok = false; } catch (e) { res.pdf = { error: String(e) }; ok = false; }
