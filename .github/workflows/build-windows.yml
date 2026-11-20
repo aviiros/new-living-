@@ -23,6 +23,11 @@ jobs:
         shell: bash
         run: |
           for i in 1 2 3 4; do npm install --no-audit --no-fund && exit 0; echo "retry $i"; sleep 20; done; exit 1
+      - name: Build the CPU limiter (small Windows helper that keeps the AI engines under 70 percent)
+        shell: bash
+        run: |
+          gcc -O2 -municode -o windows/native/li-runner.exe windows/native/li-runner.c -lpsapi
+          ls -la windows/native/li-runner.exe
       - name: Build installer and portable exe
         working-directory: windows
         shell: bash
@@ -37,12 +42,12 @@ jobs:
             windows/dist/Living-Ideas-Portable-*.exe
       - name: Self-test (opens the real app, translates sentences with the downloaded models)
         shell: pwsh
-        timeout-minutes: 20
+        timeout-minutes: 45
         run: |
           $env:LI_SMOKE = '1'
           $env:LI_SMOKE_OUT = "$PWD\smoke.json"
           $p = Start-Process -FilePath "$PWD\windows\dist\win-unpacked\Living Ideas.exe" -PassThru
-          if (-not $p.WaitForExit(900000)) { $p.Kill() }
+          if (-not $p.WaitForExit(2400000)) { $p.Kill() }
           if (Test-Path smoke.json) { Get-Content smoke.json } else { Write-Host 'no report written'; exit 1 }
           if ((Get-Content smoke.json -Raw | ConvertFrom-Json).ok -ne $true) { exit 1 }
       - name: Also publish the Windows files as a release download (does not use the artifact storage quota)

@@ -15,5 +15,14 @@ contextBridge.exposeInMainWorld('liDesk', {
   aiSelect: (k, id) => ipcRenderer.invoke('ai:select', k, id),
   aiAdd: (k) => ipcRenderer.invoke('ai:add', k),
   aiRemove: (id) => ipcRenderer.invoke('ai:remove', id),
+  aiState: () => ipcRenderer.invoke('ai:state'),
+  aiSet: (p) => ipcRenderer.invoke('ai:set', p),
+  aiUnload: () => ipcRenderer.invoke('ai:unload'),
+  aiPause: (k) => ipcRenderer.invoke('ai:pause', k),
+  aiResume: (k) => ipcRenderer.invoke('ai:resume', k),
+  aiDl: (id) => ipcRenderer.invoke('ai:dl', id),
+  aiDlPause: (id) => ipcRenderer.invoke('ai:dlpause', id),
+  aiDlCancel: (id) => ipcRenderer.invoke('ai:dlcancel', id),
+  aiVerify: (id) => ipcRenderer.invoke('ai:verify', id),
   onAiProg: (cb) => ipcRenderer.on('ai:prog', (_e, t) => cb(t))
 });

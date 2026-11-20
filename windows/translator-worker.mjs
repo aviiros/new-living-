@@ -162,24 +162,34 @@ async function viaOnline(text, src, tgt) {
 // Every answer is checked; if the model is unavailable or an answer looks wrong the faster engines are used instead.
 import * as R from './ai-registry.mjs';
 const LNAME = { ar: 'Arabic', en: 'English', fr: 'French', es: 'Spanish', it: 'Italian', id: 'Indonesian' };
-let ai = null, aiBad = false, aiWhy = '';
+let ai = null, aiSrv = null, aiLoading = false, aiBad = false, aiWhy = '', aiLast = null;
 const pct = (n) => post('', 'prep', n + '%');
+const runnerPath = () => workerData.runner || '';
 async function aiStart() {
   if (!E.ramOk(5.5)) throw new Error('not enough memory for the local AI model (needs about 6 GB)');
   post('', 'prep');
   const m = R.resolve(workerData.cache, 'translate');
+  if (!R.have(workerData.cache, m)) {
+    if (!m.files) throw new Error('model file not found: ' + m.model);
+    await E.fetchModel(m, { pct, phase: () => post('', 'prep', '...') });
+  }
   const exe = await E.ensureLlama(workerData.cache, pct);
-  if (!R.have(workerData.cache, m)) { if (!m.builtin) throw new Error('model file not found: ' + m.model); await E.download(m.url, m.model, pct); }
-  const srv = await E.startServer(exe, ['-m', m.model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; });
-  post('', 'ready');
-  return srv;
+  // do not load while the memory is short: a transient problem, the faster engines answer instead
+  const need = Math.round((m.files ? m.files[0].bytes : 1100000000) / 1048576 * 1.4 + 400);
+  if (!E.memOk(need)) { const e = new Error('not enough free memory right now (' + need + ' MB needed)'); e.transient = true; throw e; }
+  aiLoading = true;
+  try {
+    const srv = await E.startServer(exe, ['-m', m.model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; aiSrv = null; }, { runner: runnerPath(), name: m.name, kind: 'translate', cap: () => R.capOf(workerData.cache), idleMs: () => R.idleMsOf(workerData.cache), onIdle: (s) => { aiLast = Object.assign(s.stats(), { state: 'stopped', name: m.name }); ai = null; aiSrv = null; } });
+    aiSrv = srv; srv.mname = m.name; post('', 'ready'); return srv;
+  } finally { aiLoading = false; }
 }
-function aiStop() { const cur = ai; ai = null; if (cur) cur.then((s) => { try { s.proc.kill(); } catch (e) {} }).catch(() => {}); }
+function aiStop() { const cur = ai, s = aiSrv; if (s) aiLast = Object.assign(s.stats(), { state: 'stopped', name: s.mname }); ai = null; aiSrv = null; if (s) s.kill(); else if (cur) cur.then((x) => { try { x.kill(); } catch (e) {} }).catch(() => {}); }
 async function aiGet() {
   if (aiBad) throw new Error(aiWhy);
-  if (!ai) ai = aiStart().catch((e) => { ai = null; aiBad = true; aiWhy = why(e); throw e; });
+  if (!ai) ai = aiStart().catch((e) => { ai = null; if (!e.transient) { aiBad = true; aiWhy = why(e); } throw e; });
   return ai;
 }
+function aiStats() { if (aiSrv) return Object.assign(aiSrv.stats(), { name: aiSrv.mname }); if (aiLoading || ai) return { state: 'loading' }; return aiLast || { state: 'stopped' }; }
 // An answer is accepted only if it looks like a real translation of this text.
 function aiOk(src, out, tgt) {
   const o = String(out || '').trim(); if (!o) return false;
@@ -192,15 +202,13 @@ function aiOk(src, out, tgt) {
   return true;
 }
 async function viaAi(text, src, tgt) {
-  const { port } = await aiGet();
+  const srv = await aiGet(), port = srv.port;
   const out = [];
   for (const s of pieces(text)) {
     let t = '';
     for (const temp of [0, 0.3]) {
       const body = { messages: [{ role: 'user', content: 'Translate the following segment into ' + LNAME[tgt] + ', without additional explanation.\n\n' + s }], temperature: temp, top_k: 20, top_p: 0.6, repeat_penalty: 1.05, max_tokens: Math.min(1500, s.length * 3 + 60) };
-      const r = await fetch('http://127.0.0.1:' + port + '/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) throw new Error('AI engine http ' + r.status);
-      const j = await r.json(); t = ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+      const j = await srv.work(async () => { const r = await fetch('http://127.0.0.1:' + port + '/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error('AI engine http ' + r.status); return r.json(); }); t = ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
       if (aiOk(s, t, tgt)) break; t = '';
     }
     if (!t) throw new Error('AI answer rejected by the safety check');
@@ -230,4 +238,4 @@ async function go(m) {
     post(id, 'ok', r, eng);
   } catch (e) { if (e && e.load) post('', 'nomodel', why(e)); post(id, 'err', why(e)); }
 }
-parentPort.on('message', (m) => { if (m.aistop) { aiStop(); return; } if (m.online && process.env.LI_SMOKE !== '1') { go(m).catch(() => {}); return; } chain = chain.then(() => go(m)).catch(() => {}); });
+parentPort.on('message', (m) => { if (m.ctl) { if (m.ctl === 'pause' && aiSrv) aiSrv.pause(); else if (m.ctl === 'resume' && aiSrv) aiSrv.resume(); else if (m.ctl === 'unload') { if (aiSrv && aiSrv.busy) return parentPort.postMessage({ kind: 'ctl', rid: m.rid, busy: true }); aiStop(); } parentPort.postMessage({ kind: 'ctl', rid: m.rid, stats: aiStats() }); return; } if (m.aistop) { aiStop(); return; } if (m.online && process.env.LI_SMOKE !== '1') { go(m).catch(() => {}); return; } chain = chain.then(() => go(m)).catch(() => {}); });

@@ -171,7 +171,7 @@ header.top #langBtn{display:none!important}
 #box{position:relative}.mx{position:absolute;top:8px;inset-inline-end:10px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:26px;line-height:1;cursor:pointer}.mx:hover{background:var(--line)}
 #bgpill{position:fixed;z-index:60;inset-inline-start:12px;bottom:78px;width:min(320px,calc(100vw - 24px));padding:10px 38px 10px 14px;border-radius:14px;background:var(--card,#fbf7ec);color:var(--ink,#1d2b33);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.22);display:none;font-size:12.5px;line-height:1.5}#bgpill.on{display:block}.bgt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bgb{height:6px;border-radius:4px;background:var(--line);margin:7px 0 4px;overflow:hidden}.bgb i{display:block;height:100%;background:var(--acc);transition:width .4s}.bgs{opacity:.75}#bgx{position:absolute;top:6px;inset-inline-end:6px;width:28px;height:28px;border:0;background:transparent;font-size:20px;color:inherit;cursor:pointer}@media(min-width:900px){#bgpill{bottom:16px}}
 .libhead{flex-wrap:wrap;row-gap:8px}.libhead .ib{white-space:nowrap}.libhead .ib svg{width:18px;height:18px}.cami{display:inline-flex;vertical-align:middle;margin-inline-end:7px}.cami svg{width:19px;height:19px}#scanBtn{display:inline-flex;align-items:center}
-.airow{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line)}.ainf{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ainf small{color:var(--mute);font-size:12px;line-height:1.6}.aibt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.ainote{margin:6px 2px;font-size:12.5px;line-height:1.8;color:var(--mute)}
+.aigh{font-size:12.5px;font-weight:700;color:var(--mute);margin:10px 2px 2px}.aist,.aidt{background:var(--sel);border-radius:10px;padding:8px 12px;margin:4px 0 6px;font-size:12.5px;line-height:1.9;display:flex;flex-direction:column;align-items:flex-start;gap:0}.ailn b{font-weight:700}.ailn{overflow-wrap:anywhere}.airow{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 2px;border-bottom:1px solid var(--line)}.ainf{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ainf small{color:var(--mute);font-size:12px;line-height:1.6}.aibt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}.ainote{margin:6px 2px;font-size:12.5px;line-height:1.8;color:var(--mute)}
 </style></head>
 <body><div id="bgpill"></div>
 <div id="app">
@@ -349,7 +349,8 @@ mo.observe(document.documentElement,{childList:true,subtree:true,characterData:t
 var LANGS=[['ar','العربية'],['en','English'],['fr','Français'],['es','Español'],['it','Italiano'],['id','Bahasa Indonesia']],LOC={ar:'ar-EG',en:'en-GB',fr:'fr-FR',es:'es-ES',it:'it-IT',id:'id-ID'};
 function setLang(l,persist){LANG=LANGS.some(function(x){return x[0]===l})?l:'ar';var h=document.documentElement;h.lang=LANG;h.dir=LANG==='ar'?'rtl':'ltr';
   [].forEach.call(document.querySelectorAll('.lang button'),function(b){b.classList.toggle('on',b.dataset.lang===LANG)});
-  loc(document.body);document.title='Living Ideas';mo.takeRecords();if(persist)window.api.settings({lang:LANG}).then(function(s){S=s;render();loc(document.body)});else render()}
+  loc(document.body);document.title='Living Ideas';mo.takeRecords();if(persist)window.api.settings({lang:LANG}).then(function(s){S=s;render();loc(document.body);if(window.__aiOpen){aiLastHtml='';aiDraw()}});else{render();if(window.__aiOpen){aiLastHtml='';aiDraw()}}}
+window.__liLang=function(l){setLang(l,true)};
 function untranslated(){var out=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);var n;while((n=w.nextNode())){if(n.parentElement&&n.parentElement.closest('[data-noloc],script,style,#frame,#pframe'))continue;if(/[\u0600-\u06FF]/.test(n.nodeValue))out.push(n.nodeValue.trim())}
   [].forEach.call(document.querySelectorAll('[title],[placeholder],[aria-label],[alt]'),function(e){if(e.closest('[data-noloc]'))return;ATTRS.forEach(function(a){var v=e.getAttribute(a);if(v&&/[\u0600-\u06FF]/.test(v))out.push('@'+a+':'+v)})});return out}
 // ---------- reader ----------
@@ -536,7 +537,7 @@ function bookMenu(id,x,y){var b=S.books.filter(function(z){return z.id===id})[0]
   it.push('-',{t:isFin(b)?'وضع علامة «لم أنهِه»':'وضع علامة «أنهيتُه»',f:function(){setFin(b,!isFin(b))}},{t:'تعديل البيانات والتقييم…',f:function(){edit(b)}},{t:'تغيير الغلاف…',f:function(){window.api.setCover(id).then(setState)}},'-');
   it.push({t:'تصدير الملاحظات (Markdown)',f:function(){window.api.exportNotes(id)}},{t:'حفظ نسخة من الكتاب…',f:function(){window.api.exportBook(id)}},{t:'نسخ العنوان والمؤلف',f:function(){window.api.copy(dt(b)+(da(b)?' — '+da(b):'')).then(function(){toast('تم النسخ')})}},(window.api.platform==='android'?null:{t:'إظهار الملف في المجلد',f:function(){window.api.reveal(id)}}),'-');
   it.push({t:b.hidden?'إظهار في المكتبة':'إخفاء من المكتبة',f:function(){window.api.update(id,{hidden:!b.hidden}).then(setState)}},{t:'إزالة من المكتبة…',danger:1,f:function(){confirmBox('إزالة «'+dt(b)+'» من المكتبة؟','يُحذف الكتاب وملاحظاته من هذا البرنامج، ولا يُمسّ ملفك الأصلي.','إزالة',function(){window.api.remove(id).then(setState)})}});menu(x,y,it)}
-function modal(h){$('#box').innerHTML=h+'<button class="mx" id="mxClose" aria-label="'+T('إغلاق','Close')+'">×</button>';$('#modal').classList.add('on');var x=$('#mxClose');if(x)x.onclick=closeModal}function closeModal(){$('#modal').classList.remove('on')}
+function modal(h){$('#box').innerHTML=h+'<button class="mx" id="mxClose" aria-label="'+T('إغلاق','Close')+'">×</button>';$('#modal').classList.add('on');var x=$('#mxClose');if(x)x.onclick=closeModal}function closeModal(){$('#modal').classList.remove('on');window.__aiOpen=false}
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('#modal').classList.contains('on')&&!window.__liBusyOn)closeModal()});
 function ask(t,l,v,cb){modal('<h3>'+esc(t)+'</h3><label>'+esc(l)+'</label><input type="text" id="mi" value="'+esc(v)+'"><div class="acts"><button class="btn primary" id="ok">حسناً</button><button class="btn" id="no">إلغاء</button></div>');var i=$('#mi');i.focus();i.select();var go=function(){var x=i.value.trim();closeModal();if(x)cb(x)};$('#ok').onclick=go;$('#no').onclick=closeModal;i.onkeydown=function(e){if(e.key==='Enter')go();if(e.key==='Escape')closeModal()}}
 function edit(b){var r=b.rating||0;modal('<h3>تعديل البيانات</h3><label>العنوان</label><input type="text" id="e1" value="'+esc(b.title)+'"><label>المؤلف</label><input type="text" id="e2" value="'+esc(b.author)+'"><label>السلسلة (اختياري)</label><input type="text" id="e3" value="'+esc(b.series||'')+'"><label>تقييمك</label><div class="stars" id="st">'+[1,2,3,4,5].map(function(n){return '<button data-s="'+n+'" class="'+(n<=r?'on':'')+'" aria-label="'+n+'">★</button>'}).join('')+'</div><div class="acts"><button class="btn primary" id="ok">حفظ</button><button class="btn" id="no">إلغاء</button></div>');
@@ -715,7 +716,7 @@ window.__liScanAsk=function(n){return new Promise(function(res){
 })};
 function langDlg(){modal('<div id="sheet"><h3>'+T('اللغة','Language')+'</h3><div class="chips" style="margin-top:12px">'+LANGS.map(function(x){return '<button class="chip'+(LANG===x[0]?' on':'')+'" data-lg="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
   $('#no').onclick=closeModal;$('#box').onclick=function(e){var b=e.target.closest('[data-lg]');if(!b)return;closeModal();setLang(b.dataset.lg,true)}}
-function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'always';
+function settingsDlg(){window.__aiOpen=false;var s=S.settings,th=s.theme||'system',sp=s.splash||'always';
   var ch=function(k,v,cur,lab){return '<button class="chip'+(cur===v?' on':'')+'" data-sa="'+k+'" data-v2="'+v+'">'+lab+'</button>'};
   modal('<div id="sheet"><h3>'+T('الإعدادات','Settings')+'</h3>'
    +'<div class="sh">'+T('المظهر','APPEARANCE')+'</div><div class="chips">'+ch('theme','system',th,T('تلقائي','Auto'))+ch('theme','light',th,T('فاتح','Light'))+ch('theme','dark',th,T('داكن','Dark'))+'</div>'
@@ -742,29 +743,99 @@ function settingsDlg(){var s=S.settings,th=s.theme||'system',sp=s.splash||'alway
     else if(k==='backup'){closeModal();window.api.backup()}else if(k==='restore'){closeModal();window.api.restore().then(setState)}
     else if(k==='ai'){aiDlg()}
     else if(k==='notes'){closeModal();window.api.exportAllNotes()}else if(k==='about'){closeModal();aboutDlg()}}}
-function aiDlg(msg){var D=window.liDesk;if(!D||!D.aiList)return;
-  D.aiList().then(function(L){var on=true;try{on=localStorage.getItem('li-ai-ocr')!=='0'}catch(e){}
-    var sec=function(kind,title){var h='<div class="sh">'+title+'</div>';
-      L.filter(function(m){return m.kind===kind}).forEach(function(m){
-        var st=m.have?T('تم التنزيل','Downloaded'):T('لم يُنزَّل بعد (يُنزَّل عند أول حاجة)','Not downloaded yet (it downloads when first needed)');
-        var origin=m.builtin?T('مدمج','Built-in'):T('من هذا الجهاز','From this computer');
-        var del=m.builtin?(m.have?'<button class="chip" data-ai="rm" data-id="'+esc(m.id)+'">'+T('حذف التنزيل','Delete download')+'</button>':''):'<button class="chip" data-ai="rm" data-id="'+esc(m.id)+'">'+T('إزالة من القائمة','Remove from list')+'</button>';
-        h+='<div class="airow"><div class="ainf"><b>'+esc(m.name)+'</b><small>'+origin+(m.mb?' · '+AR(m.mb)+' '+T('ميجابايت','MB'):'')+' · '+st+'</small></div><div class="aibt">'
-          +(m.active?'<span class="chip on">'+T('قيد الاستخدام','In use')+'</span>':'<button class="chip" data-ai="use" data-k="'+kind+'" data-id="'+esc(m.id)+'">'+T('استخدام','Use')+'</button>')+del+'</div></div>'});
-      return h+'<button class="srow" data-ai="add" data-k="'+kind+'">'+T('إضافة نموذج من هذا الجهاز…','Add a model from this computer…')+'<small>›</small></button>'+(kind==='ocr'?'<p class="ainote">'+T('في نماذج القراءة تختار ملفين: النموذج ثم ملف الرؤية الخاص به.','For reading models you choose two files: the model, then its vision file.')+'</p>':'')};
-    modal('<div id="sheet"><h3>'+T('نماذج الذكاء الاصطناعي المحلية','Local AI models')+'</h3><p class="ainote">'+T('تعمل على هذا الجهاز دون إنترنت بعد تنزيل واحد.','Run on this computer without internet after a one-time download.')+' '+T('يُنصح بنحو ٤ جيجابايت من الذاكرة الحرة.','About 4 GB of free memory is recommended.')+'</p>'
-      +(msg?'<p class="ainote" style="color:var(--acc)">'+esc(msg)+'</p>':'')
-      +sec('translate',T('الترجمة','Translation'))+sec('ocr',T('قراءة الصفحات الممسوحة','Reading scanned pages'))
-      +'<button class="srow" data-ai="ocr">'+T('استخدام الذكاء الاصطناعي المحلي لقراءة الصفحات الممسوحة','Use local AI for reading scanned pages')+'<small>'+(on?T('مفعّل','On'):T('متوقف','Off'))+'</small></button>'
-      +'<div class="acts"><button class="btn" id="aiBack">'+T('رجوع','Back')+'</button></div></div>');
-    $('#aiBack').onclick=settingsDlg;
-    $('#box').onclick=function(e){var b=e.target.closest('[data-ai]');if(!b||b.disabled)return;var k=b.dataset.ai,id=b.dataset.id;
-      if(k==='use'){D.aiSelect(b.dataset.k,id).then(function(){aiDlg()})}
-      else if(k==='ocr'){try{localStorage.setItem('li-ai-ocr',on?'0':'1')}catch(x){}aiDlg()}
-      else if(k==='rm'){var m=L.filter(function(x){return x.id===id})[0];window.__liAsk(m&&m.builtin?T('حذف التنزيل','Delete download'):T('إزالة من القائمة','Remove from list'),m&&m.builtin?T('حذف الملفات التي تم تنزيلها لهذا النموذج؟ يمكنك تنزيله مرة أخرى لاحقًا.','Delete the downloaded files of this model? You can download it again later.'):T('إزالة هذا النموذج من القائمة؟ ملفاتك الأصلية لا تُحذف.','Remove this model from the list? Your original files are not deleted.'),T('نعم','Yes'),T('إلغاء','Cancel')).then(function(y){if(!y){aiDlg();return}D.aiRemove(id).then(function(){aiDlg()})})}
-      else if(k==='add'){b.disabled=true;b.firstChild.textContent=T('جارٍ فحص النموذج…','Checking the model…');
-        D.aiAdd(b.dataset.k).then(function(r){if(r&&r.ok)aiDlg(T('تمت إضافة النموذج واختياره.','Model added and selected.'));else if(r&&r.cancel)aiDlg();
-          else aiDlg(r&&r.text==='badfile'?T('هذا الملف ليس ملف نموذج صالحًا.','This file is not a valid model file.'):T('لا يستطيع البرنامج تشغيل هذا النموذج. يلزم ملف نموذج يعمل مع المحرك المدمج.','This program cannot run this model. It needs a model file that works with the built-in engine.'))},function(){aiDlg()})}}})}
+var aiS=null,aiMsg='',aiOpenSet={},aiTimer=null,aiHold=false,aiLastHtml='';
+function NN(n){return Number(n).toLocaleString(LANG==='ar'?'ar-EG':'en-US',{useGrouping:false})}
+function aiDlg(msg){var D=window.liDesk;if(!D||!D.aiState)return;aiMsg=msg||'';window.__aiOpen=true;aiHold=false;aiLastHtml='';aiPoll();clearInterval(aiTimer);
+  aiTimer=setInterval(function(){var m=$('#modal');if(!window.__aiOpen||!m||!m.classList.contains('on')){clearInterval(aiTimer);window.__aiOpen=false;return}if(!aiHold)aiPoll()},1500);
+  $('#box').onclick=aiClick}
+function aiPoll(){window.liDesk.aiState().then(function(s){aiS=s;aiDraw()},function(){})}
+function aiStateLab(st){var m={working:T('يعمل','Working'),ready:T('جاهز','Ready'),loading:T('يتم تحميله','Loading'),paused:T('متوقف مؤقتًا','Paused'),stopped:T('متوقف (الذاكرة حرة، ويُحمَّل من جديد عند الحاجة)','Stopped (memory is free; it loads again when needed)')};return m[st]||m.stopped}
+function aiLine(l,v){return '<div class="ailn"><b>'+l+'</b> '+v+'</div>'}
+function aiStatsHtml(kind,st,sys){if(!st)return '';
+  var h='<div class="aist">'+aiLine(T('الحالة','Status'),aiStateLab(st.state));
+  if(st.engine){h+=aiLine(T('المحرك','Engine'),esc(st.engine)+(st.variant?' · '+T('نوع تعليمات المعالج','CPU variant')+': '+esc(st.variant):''))
+    +aiLine(T('استهلاك المعالج','Processor use'),T('الآن '+NN(st.cpu)+'٪ · المتوسط '+NN(st.avg)+'٪ · الأعلى '+NN(st.max)+'٪','now '+NN(st.cpu)+' % · average '+NN(st.avg)+' % · highest '+NN(st.max)+' %'))
+    +aiLine(T('استهلاك الذاكرة','Memory use'),T('الآن '+NN(st.ws)+' ميجابايت · الذروة '+NN(st.peak)+' ميجابايت','now '+NN(st.ws)+' MB · peak '+NN(st.peak)+' MB'))
+    +aiLine(T('زمن المهمة','Task time'),T(NN(Math.round(st.taskMs/1000))+' ثانية',NN(Math.round(st.taskMs/1000))+' s'))
+    +aiLine(T('حد المعالج','CPU limit'),st.capped?T(NN(st.cap)+'٪ (تفرضه ويندوز)',NN(st.cap)+' % (enforced by Windows)'):T('غير مفعّل','not enforced'));
+    if(st.state==='working'||st.state==='paused')h+='<button class="chip" data-ai="eng" data-k="'+kind+'" data-p="'+(st.state==='paused'?'resume':'pause')+'">'+(st.state==='paused'?T('استئناف','Resume'):T('إيقاف مؤقت','Pause'))+'</button>'}
+  return h+'</div>'}
+function aiDetails(m,sys){
+  var q={Q4_K_M:T('متوازن: جودة وسرعة جيدتان','Balanced: good quality and speed'),Q6_K:T('جودة أعلى، أكبر حجمًا وأبطأ','Higher quality, larger and slower'),Q8_0:T('جودة قريبة من الأصل، الأكبر حجمًا والأبطأ','Near original quality, largest and slowest')}[m.quant]||'';
+  var lg=!m.langs?'':(m.langs.n?T(NN(m.langs.n)+' لغة، منها اللغات الست لهذا التطبيق',NN(m.langs.n)+' languages, including the six languages of this app'):T('العربية والإنجليزية','Arabic and English'));
+  var h='<div class="aidt">'+aiLine(T('الوظيفة','Function'),m.kind==='ocr'?T('قراءة الصفحات الممسوحة','Reading scanned pages'):T('الترجمة','Translation'))
+   +(m.mb?aiLine(T('الحجم','Size'),NN(m.mb)+' '+T('ميجابايت','MB')):'')
+   +((m.version||m.quant)?aiLine(T('الإصدار','Version'),esc((m.version||'')+(m.quant?' · '+m.quant:''))):'')
+   +(q?aiLine(T('الجودة','Quality'),q):'')+(lg?aiLine(T('اللغات','Languages'),lg):'')
+   +aiLine(T('المتطلبات','Requirements'),T('نحو '+NN(m.ramMB||2000)+' ميجابايت ذاكرة حرة، ويعمل بالمعالج فقط. تعليمات AVX غير مشروطة: يختار المحرك أنسب نسخة (SSE4.2 أو AVX أو AVX2) لمعالجك.','About '+NN(m.ramMB||2000)+' MB of free memory; processor only. AVX is not required: the engine picks the best variant (SSE4.2, AVX or AVX2) for your processor.'))
+   +aiLine(T('المحرك','Engine'),'llama.cpp '+esc(sys.build||''))
+   +aiLine(T('يعمل دون إنترنت','Works offline'),m.custom?T('نعم','Yes'):T('نعم، بعد التنزيل لمرة واحدة','Yes, after the one-time download'))
+   +(m.license?aiLine(T('الترخيص','License'),esc(m.license)+(m.licenseNote==='eu'?' — '+T('هذا الترخيص لا يشمل الاتحاد الأوروبي والمملكة المتحدة وكوريا الجنوبية.','This license does not cover the European Union, the United Kingdom and South Korea.'):'')):'')
+   +(m.repo?aiLine(T('المصدر','Source'),'huggingface.co/'+esc(m.repo)):'')
+   +(m.custom?'':aiLine(T('الاختبار','Tested'),m.tested?T('نعم: شغّله الاختبار التلقائي لهذه النسخة','Yes: it was run by the automatic test of this version'):T('متاح، لكن لم يُؤكَّد عمله على كل جهاز','Available, but not confirmed to work on every PC')))
+   +'</div>';return h}
+function aiRow(m,s){
+  var d=m.dl,st;
+  if(d&&d.state==='downloading')st=T('جارٍ التنزيل '+NN(d.pct)+'٪','Downloading '+NN(d.pct)+'%');
+  else if(d&&d.state==='verifying')st=T('جارٍ فحص الملفات…','Checking files…');
+  else if(d&&d.state==='paused')st=T('متوقف مؤقتًا عند '+NN(d.pct)+'٪','Paused at '+NN(d.pct)+'%');
+  else if(d&&d.state==='error')st=T('فشل التنزيل. تأكد من الاتصال وحاول مرة أخرى.','Download failed. Check the connection and try again.');
+  else st=m.have?T('مثبّت','Installed'):T('غير مثبّت','Not installed');
+  var origin=m.custom?T('من هذا الجهاز','From this computer'):(m.builtin?T('مدمج','Built-in'):''),
+   tag=m.custom?'':(m.tested?T('تم اختباره في التطبيق','Tested in this app'):T('لم يُختبر بعد','Not tested yet'));
+  var id=esc(m.id),btn=function(a,l,extra){return '<button class="chip" data-ai="'+a+'" data-id="'+id+'" data-k="'+m.kind+'"'+(extra||'')+'>'+l+'</button>'};
+  var b='';
+  if(m.active)b+='<span class="chip on">'+T('قيد الاستخدام','In use')+'</span>';else if(m.have||m.custom)b+=btn('use',T('استخدام','Use'));
+  if(!m.have&&!m.custom&&!d)b+=btn('dl',T('تنزيل','Download'));
+  if(d&&d.state==='downloading')b+=btn('dlpause',T('إيقاف مؤقت','Pause'));
+  if(d&&(d.state==='paused'||d.state==='error'))b+=btn('dl',T('استئناف','Resume'))+btn('dlcancel',T('إلغاء التنزيل','Cancel download'));
+  if(m.have&&!m.custom&&!d)b+=btn('verify',T('فحص الملفات','Verify files'));
+  if(m.custom)b+=btn('rm',T('إزالة من القائمة','Remove from list'));else if(m.have&&!d)b+=btn('rm',T('حذف التنزيل','Delete download'));
+  b+=btn('det',T('التفاصيل','Details'));
+  var h='<div class="airow"><div class="ainf"><b>'+esc(m.name)+(m.quant?' · '+esc(m.quant):'')+'</b><small>'+(origin?origin+' · ':'')+(m.mb?NN(m.mb)+' '+T('ميجابايت','MB')+' · ':'')+st+(tag?' · '+tag:'')+'</small></div><div class="aibt">'+b+'</div></div>';
+  if(aiOpenSet[m.id])h+=aiDetails(m,s.sys);
+  if(m.active)h+=aiStatsHtml(m.kind,s.stats[m.kind],s.sys);
+  return h}
+function aiSec(kind,title,s){
+  var L=s.models.filter(function(m){return m.kind===kind}),inst=L.filter(function(m){return m.have||m.custom}),av=L.filter(function(m){return !(m.have||m.custom)});
+  var h='<div class="sh">'+title+'</div>';
+  if(inst.length)h+='<div class="aigh">'+T('مثبّت','Installed')+'</div>'+inst.map(function(m){return aiRow(m,s)}).join('');
+  if(av.length)h+='<div class="aigh">'+T('متاح للتنزيل','Available to download')+'</div>'+av.map(function(m){return aiRow(m,s)}).join('');
+  return h+'<button class="srow" data-ai="add" data-k="'+kind+'">'+T('إضافة نموذج من هذا الجهاز…','Add a model from this computer…')+'<small>›</small></button>'+(kind==='ocr'?'<p class="ainote">'+T('في نماذج القراءة تختار ملفين: النموذج ثم ملف الرؤية الخاص به.','For reading models you choose two files: the model, then its vision file.')+'</p>':'')}
+function aiDraw(){var s=aiS;if(!s||!window.__aiOpen)return;var on=true;try{on=localStorage.getItem('li-ai-ocr')!=='0'}catch(e){}
+  var se=s.settings||{},sy=s.sys||{},idle=[1,5,10,30,0];
+  var chip=function(a,v,cur,l){return '<button class="chip'+(String(cur)===String(v)?' on':'')+'" data-ai="'+a+'" data-v="'+v+'">'+l+'</button>'};
+  var h='<div id="sheet"><h3>'+T('نماذج الذكاء الاصطناعي المحلية','Local AI models')+'</h3><p class="ainote">'+T('تعمل على هذا الجهاز دون إنترنت بعد تنزيل واحد.','Run on this computer without internet after a one-time download.')+'</p>'
+   +'<p class="ainote">'+T('هذا الجهاز: '+NN(sy.cores)+' أنوية · '+NN(sy.ramMB)+' ميجابايت ذاكرة ('+NN(sy.freeMB)+' ميجابايت حرة)','This PC: '+NN(sy.cores)+' cores · '+NN(sy.ramMB)+' MB memory ('+NN(sy.freeMB)+' MB free)')+'<br>'
+   +(sy.limiter?T('حد المعالج: '+NN(se.cpu==='light'?50:70)+'٪ تفرضه ويندوز','CPU limit: '+NN(se.cpu==='light'?50:70)+' % enforced by Windows'):T('حد المعالج غير مفعّل في هذه النسخة (ملف المحدِّد غير موجود)','CPU limit is not enforced in this build (the limiter file is missing)'))+'</p>'
+   +(aiMsg?'<p class="ainote" style="color:var(--acc)">'+esc(aiMsg)+'</p>':'')
+   +aiSec('translate',T('الترجمة','Translation'),s)+aiSec('ocr',T('قراءة الصفحات الممسوحة','Reading scanned pages'),s)
+   +'<button class="srow" data-ai="ocr">'+T('استخدام الذكاء الاصطناعي المحلي لقراءة الصفحات الممسوحة','Use local AI for reading scanned pages')+'<small>'+(on?T('مفعّل','On'):T('متوقف','Off'))+'</small></button>'
+   +'<div class="sh">'+T('الذاكرة والمعالج','Memory and processor')+'</div><div class="ainote">'+T('تفريغ الذاكرة بعد الخمول','Free the memory after being idle')+'</div><div class="chips">'+idle.map(function(v){return chip('idle',v,se.idleMin,v?T(NN(v)+' دقيقة',NN(v)+' min'):T('أبدًا','Never'))}).join('')+'</div>'
+   +'<div class="ainote">'+T('استهلاك المعالج','Processor use')+'</div><div class="chips">'+chip('cpu','auto',se.cpu||'auto',T('تلقائي (حتى '+NN(70)+'٪)','Automatic (up to '+NN(70)+' %)'))+chip('cpu','light',se.cpu,T('خفيف (حتى '+NN(50)+'٪)','Light (up to '+NN(50)+' %)'))+'</div>'
+   +'<button class="srow" data-ai="free">'+T('تفريغ الذاكرة الآن','Free memory now')+'<small>›</small></button>'
+   +'<div class="acts"><button class="btn" id="aiBack">'+T('رجوع','Back')+'</button></div></div>';
+  if(h===aiLastHtml)return;aiLastHtml=h;
+  var bx=$('#box'),sh=$('#sheet'),a=bx?bx.scrollTop:0,b=sh?sh.scrollTop:0,mo=$('#modal'),c=mo?mo.scrollTop:0;
+  modal(h);$('#box').onclick=aiClick;$('#aiBack').onclick=function(){window.__aiOpen=false;settingsDlg()};
+  $('#box').scrollTop=a;if($('#sheet'))$('#sheet').scrollTop=b;if(mo)mo.scrollTop=c}
+function aiClick(e){var D=window.liDesk,bt=e.target.closest('[data-ai]');if(!bt||bt.disabled)return;var k=bt.dataset.ai,id=bt.dataset.id,kind=bt.dataset.k,say=function(m){aiMsg=m||'';aiLastHtml='';aiPoll()};
+  if(k==='det'){aiOpenSet[id]=!aiOpenSet[id];aiLastHtml='';aiDraw()}
+  else if(k==='use')D.aiSelect(kind,id).then(function(){say('')});
+  else if(k==='dl')D.aiDl(id).then(function(){say('')});
+  else if(k==='dlpause')D.aiDlPause(id).then(function(){say('')});
+  else if(k==='dlcancel')D.aiDlCancel(id).then(function(){say('')});
+  else if(k==='verify'){bt.disabled=true;D.aiVerify(id).then(function(r){say(r&&r.ok?T('الملفات سليمة.','Files are intact.'):T('بعض الملفات كانت تالفة وتمت إزالتها. نزّل النموذج مرة أخرى.','Some files were damaged and were removed. Download the model again.'))})}
+  else if(k==='eng')(bt.dataset.p==='resume'?D.aiResume(kind):D.aiPause(kind)).then(function(){say('')});
+  else if(k==='idle')D.aiSet({idleMin:Number(bt.dataset.v)}).then(function(){say('')});
+  else if(k==='cpu')D.aiSet({cpu:bt.dataset.v}).then(function(){say('')});
+  else if(k==='free')D.aiUnload().then(function(r){say(r&&r.busy?T('نموذج مشغول الآن، وسيُفرَّغ عند انتهاء مهمته.','A model is busy now. It will be freed when it finishes.'):T('تم تفريغ الذاكرة.','Memory freed.'))});
+  else if(k==='ocr'){var on=true;try{on=localStorage.getItem('li-ai-ocr')!=='0'}catch(x){}try{localStorage.setItem('li-ai-ocr',on?'0':'1')}catch(x){}aiLastHtml='';aiDraw()}
+  else if(k==='rm'){var m=aiS.models.filter(function(x){return x.id===id})[0];aiHold=true;
+    window.__liAsk(m&&m.custom?T('إزالة من القائمة','Remove from list'):T('حذف التنزيل','Delete download'),m&&m.custom?T('إزالة هذا النموذج من القائمة؟ ملفاتك الأصلية لا تُحذف.','Remove this model from the list? Your original files are not deleted.'):T('حذف الملفات التي تم تنزيلها لهذا النموذج؟ يمكنك تنزيله مرة أخرى لاحقًا.','Delete the downloaded files of this model? You can download it again later.'),T('نعم','Yes'),T('إلغاء','Cancel')).then(function(y){aiHold=false;if(!y){aiDlg();return}D.aiRemove(id).then(function(){aiDlg()})})}
+  else if(k==='add'){bt.disabled=true;if(bt.firstChild)bt.firstChild.textContent=T('جارٍ فحص النموذج…','Checking the model…');aiHold=true;
+    D.aiAdd(kind).then(function(r){aiHold=false;if(r&&r.ok)say(T('تمت إضافة النموذج واختياره.','Model added and selected.'));else if(r&&r.cancel)say('');
+      else say(r&&r.text==='badfile'?T('هذا الملف ليس ملف نموذج صالحًا.','This file is not a valid model file.'):T('لا يستطيع البرنامج تشغيل هذا النموذج. يلزم ملف نموذج يعمل مع المحرك المدمج.','This program cannot run this model. It needs a model file that works with the built-in engine.'))},function(){aiHold=false;say('')})}}
 // dock
 function dockGo(id){document.body.classList.remove('drawer');
   if(id==='dReads'){view='reads';query='';$('#q').value='';render();$('#scroller').scrollTop=0}

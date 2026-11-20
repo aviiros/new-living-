@@ -88,13 +88,16 @@ ipcMain.on('pdf:print', async (_e, html, name) => {
 });
 
 // ---------- offline translation (models download once, then run on this PC) ----------
+// The small helper program that keeps every AI engine under the CPU limit (Windows Job Object) and measures it. Without it the engines still run, only the limit is not enforced.
+function RUNNER() { try { const p = app.isPackaged ? path.join(process.resourcesPath, 'li-runner.exe') : path.join(__dirname, 'native', 'li-runner.exe'); return fs.existsSync(p) ? p : ''; } catch (e) { return ''; } }
+const ctlWait = new Map(); let ctlSeq = 0;
 let worker = null; const pending = new Set();
 let smokeSink = null;
 function toUI(m) { if (smokeSink) smokeSink(m); if (win && !win.isDestroyed()) win.webContents.send('tr:ev', m); }
 function getWorker() {
   if (worker) return worker;
-  const w = new Worker(path.join(__dirname, 'translator-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models') } });
-  w.on('message', (m) => { if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
+  const w = new Worker(path.join(__dirname, 'translator-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models'), runner: RUNNER() } });
+  w.on('message', (m) => { if (m.kind === 'ctl') { const f = ctlWait.get(m.rid); if (f) { ctlWait.delete(m.rid); f(m); } return; } if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
   const dead = (why) => { if (worker === w) worker = null; toUI({ id: '', kind: 'nomodel', text: why }); pending.forEach((id) => toUI({ id, kind: 'err', text: why })); pending.clear(); };
   w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 90)));
   w.on('exit', (c) => { if (worker === w) dead('translator stopped (' + c + ')'); });
@@ -110,7 +113,7 @@ ipcMain.on('tr:go', (_e, id, text, src, tgt, online, hq) => {
 let ocrW = null; const ocrWait = new Map(); let ocrSeq = 0;
 function getOcr() {
   if (ocrW) return ocrW;
-  const w = new Worker(path.join(__dirname, 'ocr-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models') } });
+  const w = new Worker(path.join(__dirname, 'ocr-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models'), runner: RUNNER() } });
   w.on('message', (m) => { if (m.kind === 'prog') { if (win && !win.isDestroyed()) win.webContents.send('ai:prog', m.text); return; } const f = ocrWait.get(m.id); if (f) { ocrWait.delete(m.id); f(m); } });
   const dead = (why) => { if (ocrW === w) ocrW = null; ocrWait.forEach((f, id) => f({ kind: 'err', id, text: why })); ocrWait.clear(); };
   w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 120))); w.on('exit', () => dead('stopped'));
@@ -129,60 +132,123 @@ ipcMain.handle('ai:ocr:page', (_e, image) => ocrCall({ kind: 'page', image: Stri
 ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
 
 
-// ---------- the list of local AI models (built-in + added from this computer) ----------
+// ---------- the list of local AI models (catalog + added from this computer), settings, downloads, resources ----------
 const MODELS = () => path.join(app.getPath('userData'), 'models');
 let regMod = null, engMod = null;
 async function reg() { return regMod || (regMod = await import('./ai-registry.mjs')); }
 async function eng() { return engMod || (engMod = await import('./ai-engine.mjs')); }
 function freeServers() { try { if (worker) worker.postMessage({ aistop: true }); } catch (e) {} ocrCall({ kind: 'stop' }); }
-async function aiList() {
-  const R = await reg(), r = R.load(MODELS());
-  return R.all(MODELS()).map((m) => {
-    const full = Object.assign({}, m, { model: m.builtin ? path.join(path.join(MODELS(), 'hymt'), m.file) : m.file, mm: m.mm ? (m.builtin ? path.join(path.join(MODELS(), 'hymt'), m.mm) : m.mm) : '' });
-    let mb = m.mb || 0; if (!m.builtin) { try { mb = Math.round(fs.statSync(m.file).size / 1048576) + (m.mm ? Math.round(fs.statSync(m.mm).size / 1048576) : 0); } catch (e) {} }
-    return { id: m.id, kind: m.kind, name: m.name, builtin: !!m.builtin, mb, have: R.have(MODELS(), full), active: r.active[m.kind] === m.id };
+const nothing = { stats: { state: 'stopped' } };
+function trCtl(ctl) { return new Promise((ok) => { if (!worker) return ok(nothing); const rid = ++ctlSeq; ctlWait.set(rid, ok); try { worker.postMessage({ ctl, rid }); } catch (e) { ctlWait.delete(rid); return ok(nothing); } setTimeout(() => { if (ctlWait.delete(rid)) ok(nothing); }, 4000); }); }
+function ocrCtl(ctl) { if (!ocrW) return Promise.resolve(nothing); return Promise.race([ocrCall({ kind: 'ctl', ctl }), new Promise((r) => setTimeout(() => r(nothing), 4000))]); }
+const dls = new Map(); // model id -> { state: 'downloading' | 'verifying' | 'paused' | 'error', pct, ctl, err }
+const MB = (b) => Math.round(b / 1048576);
+async function aiState() {
+  const R = await reg(), E = await eng(), r = R.load(MODELS());
+  const [t, o] = await Promise.all([trCtl('stats'), ocrCtl('stats')]);
+  const models = R.all(MODELS()).map((m) => {
+    const have = R.have(MODELS(), m.files ? m : { model: m.file, mm: m.mm || '' });
+    let mb = m.files ? MB(m.files.reduce((a, f) => a + f.bytes, 0)) : 0;
+    if (!m.files) { try { mb = MB(fs.statSync(m.file).size) + (m.mm ? MB(fs.statSync(m.mm).size) : 0); } catch (e) {} }
+    const d = dls.get(m.id);
+    return { id: m.id, kind: m.kind, name: m.name, quant: m.quant || '', version: m.version || '', builtin: !!m.builtin, custom: !!m.custom, tested: !!m.tested, mb, ramMB: m.ramMB || 0, langs: m.langs || null, license: m.license || '', licenseNote: m.licenseNote || '', repo: m.repo || '', have, active: r.active[m.kind] === m.id, dl: d ? { state: d.state, pct: d.pct, err: d.err || '' } : null };
   });
+  return { models, stats: { translate: t.stats, ocr: o.stats }, settings: r.settings, sys: { cores: os.cpus().length, ramMB: MB(os.totalmem()), freeMB: MB(os.freemem()), limiter: !!RUNNER(), engine: E.hasLlama(MODELS()), build: E.BUILD } };
 }
-ipcMain.handle('ai:list', () => aiList());
-ipcMain.handle('ai:select', async (_e, kind, id) => {
+async function aiSelect(kind, id) {
   const R = await reg(), r = R.load(MODELS());
   if (!R.all(MODELS()).some((m) => m.kind === kind && m.id === id)) return { ok: false };
   r.active[kind] = id; R.save(MODELS(), r); freeServers(); return { ok: true };
-});
-const isGguf = (f) => { try { const fd = fs.openSync(f, 'r'), b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd); return b.toString('latin1') === 'GGUF' && fs.statSync(f).size > 20 * 1048576; } catch (e) { return false; } };
-ipcMain.handle('ai:add', async (_e, kind) => {
+}
+async function aiSet(p) {
+  const R = await reg(), r = R.load(MODELS()), s = r.settings;
+  if (p && p.idleMin != null) { const v = Number(p.idleMin); if (v >= 0 && v <= 600) s.idleMin = v; }
+  if (p && (p.cpu === 'auto' || p.cpu === 'light')) s.cpu = p.cpu;
+  R.save(MODELS(), r); return { ok: true, settings: s };
+}
+async function aiUnload() { const [t, o] = await Promise.all([trCtl('unload'), ocrCtl('unload')]); return { ok: true, busy: !!(t.busy || o.busy) }; }
+async function aiDl(id) {
+  const R = await reg(), E = await eng(), m = R.all(MODELS()).find((x) => x.id === id);
+  if (!m || !m.files) return { ok: false };
+  const cur = dls.get(id); if (cur && (cur.state === 'downloading' || cur.state === 'verifying')) return { ok: true };
+  const d = { state: 'downloading', pct: 0, ctl: {}, err: '' }; dls.set(id, d);
+  E.fetchModel(Object.assign({}, m, { cache: MODELS() }), { pct: (n) => { d.pct = n; }, phase: () => { d.state = 'verifying'; } }, d.ctl).then(() => { dls.delete(id); }, (e) => { if (d.ctl.stopped) { d.state = 'paused'; } else { d.state = 'error'; d.err = String((e && e.message) || e).slice(0, 160); } });
+  return { ok: true };
+}
+async function aiDlPause(id) { const d = dls.get(id); if (d && d.ctl && d.ctl.abort) { d.ctl.abort(); d.state = 'paused'; } return { ok: true }; }
+async function aiDlCancel(id) {
+  const R = await reg(), E = await eng(), m = R.all(MODELS()).find((x) => x.id === id), d = dls.get(id);
+  if (d && d.ctl && d.ctl.abort) { try { d.ctl.abort(); } catch (e) {} }
+  dls.delete(id);
+  if (m && m.files) for (const f of m.files) { try { fs.rmSync(path.join(E.llamaDir(MODELS()), f.name + '.part'), { force: true }); } catch (e) {} }
+  return { ok: true };
+}
+async function aiVerify(id) {
+  const R = await reg(), E = await eng(), m = R.all(MODELS()).find((x) => x.id === id);
+  if (!m || !m.files) return { ok: false };
+  const d = { state: 'verifying', pct: 0, ctl: {}, err: '' }; dls.set(id, d); let bad = false;
   try {
-    const R = await reg(), E = await eng();
+    for (const f of m.files) { const p = path.join(E.llamaDir(MODELS()), f.name); if (!E.fileOk(p, f.bytes) || (await E.sha256(p)) !== f.sha256) { bad = true; try { fs.rmSync(p, { force: true }); } catch (e) {} } }
+  } finally { dls.delete(id); }
+  if (bad) freeServers();
+  return { ok: !bad, bad };
+}
+const isGguf = (f) => { try { const fd = fs.openSync(f, 'r'), b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd); return b.toString('latin1') === 'GGUF' && fs.statSync(f).size > 20 * 1048576; } catch (e) { return false; } };
+// Register a model file that already exists on this computer: checked, test-loaded, never copied.
+async function addModel(kind, f, mm) {
+  const R = await reg(), E = await eng();
+  if (!isGguf(f) || (kind === 'ocr' && !isGguf(mm))) return { ok: false, text: 'badfile' };
+  freeServers();
+  const exe = await E.ensureLlama(MODELS());
+  const args = ['-m', f, '-t', '2', '-c', '1024']; if (kind === 'ocr') args.push('--mmproj', mm);
+  let srv; try { srv = await E.startServer(exe, args, null, { runner: RUNNER(), cap: () => R.capOf(MODELS()), name: 'test' }); } catch (e) { return { ok: false, text: 'cannotload' }; }
+  srv.kill();
+  const r = R.load(MODELS()), id = 'c' + Date.now().toString(36);
+  r.custom.push({ id, kind, name: path.basename(f).replace(/\.gguf$/i, ''), file: f, mm: kind === 'ocr' ? mm : '', mb: 0 }); r.active[kind] = id; R.save(MODELS(), r);
+  return { ok: true, id };
+}
+async function aiAdd(kind) {
+  try {
     const pick = async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ['openFile'], filters: [{ name: 'GGUF model', extensions: ['gguf'] }] }); return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]; };
     const isOcr = kind === 'ocr';
     const f = await pick(isOcr ? 'Choose the reading model file (.gguf)' : 'Choose the translation model file (.gguf)'); if (!f) return { ok: false, cancel: true };
-    if (!isGguf(f)) return { ok: false, text: 'badfile' };
-    let mm = '';
-    if (isOcr) { mm = await pick('Choose its vision file (mmproj .gguf)'); if (!mm) return { ok: false, cancel: true }; if (!isGguf(mm)) return { ok: false, text: 'badfile' }; }
-    // Try to load it before accepting: a model this program cannot run is rejected with a clear message.
-    freeServers();
-    const exe = await E.ensureLlama(MODELS());
-    const args = ['-m', f, '-t', '2', '-c', '1024']; if (mm) args.push('--mmproj', mm);
-    let srv; try { srv = await E.startServer(exe, args); } catch (e) { return { ok: false, text: 'cannotload' }; }
-    try { srv.proc.kill(); } catch (e) {}
-    const r = R.load(MODELS()), id = 'c' + Date.now().toString(36);
-    r.custom.push({ id, kind, name: path.basename(f).replace(/\.gguf$/i, ''), file: f, mm, mb: 0 }); r.active[kind] = id; R.save(MODELS(), r);
-    return { ok: true, id };
+    let mm = ''; if (isOcr) { mm = await pick('Choose its vision file (mmproj .gguf)'); if (!mm) return { ok: false, cancel: true }; }
+    return await addModel(kind, f, mm);
   } catch (e) { return { ok: false, text: String((e && e.message) || e).slice(0, 120) }; }
-});
-ipcMain.handle('ai:remove', async (_e, id) => {
-  const R = await reg(), r = R.load(MODELS()), m = R.all(MODELS()).find((x) => x.id === id); if (!m) return { ok: false };
-  freeServers();
-  if (m.builtin) { const d = path.join(MODELS(), 'hymt'); for (const f of [m.file, m.mm]) if (f) { try { fs.rmSync(path.join(d, f), { force: true }); } catch (e) {} } }
-  else { r.custom = r.custom.filter((x) => x.id !== id); Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt' : 'nuqta'; }); R.save(MODELS(), r); }
-  return { ok: true };
-});
+}
+// Remove from the list; downloaded files of catalog models are deleted (the UI asks first), files the person added are never deleted.
+async function aiRemove(id) {
+  const R = await reg(), E = await eng(), r = R.load(MODELS()), m = R.all(MODELS()).find((x) => x.id === id); if (!m) return { ok: false };
+  freeServers(); await aiDlCancel(id);
+  if (m.files) {
+    const d = E.llamaDir(MODELS());
+    for (const f of m.files) {
+      const shared = R.CATALOG.some((o) => o.id !== id && o.files.some((x) => x.name === f.name) && E.fileOk(path.join(d, o.files[0].name), o.files[0].bytes));
+      if (!shared) { try { fs.rmSync(path.join(d, f.name), { force: true }); } catch (e) {} }
+    }
+  } else r.custom = r.custom.filter((x) => x.id !== id);
+  Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt' : 'nuqta'; });
+  R.save(MODELS(), r); return { ok: true };
+}
+ipcMain.handle('ai:list', async () => (await aiState()).models);
+ipcMain.handle('ai:state', () => aiState());
+ipcMain.handle('ai:select', (_e, k, id) => aiSelect(k, id));
+ipcMain.handle('ai:set', (_e, p) => aiSet(p));
+ipcMain.handle('ai:unload', () => aiUnload());
+ipcMain.handle('ai:pause', (_e, k) => (k === 'ocr' ? ocrCtl('pause') : trCtl('pause')).then(() => ({ ok: true })));
+ipcMain.handle('ai:resume', (_e, k) => (k === 'ocr' ? ocrCtl('resume') : trCtl('resume')).then(() => ({ ok: true })));
+ipcMain.handle('ai:dl', (_e, id) => aiDl(String(id)));
+ipcMain.handle('ai:dlpause', (_e, id) => aiDlPause(String(id)));
+ipcMain.handle('ai:dlcancel', (_e, id) => aiDlCancel(String(id)));
+ipcMain.handle('ai:verify', (_e, id) => aiVerify(String(id)));
+ipcMain.handle('ai:add', (_e, k) => aiAdd(k));
+ipcMain.handle('ai:remove', (_e, id) => aiRemove(String(id)));
 
 // ---------- self-test used by the build server only (LI_SMOKE=1): opens the app, translates a few sentences, writes a report, exits ----------
 if (process.env.LI_SMOKE) {
   const fs = require('fs'), out = process.env.LI_SMOKE_OUT || 'smoke.json', res = { app: [], translate: [] };
   const done = (ok) => { res.ok = ok; try { fs.writeFileSync(out, JSON.stringify(res, null, 1)); } catch (e) {} app.exit(ok ? 0 : 1); };
-  setTimeout(() => { res.timeout = true; done(false); }, 13 * 60 * 1000);
+  setTimeout(() => { res.timeout = true; done(false); }, 38 * 60 * 1000);
   app.whenReady().then(() => {
     const waiters = {}; smokeSink = (m) => { if (m.id && waiters[m.id]) { waiters[m.id](m); delete waiters[m.id]; } else if (!m.id) res.app.push('event:' + m.kind + (m.text ? ' ' + m.text : '')); };
     const ask = (id, text, src, tgt) => new Promise((ok) => { waiters[id] = ok; getWorker().postMessage({ id, text, src, tgt }); });
@@ -214,6 +280,11 @@ if (process.env.LI_SMOKE) {
         res.ocr = await win.webContents.executeJavaScript(`(async()=>{const D=window.liDesk;const cv=document.createElement('canvas');cv.width=1000;cv.height=700;const c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,1000,700);c.fillStyle='#000';c.direction='rtl';c.textAlign='right';c.font='bold 44px Tahoma, Arial';c.fillText('\u0627\u0644\u0641\u0635\u0644 \u0627\u0644\u0623\u0648\u0644: \u0627\u0644\u0639\u0642\u0644 \u0648\u0627\u0644\u0625\u0631\u0627\u062f\u0629',940,100);c.font='30px Tahoma, Arial';c.fillText('\u064a\u0631\u0649 \u0634\u0648\u0628\u0646\u0647\u0627\u0648\u0631 \u0623\u0646 \u0627\u0644\u0639\u0627\u0644\u0645 \u0647\u0648 \u062a\u0645\u062b\u0644\u064a\u060c \u0648\u0623\u0646 \u0627\u0644\u0625\u0631\u0627\u062f\u0629 \u0647\u064a \u0627\u0644\u062c\u0648\u0647\u0631 \u0627\u0644\u062e\u0641\u064a.',940,200);const st=await D.ocrStatus();const pr=await D.ocrPrep();const r=await D.ocrPage(cv.toDataURL('image/png'));return {status:st,prep:pr.kind+(pr.text||''),kind:r.kind,text:r.text};})()`);
         res.ocr.sec = Math.round((Date.now() - t0) / 1000);
       } catch (e) { res.ocrError = String(e && e.message || e); }
+      try {
+        const hqAsk2 = (id, text, src, tgt) => new Promise((ok2) => { waiters[id] = ok2; getWorker().postMessage({ id, text, src, tgt, hq: true }); });
+        const extra = await require('./smoke-extra.js')({ res, win, wait, hqAsk: hqAsk2, runner: RUNNER, reg, eng, models: MODELS, addModel, api: { aiState, aiSet, aiUnload, aiDl, aiDlPause, aiVerify, aiSelect, aiRemove } });
+        if (!extra) ok = false;
+      } catch (e) { res.extraError = String((e && e.stack) || e); ok = false; }
       try { const pdf = await makePdf('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px Tahoma"><h1>ترجمة تجريبية</h1><p>' + 'هذه فقرة عربية للتأكد من إنشاء ملف PDF صحيح. '.repeat(40) + '</p>'); res.pdf = { bytes: pdf.length, header: pdf.slice(0, 5).toString() }; if (!(pdf.length > 3000 && res.pdf.header === '%PDF-')) ok = false; } catch (e) { res.pdf = { error: String(e) }; ok = false; }
       done(ok);
     })().catch((e) => { res.error = String((e && e.stack) || e); done(false); });

@@ -1,7 +1,7 @@
 {
   "name": "living-ideas-windows",
   "productName": "Living Ideas",
-  "version": "3.18.0",
+  "version": "3.19.0",
   "description": "Living Ideas \u2014 Windows desktop app (Electron)",
   "author": "Living Ideas",
   "private": true,
@@ -22,6 +22,9 @@
     "appId": "com.livingideas.library",
     "productName": "Living Ideas",
     "asar": false,
+    "extraResources": [
+      { "from": "native/li-runner.exe", "to": "li-runner.exe" }
+    ],
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -33,6 +36,7 @@
       "ai-engine.mjs",
       "ocr-worker.mjs",
       "ai-registry.mjs",
+      "smoke-extra.js",
       "package.json",
       "app/**/*",
       "build/icon.png",
