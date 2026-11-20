@@ -292,7 +292,7 @@
     return D.ocrStatus().then(function (st) {
       if (!st || !st.win || !st.ram) return false;
       if (st.have) return true;
-      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 750 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 750 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 50 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 50 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
       return ask.then(function (yes) {
         if (!yes) { try { localStorage.setItem('li-ai-ocr', '0'); } catch (e) {} return false; }
         if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
