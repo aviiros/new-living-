@@ -1,7 +1,7 @@
 {
   "name": "living-ideas-windows",
   "productName": "Living Ideas",
-  "version": "3.19.0",
+  "version": "3.20.0",
   "description": "Living Ideas \u2014 Windows desktop app (Electron)",
   "author": "Living Ideas",
   "private": true,
@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@browsermt/bergamot-translator": "^0.4.9",
-    "@huggingface/transformers": "^3.3.0"
+    "@huggingface/transformers": "^3.3.0",
+    "pngjs": "^7.0.0",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -36,7 +38,10 @@
       "ai-engine.mjs",
       "ocr-worker.mjs",
       "ai-registry.mjs",
+      "pp-core.mjs",
+      "pp-ocr-server.mjs",
       "smoke-extra.js",
+      "smoke-pp.js",
       "package.json",
       "app/**/*",
       "build/icon.png",

@@ -5,7 +5,7 @@ import os from 'node:os';
 import https from 'node:https';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, execFile } from 'node:child_process';
 
 export const LLAMA_URL = 'https://github.com/ggml-org/llama.cpp/releases/download/b12532/llama-b12532-bin-win-cpu-x64.zip';
 
@@ -60,7 +60,7 @@ export async function fetchModel(m, cb, ctl) {
     const dest = path.join(dir, f.name);
     if (!fileOk(dest, f.bytes)) {
       await download(f.url, dest, (p) => { if (cb.pct) cb.pct(Math.round((done + f.bytes * p / 100) * 100 / total)); }, 0, ctl);
-      if (f.sha256) { if (cb.phase) cb.phase('verifying'); if ((await sha256(dest)) !== f.sha256) { try { fs.rmSync(dest, { force: true }); } catch (e) {} throw new Error('file check failed (damaged download)'); } }
+      if (f.sha256) { if (cb.phase) cb.phase('verifying'); if (!shaOk(await sha256(dest), f.sha256)) { try { fs.rmSync(dest, { force: true }); } catch (e) {} throw new Error('file check failed (damaged download)'); } }
     }
     done += f.bytes;
   }
@@ -78,12 +78,14 @@ const num = (x) => (Number.isFinite(x) ? x : 0);
 // below-normal priority, and real CPU / memory numbers come from Windows. Without it the engine still runs (lower priority, few threads), but the cap is not enforced.
 export class Srv {
   constructor(name, kind) { this.name = name; this.kind = kind; this.busy = 0; this.lastUse = Date.now(); this.st = { state: 'loading', cpu: 0, ws: 0, peak: 0, cap: 0, capped: false, n: 0, sum: 0, max: 0, lastTaskMs: 0, tasks: 0, variant: '', paused: false, loadedAt: Date.now() }; this.timer = null; this.taskT0 = 0; }
-  stats() { const s = this.st, a = s.n ? s.sum / s.n : 0; return { state: s.paused ? 'paused' : (this.busy ? 'working' : s.state), cpu: Math.round(s.cpu), avg: Math.round(a), max: Math.round(s.max), ws: Math.round(s.ws), peak: Math.round(s.peak), cap: s.cap, capped: s.capped, taskMs: this.busy ? Date.now() - this.taskT0 : s.lastTaskMs, tasks: s.tasks, variant: s.variant, engine: 'llama.cpp ' + BUILD }; }
+  stats() { const s = this.st, a = s.n ? s.sum / s.n : 0; return { state: s.paused ? 'paused' : (this.busy ? 'working' : s.state), cpu: Math.round(s.cpu), avg: Math.round(a), max: Math.round(s.max), ws: Math.round(s.ws), peak: Math.round(s.peak), cap: s.cap, capped: s.capped, taskMs: this.busy ? Date.now() - this.taskT0 : s.lastTaskMs, tasks: s.tasks, variant: s.variant, engine: this.engine || ('llama.cpp ' + BUILD) }; }
   async work(fn) { if (!this.busy) this.taskT0 = Date.now(); this.busy++; try { return await fn(); } finally { this.busy--; this.lastUse = Date.now(); this.st.lastTaskMs = Date.now() - this.taskT0; this.st.tasks++; } }
   cmd(line) { try { if (this.proc.stdin && this.proc.stdin.writable) this.proc.stdin.write(line + '\n'); } catch (e) {} }
   pause() { if (this.st.capped) { this.cmd('pause'); this.st.paused = true; } } resume() { if (this.st.capped) { this.cmd('resume'); this.st.paused = false; } }
   kill() { clearInterval(this.timer); try { this.cmd('quit'); } catch (e) {} try { this.proc.kill(); } catch (e) {} }
 }
+// a fingerprint may be the whole value or its first 16 characters (as published on some model pages); files without one are checked by size only
+export const shaOk = (actual, want) => !want || actual.startsWith(want);
 export const BUILD = 'b12532';
 // Starts the server and waits until it answers. onDead() is called if the process stops later.
 // opt: { runner (path of the limiter program), cap: () => percent, idleMs: () => ms (0 = never), onIdle, name, kind, log }
@@ -94,17 +96,18 @@ export async function startServer(exe, args, onDead, opt = {}) {
   const cap0 = Math.max(5, Math.min(100, Math.round(num(opt.cap ? opt.cap() : 70))));
   let proc;
   if (useRunner) {
-    proc = spawn(opt.runner, [String(cap0), exe].concat(full), { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'], env: Object.assign({}, process.env, { LI_LOG: log }) });
+    proc = spawn(opt.runner, [String(cap0), exe].concat(full), { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'], env: Object.assign({}, process.env, opt.env || {}, { LI_LOG: log }) });
     srv.st.capped = true; srv.st.cap = cap0;
     let buf = ''; proc.stdout.on('data', (d) => {
       buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i); buf = buf.slice(i + 1); let j; try { j = JSON.parse(ln); } catch (e) { continue; }
+        if (j.pid) srv.cpid = j.pid;
         if (j.cpu != null) { const s = srv.st; s.cpu = num(j.cpu); s.ws = num(j.ws); s.peak = Math.max(s.peak, num(j.peak)); s.cap = j.cap || s.cap; s.max = Math.max(s.max, s.cpu); if (srv.busy) { s.n++; s.sum += s.cpu; } } }
     });
     proc.stdin.on('error', () => {});
   } else {
-    proc = spawn(exe, full, { windowsHide: true, stdio: 'ignore' }); try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch (e) {}
+    proc = spawn(exe, full, { windowsHide: true, stdio: 'ignore', env: Object.assign({}, process.env, opt.env || {}) }); try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch (e) {}
   }
-  srv.proc = proc; srv.port = port; srv.log = log;
+  srv.proc = proc; srv.port = port; if (opt.engine) srv.engine = opt.engine; srv.log = log;
   let dead = false; proc.on('exit', () => { dead = true; srv.st.state = 'stopped'; clearInterval(srv.timer); if (onDead) onDead(); });
   process.on('exit', () => { try { proc.kill(); } catch (e) {} });
   const t0 = Date.now();
@@ -115,6 +118,13 @@ export async function startServer(exe, args, onDead, opt = {}) {
     await new Promise((r) => setTimeout(r, 1000));
   }
   srv.st.state = 'ready'; srv.lastUse = Date.now();
+  // which CPU variant of the engine Windows really loaded: ask for the modules of the engine process
+  if (process.platform === 'win32' && (srv.cpid || proc.pid) && !opt.noVariant) {
+    try {
+      const out = await new Promise((ok) => execFile('tasklist', ['/m', '/fi', 'PID eq ' + (srv.cpid || proc.pid), '/fo', 'csv'], { windowsHide: true, timeout: 8000 }, (e, o) => ok(String(o || ''))));
+      const m = out.match(/ggml-cpu-([a-z0-9_]+)\.dll/gi); if (m) srv.st.variant = m[m.length - 1].replace(/^ggml-cpu-/i, '').replace(/\.dll$/i, '');
+    } catch (e) {}
+  }
   try { const t = fs.readFileSync(log, 'utf8'), m = t.match(/ggml-cpu-([a-z0-9_]+)\.dll/gi); if (m) srv.st.variant = m[m.length - 1].replace(/^ggml-cpu-/i, '').replace(/\.dll$/i, ''); else if (/loaded CPU backend/i.test(t)) srv.st.variant = 'cpu'; } catch (e) {}
   // every 3 s: give way to the person (lower the cap when other programs are busy) and free the memory after the idle time
   sysLoad();

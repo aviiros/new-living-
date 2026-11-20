@@ -322,7 +322,11 @@ window.__I18X={
 " · about # h # min left": " · environ # h # min restantes",
 " · about # min left": " · environ # min restantes",
 " · about # h left": " · environ # h restantes",
-"Index": "Index"
+"Index": "Index",
+"Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arabe, anglais et les langues à écriture latine (français, espagnol, italien, indonésien, allemand, néerlandais…)",
+"Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Lit le texte avec PaddleOCR (ONNX Runtime) : rapide, léger, sans carte graphique",
+"PaddleOCR with ONNX Runtime": "PaddleOCR avec ONNX Runtime",
+"Light and fast: good for old PCs": "Léger et rapide : adapté aux anciens PC"
 },
 "it": {
 "This PC: # cores · # MB memory (# MB free)": "Questo computer: # core · # MB di memoria (# MB liberi)",
@@ -646,7 +650,11 @@ window.__I18X={
 " · about # h # min left": " · circa # h # min rimasti",
 " · about # min left": " · circa # min rimasti",
 " · about # h left": " · circa # h rimaste",
-"Index": "Indice"
+"Index": "Indice",
+"Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arabo, inglese e le lingue con alfabeto latino (francese, spagnolo, italiano, indonesiano, tedesco, olandese…)",
+"Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Legge il testo con PaddleOCR (ONNX Runtime): veloce, leggero, senza scheda grafica",
+"PaddleOCR with ONNX Runtime": "PaddleOCR con ONNX Runtime",
+"Light and fast: good for old PCs": "Leggero e veloce: adatto ai PC datati"
 },
 "es": {
 "This PC: # cores · # MB memory (# MB free)": "Este equipo: # núcleos · # MB de memoria (# MB libres)",
@@ -970,7 +978,11 @@ window.__I18X={
 " · about # h # min left": " · unas # h # min restantes",
 " · about # min left": " · unos # min restantes",
 " · about # h left": " · unas # h restantes",
-"Index": "Índice"
+"Index": "Índice",
+"Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Árabe, inglés y los idiomas de escritura latina (francés, español, italiano, indonesio, alemán, neerlandés…)",
+"Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Lee el texto con PaddleOCR (ONNX Runtime): rápido, ligero, sin tarjeta gráfica",
+"PaddleOCR with ONNX Runtime": "PaddleOCR con ONNX Runtime",
+"Light and fast: good for old PCs": "Ligero y rápido: adecuado para PC antiguos"
 },
 "id": {
 "This PC: # cores · # MB memory (# MB free)": "Komputer ini: # inti · # MB memori (# MB kosong)",
@@ -1294,6 +1306,10 @@ window.__I18X={
 " · about # h # min left": " · sekitar # j # mnt lagi",
 " · about # min left": " · sekitar # mnt lagi",
 " · about # h left": " · sekitar # j lagi",
-"Index": "Indeks"
+"Index": "Indeks",
+"Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)": "Arab, Inggris, dan bahasa beraksara Latin (Prancis, Spanyol, Italia, Indonesia, Jerman, Belanda…)",
+"Reads text with PaddleOCR (ONNX Runtime): fast, small, no graphics card": "Membaca teks dengan PaddleOCR (ONNX Runtime): cepat, kecil, tanpa kartu grafis",
+"PaddleOCR with ONNX Runtime": "PaddleOCR dengan ONNX Runtime",
+"Light and fast: good for old PCs": "Ringan dan cepat: cocok untuk PC lama"
 }
 };

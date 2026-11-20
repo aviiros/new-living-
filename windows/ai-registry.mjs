@@ -4,6 +4,10 @@ import path from 'node:path';
 import { llamaDir, fileOk } from './ai-engine.mjs';
 
 const HY = 'https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF/resolve/main/', NQ = 'https://huggingface.co/SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF/resolve/main/';
+const H2 = 'https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/', PP = 'https://huggingface.co/PaddlePaddle/';
+const mt2 = (id, q, ramMB, bytes, sha) => ({ id, kind: 'translate', name: 'HY-MT 2 (1.8B)', quant: q, version: '2', tested: false, ramMB, langs: { n: 36, app: true }, license: 'Apache-2.0', repo: 'tencent/Hy-MT2-1.8B-GGUF', files: [{ name: 'Hy-MT2-1.8B-' + q + '.gguf', url: H2 + 'Hy-MT2-1.8B-' + q + '.gguf', bytes, sha256: sha }] });
+// PaddleOCR page-reading bundle: detector + recognizer pairs (ONNX) with their setting files. Fingerprints: first 16 characters as published; the small setting files are checked by size.
+const pp = (name, repo, file, bytes, sha) => ({ name, url: PP + repo + '/resolve/main/' + file, bytes, sha256: sha });
 const NQMM = { name: 'nuqta-ocr-0.8b-mmproj-f16.gguf', url: NQ + 'nuqta-ocr-0.8b-mmproj-f16.gguf', bytes: 204986688, sha256: 'ca24aaf3a572147676411ba661f754eeadb66aa1daf8d133dc001e556370ed41' };
 // tested: true only for models that were really run by the automatic test of the Windows build.
 export const CATALOG = [
@@ -18,6 +22,19 @@ export const CATALOG = [
   { id: 'nuqta-q8', kind: 'ocr', name: 'Nuqta OCR (0.8B)', quant: 'Q8_0', version: '0.8B', tested: false, ramMB: 2300, langs: { ar: true, en: true }, license: 'Apache-2.0', repo: 'SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF',
     files: [{ name: 'nuqta-ocr-0.8b-Q8_0.gguf', url: NQ + 'nuqta-ocr-0.8b-Q8_0.gguf', bytes: 872607744, sha256: '9e668a31aaaa0262134737262298d53f8240f390004f5ff72270334acc90532c' }, NQMM] }
 ];
+CATALOG.push(
+  mt2('hymt2', 'Q4_K_M', 2200, 1133080448, 'dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699'),
+  mt2('hymt2-q6', 'Q6_K', 2700, 1474785120, 'd98fe604dec1f28f58f80d7d560f7177e584d3b8e5835862687660e5ff97cb40'),
+  mt2('hymt2-q8', 'Q8_0', 3200, 1908528192, '5c3fe0b1408a5ceb0143184ef247b11b579c525f4b02b060e6c851bb76fef1a4'),
+  { id: 'ppocr', kind: 'ocr', engine: 'ppocr', name: 'PaddleOCR (v6 Latin + v5 Arabic)', quant: '', version: 'PP-OCRv6 small / PP-OCRv5 mobile', tested: false, ramMB: 900, langs: { ar: true, en: true, latin: true }, license: 'Apache-2.0', repo: 'PaddlePaddle/PP-OCRv6_small_det_onnx',
+    files: [
+      pp('ppocrv6-small-det.onnx', 'PP-OCRv6_small_det_onnx', 'inference.onnx', 9880512, 'd73e0058b7a8086b'), pp('ppocrv6-small-det.yml', 'PP-OCRv6_small_det_onnx', 'inference.yml', 885),
+      pp('ppocrv6-small-rec.onnx', 'PP-OCRv6_small_rec_onnx', 'inference.onnx', 21159378, '5435fd747c9e0efe'), pp('ppocrv6-small-rec.yml', 'PP-OCRv6_small_rec_onnx', 'inference.yml', 150579),
+      pp('ppocrv5-mobile-det.onnx', 'PP-OCRv5_mobile_det_onnx', 'inference.onnx', 4826518, 'a431985659dc9219'), pp('ppocrv5-mobile-det.yml', 'PP-OCRv5_mobile_det_onnx', 'inference.yml', 903),
+      pp('ppocrv5-arabic-rec.onnx', 'arabic_PP-OCRv5_mobile_rec_onnx', 'inference.onnx', 7998947, '799113ebf267fbe7'), pp('ppocrv5-arabic-rec.yml', 'arabic_PP-OCRv5_mobile_rec_onnx', 'inference.yml', 6165),
+      pp('ppocrv5-latin-rec.onnx', 'latin_PP-OCRv5_mobile_rec_onnx', 'inference.onnx', 8042023, '7888113072263cb4'), pp('ppocrv5-latin-rec.yml', 'latin_PP-OCRv5_mobile_rec_onnx', 'inference.yml', 6817)
+    ] }
+);
 export const BUILTIN = CATALOG.filter((m) => m.builtin);
 const DEFAULTS = { idleMin: 5, cpu: 'auto' };
 const regFile = (cache) => path.join(llamaDir(cache), 'registry.json');
@@ -35,6 +52,7 @@ export function all(cache) { return CATALOG.concat(load(cache).custom.map((c) =>
 export function resolve(cache, kind) {
   const r = load(cache), list = all(cache).filter((m) => m.kind === kind);
   const m = list.find((x) => x.id === r.active[kind]) || list[0], d = llamaDir(cache);
+  if (m.engine === 'ppocr' && m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: '', dir: d });
   if (m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: m.files[1] ? path.join(d, m.files[1].name) : '' });
   return Object.assign({}, m, { cache, model: m.file, mm: m.mm || '' });
 }

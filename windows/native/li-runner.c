@@ -71,7 +71,7 @@ int wmain(int argc, wchar_t **argv) {
   ResumeThread(pi.hThread);
   SYSTEM_INFO sys; GetSystemInfo(&sys); int ncpu = sys.dwNumberOfProcessors;
   CreateThread(NULL, 0, reader, NULL, 0, NULL);
-  printf("{\"started\":1,\"ncpu\":%d}\n", ncpu); fflush(stdout);
+  printf("{\"started\":1,\"ncpu\":%d,\"pid\":%lu}\n", ncpu, (unsigned long)pi.dwProcessId); fflush(stdout);
   ULONGLONG lastCpu = 0, lastT = GetTickCount64();
   for (;;) {
     if (WaitForSingleObject(proc, 1000) == WAIT_OBJECT_0) { DWORD code = 0; GetExitCodeProcess(proc, &code); printf("{\"exit\":%lu}\n", code); fflush(stdout); return 0; }

@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('liDesk', {
   openUrl: (u) => ipcRenderer.send('open-url', u),
   ocrStatus: () => ipcRenderer.invoke('ai:ocr:status'),
   ocrPrep: () => ipcRenderer.invoke('ai:ocr:prep'),
-  ocrPage: (img) => ipcRenderer.invoke('ai:ocr:page', img),
+  ocrPage: (img, lang) => ipcRenderer.invoke('ai:ocr:page', img, lang),
   ocrStop: () => ipcRenderer.invoke('ai:ocr:stop'),
   aiList: () => ipcRenderer.invoke('ai:list'),
   aiSelect: (k, id) => ipcRenderer.invoke('ai:select', k, id),

@@ -761,14 +761,14 @@ function aiStatsHtml(kind,st,sys){if(!st)return '';
     if(st.state==='working'||st.state==='paused')h+='<button class="chip" data-ai="eng" data-k="'+kind+'" data-p="'+(st.state==='paused'?'resume':'pause')+'">'+(st.state==='paused'?T('استئناف','Resume'):T('إيقاف مؤقت','Pause'))+'</button>'}
   return h+'</div>'}
 function aiDetails(m,sys){
-  var q={Q4_K_M:T('متوازن: جودة وسرعة جيدتان','Balanced: good quality and speed'),Q6_K:T('جودة أعلى، أكبر حجمًا وأبطأ','Higher quality, larger and slower'),Q8_0:T('جودة قريبة من الأصل، الأكبر حجمًا والأبطأ','Near original quality, largest and slowest')}[m.quant]||'';
-  var lg=!m.langs?'':(m.langs.n?T(NN(m.langs.n)+' لغة، منها اللغات الست لهذا التطبيق',NN(m.langs.n)+' languages, including the six languages of this app'):T('العربية والإنجليزية','Arabic and English'));
+  var q={Q4_K_M:T('متوازن: جودة وسرعة جيدتان','Balanced: good quality and speed'),Q6_K:T('جودة أعلى، أكبر حجمًا وأبطأ','Higher quality, larger and slower'),Q8_0:T('جودة قريبة من الأصل، الأكبر حجمًا والأبطأ','Near original quality, largest and slowest')}[m.quant]||(m.engine==='ppocr'?T('خفيف وسريع: مناسب للأجهزة القديمة','Light and fast: good for old PCs'):'');
+  var lg=!m.langs?'':(m.langs.n?T(NN(m.langs.n)+' لغة، منها اللغات الست لهذا التطبيق',NN(m.langs.n)+' languages, including the six languages of this app'):m.langs.latin?T('العربية والإنجليزية واللغات ذات الحروف اللاتينية (الفرنسية والإسبانية والإيطالية والإندونيسية والألمانية والهولندية…)','Arabic, English and the Latin-script languages (French, Spanish, Italian, Indonesian, German, Dutch…)'):T('العربية والإنجليزية','Arabic and English'));
   var h='<div class="aidt">'+aiLine(T('الوظيفة','Function'),m.kind==='ocr'?T('قراءة الصفحات الممسوحة','Reading scanned pages'):T('الترجمة','Translation'))
    +(m.mb?aiLine(T('الحجم','Size'),NN(m.mb)+' '+T('ميجابايت','MB')):'')
    +((m.version||m.quant)?aiLine(T('الإصدار','Version'),esc((m.version||'')+(m.quant?' · '+m.quant:''))):'')
    +(q?aiLine(T('الجودة','Quality'),q):'')+(lg?aiLine(T('اللغات','Languages'),lg):'')
    +aiLine(T('المتطلبات','Requirements'),T('نحو '+NN(m.ramMB||2000)+' ميجابايت ذاكرة حرة، ويعمل بالمعالج فقط. تعليمات AVX غير مشروطة: يختار المحرك أنسب نسخة (SSE4.2 أو AVX أو AVX2) لمعالجك.','About '+NN(m.ramMB||2000)+' MB of free memory; processor only. AVX is not required: the engine picks the best variant (SSE4.2, AVX or AVX2) for your processor.'))
-   +aiLine(T('المحرك','Engine'),'llama.cpp '+esc(sys.build||''))
+   +aiLine(T('المحرك','Engine'),m.engine==='ppocr'?T('PaddleOCR مع ONNX Runtime','PaddleOCR with ONNX Runtime'):'llama.cpp '+esc(sys.build||''))
    +aiLine(T('يعمل دون إنترنت','Works offline'),m.custom?T('نعم','Yes'):T('نعم، بعد التنزيل لمرة واحدة','Yes, after the one-time download'))
    +(m.license?aiLine(T('الترخيص','License'),esc(m.license)+(m.licenseNote==='eu'?' — '+T('هذا الترخيص لا يشمل الاتحاد الأوروبي والمملكة المتحدة وكوريا الجنوبية.','This license does not cover the European Union, the United Kingdom and South Korea.'):'')):'')
    +(m.repo?aiLine(T('المصدر','Source'),'huggingface.co/'+esc(m.repo)):'')

@@ -105,6 +105,9 @@ module.exports = async function (c) {
   }
   need('runs_on_avx_only_engine', x.variants.sandybridge && x.variants.sandybridge.engine === 'hymt');
 
+  // 5b. new models against the current ones (reported; the defaults stay as they are)
+  try { await require('./smoke-pp.js')(c); } catch (e) { x.ppError = String((e && e.stack) || e).slice(0, 500); }
+
   // 6. the models screen in the real window, in all six languages, and a language change while it is open
   const LANGS = ['ar', 'en', 'fr', 'es', 'it', 'id'], shots = x.screens = {};
   const js = (code) => win.webContents.executeJavaScript(code);
@@ -113,7 +116,7 @@ module.exports = async function (c) {
   const ARAB = /[؀-ۿ]/, LAT = /[A-Za-z]{3,}/g;
   const ENG = /\b(Download|Installed|Available|Delete|Details|Working|Stopped|Never|Automatic|Verify files|Remove from|Free memory|Unload|Tested|Not tested|Downloading|Verifying|Loading)\b/;
   const okWords = new Set(['llama', 'cpp', 'HY', 'MT', 'Tencent', 'Nuqta', 'OCR', 'CPU', 'RAM', 'AVX', 'SSE', 'Apache', 'MIT', 'Community', 'License', 'GB', 'MB', 'sandybridge', 'haswell', 'huggingface', 'com', 'Hugging', 'Face', 'ggml']);
-  for (const m of R.CATALOG) (m.name + ' ' + m.repo + ' ' + m.license + ' ' + m.quant).split(/[^A-Za-z]+/).forEach((w) => okWords.add(w));
+  for (const m of R.CATALOG) (m.name + ' ' + m.repo + ' ' + m.license + ' ' + m.quant + ' ' + (m.version || '')).split(/[^A-Za-z]+/).forEach((w) => okWords.add(w));
   for (const l of LANGS) {
     await js("(function(){var m=document.querySelector('#modal');if(m&&m.classList.contains('on')){var b=document.querySelector('#mxClose');if(b)b.click()}document.querySelector('#dLang').click()})()"); await wait(400);
     await js("document.querySelector('[data-lg=\"" + l + "\"]').click()"); await wait(900);
@@ -122,7 +125,7 @@ module.exports = async function (c) {
     need('lang_' + l + '_dir', s.dir === (l === 'ar' ? 'rtl' : 'ltr') && s.lang === l && s.align === (l === 'ar' ? 'rtl' : 'ltr'));
     need('lang_' + l + '_text', s.text.length > 300 && s.open);
     if (l === 'ar') need('lang_ar_no_english_words', lat.filter((w) => !/^(Q\d.*|[A-Z]{2,5})$/.test(w)).length === 0, lat.slice(0, 20));
-    else { need('lang_' + l + '_no_arabic', !ARAB.test(s.text)); need('lang_' + l + '_no_english_leftovers', !ENG.test(s.text), (s.text.match(ENG) || [])[0] || ''); }
+    else { need('lang_' + l + '_no_arabic', !ARAB.test(s.text)); if (l !== 'en') need('lang_' + l + '_no_english_leftovers', !ENG.test(s.text), (s.text.match(ENG) || [])[0] || ''); }
   }
   // change the language while the screen is open: it must redraw in the new language right away
   await js("document.querySelector('#dLang').click()"); await wait(300); await js("document.querySelector('[data-lg=\"en\"]').click()"); await wait(700); await open();

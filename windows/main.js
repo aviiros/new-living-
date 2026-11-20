@@ -128,7 +128,7 @@ function ocrCall(msg, freeTranslator) {
 }
 ipcMain.handle('ai:ocr:status', () => ocrCall({ kind: 'status' }));
 ipcMain.handle('ai:ocr:prep', () => ocrCall({ kind: 'prep' }, true));
-ipcMain.handle('ai:ocr:page', (_e, image) => ocrCall({ kind: 'page', image: String(image) }, true));
+ipcMain.handle('ai:ocr:page', (_e, image, lang) => ocrCall({ kind: 'page', image: String(image), lang: lang ? String(lang) : '' }, true));
 ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
 
 
@@ -151,7 +151,7 @@ async function aiState() {
     let mb = m.files ? MB(m.files.reduce((a, f) => a + f.bytes, 0)) : 0;
     if (!m.files) { try { mb = MB(fs.statSync(m.file).size) + (m.mm ? MB(fs.statSync(m.mm).size) : 0); } catch (e) {} }
     const d = dls.get(m.id);
-    return { id: m.id, kind: m.kind, name: m.name, quant: m.quant || '', version: m.version || '', builtin: !!m.builtin, custom: !!m.custom, tested: !!m.tested, mb, ramMB: m.ramMB || 0, langs: m.langs || null, license: m.license || '', licenseNote: m.licenseNote || '', repo: m.repo || '', have, active: r.active[m.kind] === m.id, dl: d ? { state: d.state, pct: d.pct, err: d.err || '' } : null };
+    return { id: m.id, engine: m.engine || '', kind: m.kind, name: m.name, quant: m.quant || '', version: m.version || '', builtin: !!m.builtin, custom: !!m.custom, tested: !!m.tested, mb, ramMB: m.ramMB || 0, langs: m.langs || null, license: m.license || '', licenseNote: m.licenseNote || '', repo: m.repo || '', have, active: r.active[m.kind] === m.id, dl: d ? { state: d.state, pct: d.pct, err: d.err || '' } : null };
   });
   return { models, stats: { translate: t.stats, ocr: o.stats }, settings: r.settings, sys: { cores: os.cpus().length, ramMB: MB(os.totalmem()), freeMB: MB(os.freemem()), limiter: !!RUNNER(), engine: E.hasLlama(MODELS()), build: E.BUILD } };
 }
@@ -188,7 +188,7 @@ async function aiVerify(id) {
   if (!m || !m.files) return { ok: false };
   const d = { state: 'verifying', pct: 0, ctl: {}, err: '' }; dls.set(id, d); let bad = false;
   try {
-    for (const f of m.files) { const p = path.join(E.llamaDir(MODELS()), f.name); if (!E.fileOk(p, f.bytes) || (await E.sha256(p)) !== f.sha256) { bad = true; try { fs.rmSync(p, { force: true }); } catch (e) {} } }
+    for (const f of m.files) { const p = path.join(E.llamaDir(MODELS()), f.name); if (!E.fileOk(p, f.bytes) || !E.shaOk(await E.sha256(p), f.sha256)) { bad = true; try { fs.rmSync(p, { force: true }); } catch (e) {} } }
   } finally { dls.delete(id); }
   if (bad) freeServers();
   return { ok: !bad, bad };
@@ -224,7 +224,7 @@ async function aiRemove(id) {
     const d = E.llamaDir(MODELS());
     for (const f of m.files) {
       const shared = R.CATALOG.some((o) => o.id !== id && o.files.some((x) => x.name === f.name) && E.fileOk(path.join(d, o.files[0].name), o.files[0].bytes));
-      if (!shared) { try { fs.rmSync(path.join(d, f.name), { force: true }); } catch (e) {} }
+      if (!shared) { for (let i = 0; i < 20; i++) { try { fs.rmSync(path.join(d, f.name), { force: true }); } catch (e) {} if (!fs.existsSync(path.join(d, f.name))) break; await new Promise((r) => setTimeout(r, 500)); } }
     }
   } else r.custom = r.custom.filter((x) => x.id !== id);
   Object.keys(r.active).forEach((k) => { if (r.active[k] === id) r.active[k] = k === 'translate' ? 'hymt' : 'nuqta'; });
@@ -248,7 +248,7 @@ ipcMain.handle('ai:remove', (_e, id) => aiRemove(String(id)));
 if (process.env.LI_SMOKE) {
   const fs = require('fs'), out = process.env.LI_SMOKE_OUT || 'smoke.json', res = { app: [], translate: [] };
   const done = (ok) => { res.ok = ok; try { fs.writeFileSync(out, JSON.stringify(res, null, 1)); } catch (e) {} app.exit(ok ? 0 : 1); };
-  setTimeout(() => { res.timeout = true; done(false); }, 38 * 60 * 1000);
+  setTimeout(() => { res.timeout = true; done(false); }, 56 * 60 * 1000);
   app.whenReady().then(() => {
     const waiters = {}; smokeSink = (m) => { if (m.id && waiters[m.id]) { waiters[m.id](m); delete waiters[m.id]; } else if (!m.id) res.app.push('event:' + m.kind + (m.text ? ' ' + m.text : '')); };
     const ask = (id, text, src, tgt) => new Promise((ok) => { waiters[id] = ok; getWorker().postMessage({ id, text, src, tgt }); });
