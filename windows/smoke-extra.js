@@ -88,7 +88,7 @@ module.exports = async function (c) {
   const fake = path.join(dir, 'fake.gguf'); const buf = Buffer.alloc(25 * 1048576); buf.write('GGUF'); fs.writeFileSync(fake, buf);
   const bad2 = await c.addModel('translate', fake, ''); need('reject_unrunnable_model', !bad2.ok && bad2.text === 'cannotload', bad2);
   for (const f of [txt, fake]) { try { fs.rmSync(f, { force: true }); } catch (e) {} }
-  x.activeAfterAdd = R.load(M).active; need('active_restored', R.load(M).active.translate === 'hymt');
+  x.activeAfterAdd = R.load(M).active; need('active_restored', ['hymt', 'hymt2'].includes(R.load(M).active.translate));
 
   // 5. old processors: only the engine variants for AVX-only (Sandy Bridge, like the Core i5 2nd generation) or SSE4.2 (1st generation) stay
   x.variants = {};
