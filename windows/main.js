@@ -103,8 +103,14 @@ function getWorker() {
   w.on('exit', (c) => { if (worker === w) dead('translator stopped (' + c + ')'); });
   worker = w; return w;
 }
-ipcMain.on('tr:go', (_e, id, text, src, tgt, online, hq) => {
-  try { pending.add(id); getWorker().postMessage({ id, text: String(text), src, tgt, online: !!online, hq: !!hq }); }
+// The person's choices (kept by the program itself, not by a page): local AI translation is the default, the larger model and the internet are options
+const PREF_DEFAULT = { hq: true, acc: false, online: false, ocrAi: true };
+const prefFile = () => path.join(app.getPath('userData'), 'prefs.json');
+function prefs() { let r = {}; try { r = JSON.parse(fs.readFileSync(prefFile(), 'utf8')) || {}; } catch (e) {} return Object.assign({}, PREF_DEFAULT, r); }
+ipcMain.on('pref:get', (e) => { e.returnValue = prefs(); });
+ipcMain.on('pref:set', (_e, k, v) => { if (!(k in PREF_DEFAULT)) return; try { const p = prefs(); p[k] = !!v; const f = prefFile(), t = f + '.tmp'; fs.writeFileSync(t, JSON.stringify(p)); fs.renameSync(t, f); } catch (e) {} });
+ipcMain.on('tr:go', (_e, id, text, src, tgt, online, hq, acc) => {
+  try { pending.add(id); getWorker().postMessage({ id, text: String(text), src, tgt, online: !!online, hq: !!hq, acc: !!acc }); }
   catch (e) { pending.delete(id); toUI({ id: '', kind: 'nomodel', text: String((e && e.message) || e).slice(0, 90) }); toUI({ id, kind: 'err', text: 'worker' }); }
 });
 
@@ -302,7 +308,7 @@ if (process.env.LI_SMOKE) {
       }
       // Local AI engine check (downloads the model once on the build server). Reported, but a network hiccup there does not fail the build.
       try {
-        const hqAsk = (id, text, src, tgt) => new Promise((ok) => { waiters[id] = ok; getWorker().postMessage({ id, text, src, tgt, hq: true }); });
+        const hqAsk = (id, text, src, tgt, acc) => new Promise((ok) => { waiters[id] = ok; getWorker().postMessage({ id, text, src, tgt, hq: true, acc: !!acc }); });
         res.hq = [];
         for (const [text, src, tgt] of [['Reading is the road to knowledge, and knowledge is the road to freedom.', 'en', 'ar'], ['\u0627\u0644\u0643\u062a\u0627\u0628 \u0627\u0644\u062c\u064a\u062f \u0635\u062f\u064a\u0642 \u0644\u0627 \u064a\u062e\u0648\u0646.', 'ar', 'en']]) {
           const t0 = Date.now(), m = await hqAsk('h' + res.hq.length, text, src, tgt);

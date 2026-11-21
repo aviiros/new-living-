@@ -12,12 +12,15 @@
   window.Capacitor = { isNativePlatform: function () { return true; }, Plugins: { LocalNotifications: LN } };
   window.LiNative = {
     init: function () {}, blockMenu: function () {}, stop: function () {}, voices: function () { return '[]'; },
-    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online(), this.hq()); },
+    // the choices live in the program (main process), so they survive closing it and are the same in every book
+    pref: function (k) { try { var p = D.prefs && D.prefs(); return !!(p && p[k]); } catch (e) { return false; } },
+    setPref: function (k, v) { try { D.setPref(k, !!v); } catch (e) {} },
+    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online(), true, this.hq()); },
     slow: function () { return !this.online(); },
-    hq: function () { try { return localStorage.getItem('li-hq') === '1'; } catch (e) { return false; } },
-    setHQ: function (v) { try { localStorage.setItem('li-hq', v ? '1' : '0'); } catch (e) {} },
-    online: function () { try { return localStorage.getItem('li-online') === '1'; } catch (e) { return false; } },
-    setOnline: function (v) { try { localStorage.setItem('li-online', v ? '1' : '0'); } catch (e) {} },
+    hq: function () { return this.pref('acc'); },
+    setHQ: function (v) { this.setPref('acc', v); },
+    online: function () { return this.pref('online'); },
+    setOnline: function (v) { this.setPref('online', v); },
     printHtml: function (html, name) { D.printPdf(html, name); }
   };
   D.onTr(function (e) { if (window.__liTr) window.__liTr(e.id, e.kind, e.text); });

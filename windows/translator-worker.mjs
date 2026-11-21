@@ -162,13 +162,14 @@ async function viaOnline(text, src, tgt) {
 // Every answer is checked; if the model is unavailable or an answer looks wrong the faster engines are used instead.
 import * as R from './ai-registry.mjs';
 const LNAME = { ar: 'Arabic', en: 'English', fr: 'French', es: 'Spanish', it: 'Italian', id: 'Indonesian' };
-let ai = null, aiSrv = null, aiLoading = false, aiBad = false, aiWhy = '', aiLast = null;
+let ai = null, aiSrv = null, aiLoading = false, aiBad = false, aiWhy = '', aiLast = null, aiAcc = false;
 const pct = (n) => post('', 'prep', n + '%');
 const runnerPath = () => workerData.runner || '';
 async function aiStart() {
-  if (!E.ramOk(5.5)) throw new Error('not enough memory for the local AI model (needs about 6 GB)');
+  // the base model (about 1.1 GB) needs a computer with about 4 GB of memory, the larger "more accurate" one about 6 GB
+  const m = (aiAcc && R.resolveId(workerData.cache, R.ACC_ID)) || R.resolve(workerData.cache, 'translate');
+  if (!E.ramOk(aiAcc ? 5.5 : 3.5)) throw new Error('not enough memory for the local AI model (needs about ' + (aiAcc ? 6 : 4) + ' GB)');
   post('', 'prep');
-  const m = R.resolve(workerData.cache, 'translate');
   if (!R.have(workerData.cache, m)) {
     if (!m.files) throw new Error('model file not found: ' + m.model);
     await E.fetchModel(m, { pct, phase: () => post('', 'prep', '...') });
@@ -184,7 +185,12 @@ async function aiStart() {
   } finally { aiLoading = false; }
 }
 function aiStop() { const cur = ai, s = aiSrv; if (s) aiLast = Object.assign(s.stats(), { state: 'stopped', name: s.mname }); ai = null; aiSrv = null; if (s) s.kill(); else if (cur) cur.then((x) => { try { x.kill(); } catch (e) {} }).catch(() => {}); }
-async function aiGet() {
+async function aiGet(acc) {
+  acc = !!acc;
+  if (acc !== aiAcc) { // the person switched between the base and the larger model: unload one, load the other
+    const busy = aiSrv && aiSrv.busy; if (busy) { while (aiSrv && aiSrv.busy) await new Promise((r) => setTimeout(r, 300)); }
+    aiStop(); aiAcc = acc; aiBad = false; aiWhy = '';
+  }
   if (aiBad) throw new Error(aiWhy);
   if (!ai) ai = aiStart().catch((e) => { ai = null; if (!e.transient) { aiBad = true; aiWhy = why(e); } throw e; });
   return ai;
@@ -201,8 +207,8 @@ function aiOk(src, out, tgt) {
   if (tgt === 'ar' && !/[؀-ۿ]/.test(o) && /[A-Za-z]{4}/.test(src)) return false;
   return true;
 }
-async function viaAi(text, src, tgt) {
-  const srv = await aiGet(), port = srv.port;
+async function viaAi(text, src, tgt, acc) {
+  const srv = await aiGet(acc), port = srv.port;
   const out = [];
   for (const s of pieces(text)) {
     let t = '';
@@ -225,7 +231,7 @@ async function go(m) {
     let r = null, eng = 'marian', why1 = '';
     // Fast by default (small model per language pair). The big NLLB model is only used when the person asks for higher quality.
     if (m.hq) {
-      try { r = await viaAi(text, src, tgt); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
+      try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
       if (r == null) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot (' + why1 + ')'; } catch (e) { r = null; } }
       if (r == null) { try { r = await marian(text, src, tgt); eng = 'marian (' + why1 + ')'; } catch (e) { r = null; } }
     }

@@ -55,17 +55,20 @@ module.exports = async function (c) {
 
   // ---- B. translation: HY-MT 1.5 (current) against HY-MT 2, same sentences, same path ----
   try {
-    const hq = async (tag, text, src, tgt) => { const t0 = Date.now(), m = await hqAsk(tag, text, src, tgt); return { kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 100) / 10 }; };
+    const hq = async (tag, text, src, tgt, acc) => { const t0 = Date.now(), m = await hqAsk(tag, text, src, tgt, acc); return { kind: m.kind, text: m.text, engine: m.engine, sec: Math.round((Date.now() - t0) / 100) / 10 }; };
     await api.aiDl('hymt2'); const t0 = Date.now(); let got = false;
     for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'hymt2'); if (m.have && !m.dl) { got = true; break; } if (m.dl && m.dl.state === 'error') { x.tr.dlError = m.dl.err; break; } if (Date.now() - t0 > 8 * 60000) { x.tr.dlError = 'timeout'; break; } }
     x.tr.download = { ok: got, sec: Math.round((Date.now() - t0) / 1000) };
     if (got) {
       const V = (await api.aiVerify('hymt2')); x.tr.verify = V.ok;
-      for (const [id, tag] of [['hymt', 'mt15'], ['hymt2', 'mt2']]) {
+      // the larger model, used the way the app uses it (the "more accurate" switch)
+      try { await api.aiDl('hymt2-q8'); const q0 = Date.now(); for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'hymt2-q8'); if (m.have && !m.dl) break; if (m.dl && m.dl.state === 'error') { x.tr.q8Error = m.dl.err; break; } if (Date.now() - q0 > 10 * 60000) { x.tr.q8Error = 'timeout'; break; } } } catch (e) { x.tr.q8Error = String(e && e.message || e); }
+      for (const [id, tag, acc] of [['hymt', 'mt15'], ['hymt2', 'mt2'], ['hymt2', 'mt2acc', true]]) {
+        if (acc && x.tr.q8Error) continue;
         await api.aiSelect('translate', id); await wait(1500);
         const o = x.tr[tag] = { items: [] }; let sum = 0, n = 0, secs = 0, ai = 0;
         for (let i = 0; i < SENT.length; i++) {
-          const [text, s, t, ref] = SENT[i], r = await hq(tag + i, text, s, t), score = r.kind === 'ok' ? chrf(ref, r.text) : null;
+          const [text, s, t, ref] = SENT[i], r = await hq(tag + i, text, s, t, acc), score = r.kind === 'ok' ? chrf(ref, r.text) : null;
           o.items.push({ pair: s + '>' + t, engine: r.engine, sec: r.sec, chrf: score, out: String(r.text || '').slice(0, 160) });
           if (score != null) { sum += score; n++; } secs += r.sec; if (r.engine === 'hymt') ai++;
         }

@@ -38,11 +38,8 @@ CATALOG.push(
 export const BUILTIN = CATALOG.filter((m) => m.builtin);
 const DEFAULTS = { idleMin: 5, cpu: 'auto' };
 const regFile = (cache) => path.join(llamaDir(cache), 'registry.json');
-// Default translation model: HY-MT 2, unless only HY-MT 1.5 is on this computer (then it stays until the person switches, so nothing is downloaded behind their back).
-function defTr(cache) {
-  try { const d = llamaDir(cache), ok = (m) => m.files.every((f) => fileOk(path.join(d, f.name), f.bytes)), by = (id) => CATALOG.find((m) => m.id === id); if (!ok(by('hymt2')) && ok(by('hymt'))) return 'hymt'; } catch (e) {}
-  return 'hymt2';
-}
+// Default translation model: HY-MT 2 (about 1.1 GB, downloaded once). HY-MT 1.5 stays in the list for going back.
+const defTr = () => 'hymt2';
 export function load(cache) {
   let r = {}; try { r = JSON.parse(fs.readFileSync(regFile(cache), 'utf8')) || {}; } catch (e) {}
   return { active: Object.assign({ translate: defTr(cache), ocr: 'ppocr' }, r.active || {}), custom: Array.isArray(r.custom) ? r.custom : [], settings: Object.assign({}, DEFAULTS, r.settings || {}) };
@@ -54,6 +51,12 @@ export function capOf(cache) { return settings(cache).cpu === 'light' ? 50 : 70;
 export function idleMsOf(cache) { const m = Number(settings(cache).idleMin); return m > 0 ? m * 60000 : 0; }
 export function all(cache) { return CATALOG.concat(load(cache).custom.map((c) => Object.assign({ builtin: false, custom: true }, c))); }
 // The model to use for a task: { id, name, model (full path), mm (full path or ''), files, builtin, cache }
+// the larger translation model offered as "more accurate"
+export const ACC_ID = 'hymt2-q8';
+export function resolveId(cache, id) {
+  const m = all(cache).find((x) => x.id === id); if (!m) return null; const d = llamaDir(cache);
+  return Object.assign({}, m, { cache, model: m.files ? path.join(d, m.files[0].name) : m.file, mm: m.files && m.files[1] ? path.join(d, m.files[1].name) : (m.mm || '') });
+}
 export function resolve(cache, kind) {
   const r = load(cache), list = all(cache).filter((m) => m.kind === kind);
   const m = list.find((x) => x.id === r.active[kind]) || list[0], d = llamaDir(cache);
