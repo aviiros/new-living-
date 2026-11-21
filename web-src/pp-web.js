@@ -75,7 +75,7 @@
     if (reader) return Promise.resolve();
     var base = (window.__ppBase || 'ort/');
     return (window.ort ? Promise.resolve() : loadScript(base + 'ort.wasm.min.js')).then(function () {
-      ort = window.ort; ort.env.wasm.wasmPaths = base; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
+      ort = window.ort; ort.env.wasm.wasmPaths = new URL(base, document.baseURI).href; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
       return import(new URL('pp-core.mjs', document.baseURI).href);
     }).then(function (m) {
       core = m;
