@@ -108,3 +108,52 @@ export function toMarkdown(items, rtl) {
   }
   return paras.map((p) => (p.head ? '## ' : '') + p.text).join('\n\n');
 }
+
+// ---- The whole page reader, shared by the Windows reader process and the in-page reader (Android):
+// env = { Tensor, session(key) -> Promise<InferenceSession>, chars(key) -> [string], conf(key) -> PostProcess settings }
+// spec.pipelines = { latin|arabic: { det, detYml, rec, recYml, reverse } } (keys name the files)
+export function makeReader(env) {
+  async function detect(img, P) {
+    const post = env.conf(P.detYml) || {}, { dw, dh } = detSize(img.w, img.h), s = await env.session(P.det);
+    const x = new env.Tensor('float32', toTensor(img, null, dw, dh, 'det'), [1, 3, dh, dw]);
+    const out = await s.run({ [s.inputNames[0]]: x }), prob = out[s.outputNames[0]].data;
+    const bx = dbBoxes(prob, dw, dh, { thresh: post.thresh, boxThresh: post.box_thresh, unclip: post.unclip_ratio, max: post.max_candidates });
+    const fx = img.w / dw, fy = img.h / dh;
+    return bx.map((b) => [Math.max(0, Math.floor(b[0] * fx)), Math.max(0, Math.floor(b[1] * fy)), Math.min(img.w, Math.ceil(b[2] * fx)), Math.min(img.h, Math.ceil(b[3] * fy))]).filter((b) => b[2] - b[0] > 4 && b[3] - b[1] > 4);
+  }
+  async function recognize(img, boxes, recKey, ymlKey, reverse) {
+    const s = await env.session(recKey), ch = env.chars(ymlKey), H = 48, res = new Array(boxes.length);
+    const order = boxes.map((b, i) => i).sort((a, b) => (boxes[a][2] - boxes[a][0]) / (boxes[a][3] - boxes[a][1]) - (boxes[b][2] - boxes[b][0]) / (boxes[b][3] - boxes[b][1]));
+    for (let i = 0; i < order.length; i += 6) {
+      const grp = order.slice(i, i + 6), ratios = grp.map((k) => (boxes[k][2] - boxes[k][0]) / (boxes[k][3] - boxes[k][1]));
+      const W = Math.min(3200, Math.max(320, Math.ceil(H * Math.max(...ratios)))), data = new Float32Array(grp.length * 3 * H * W);
+      grp.forEach((k, j) => { const w = Math.min(W, Math.max(8, Math.ceil(H * ratios[j]))); toTensor(img, boxes[k], w, H, 'rec', data, j * 3 * H * W, W); });
+      const out = await s.run({ [s.inputNames[0]]: new env.Tensor('float32', data, [grp.length, 3, H, W]) }), o = out[s.outputNames[0]], [B, T, Cn] = o.dims;
+      grp.forEach((k, j) => { const r = ctcDecode(o.data, j * T * Cn, T, Cn, ch); res[k] = { text: reverse ? reverseVisual(r.text) : r.text, conf: r.conf }; });
+    }
+    return res;
+  }
+  // img = { w, h, data (RGBA) }; lang = auto | ar | latin
+  return async function readPage(img, lang, spec) {
+    const t0 = Date.now(), A = spec.pipelines.arabic, L = spec.pipelines.latin;
+    let script = lang === 'ar' ? 'arabic' : (lang === 'latin' ? 'latin' : 'auto'), items = [];
+    const run = async (P, rev) => { const boxes = await detect(img, P), rs = await recognize(img, boxes, P.rec, P.recYml, rev); return boxes.map((b, i) => ({ box: b, text: rs[i].text, conf: rs[i].conf })); };
+    if (script === 'latin') items = await run(L, false);
+    else {
+      items = await run(A, A.reverse !== false);
+      const all = items.map((x) => x.text).join(' '), share = arabicShare(all);
+      if (script === 'auto') {
+        if (letters(all) >= 8 && share < 0.1) { items = await run(L, false); script = 'latin'; }
+        else {
+          script = 'arabic';
+          const idx = items.map((x, i) => i).filter((i) => letters(items[i].text) >= 3 && arabicShare(items[i].text) < 0.3);
+          if (idx.length) { const rs = await recognize(img, idx.map((i) => items[i].box), L.rec, L.recYml, false); idx.forEach((i, j) => { if (rs[j].conf >= items[i].conf - 0.02) items[i] = Object.assign(items[i], rs[j]); }); }
+        }
+      } else script = 'arabic';
+    }
+    items = items.filter((x) => x.conf >= 0.3 && x.text.trim());
+    return { md: toMarkdown(items, script === 'arabic'), lines: items.length, script, ms: Date.now() - t0 };
+  };
+}
+// dictionary of a recognizer from its settings: blank first, space last
+export const charsOf = (conf) => [''].concat(((conf.PostProcess || {}).character_dict || []).map(String), [' ']);

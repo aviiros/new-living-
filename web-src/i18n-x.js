@@ -330,7 +330,8 @@ window.__I18X={
 "Add a PaddleOCR model folder…": "Dossier PaddleOCR : ajouter un modèle…",
 "A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Un dossier PaddleOCR contient inference.onnx et inference.yml. Vous pouvez choisir ensemble le dossier du lecteur et celui du détecteur.",
 "This folder is not a valid PaddleOCR model folder.": "Ce dossier n’est pas un dossier de modèle PaddleOCR valide.",
-"This program cannot run this model.": "Ce programme ne peut pas exécuter ce modèle."
+"This program cannot run this model.": "Ce programme ne peut pas exécuter ce modèle.",
+"Minimize": "Réduire","Open": "Ouvrir"
 },
 "it": {
 "This PC: # cores · # MB memory (# MB free)": "Questo computer: # core · # MB di memoria (# MB liberi)",
@@ -662,7 +663,8 @@ window.__I18X={
 "Add a PaddleOCR model folder…": "Aggiungi una cartella modello PaddleOCR…",
 "A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Una cartella PaddleOCR contiene inference.onnx e inference.yml. Puoi scegliere insieme la cartella del riconoscitore e quella del rilevatore.",
 "This folder is not a valid PaddleOCR model folder.": "Questa cartella non è una cartella modello PaddleOCR valida.",
-"This program cannot run this model.": "Questo programma non può eseguire questo modello."
+"This program cannot run this model.": "Questo programma non può eseguire questo modello.",
+"Minimize": "Riduci","Open": "Apri"
 },
 "es": {
 "This PC: # cores · # MB memory (# MB free)": "Este equipo: # núcleos · # MB de memoria (# MB libres)",
@@ -994,7 +996,8 @@ window.__I18X={
 "Add a PaddleOCR model folder…": "Añadir una carpeta de modelo PaddleOCR…",
 "A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Una carpeta de PaddleOCR contiene inference.onnx e inference.yml. Puedes elegir juntas la carpeta del reconocedor y la del detector.",
 "This folder is not a valid PaddleOCR model folder.": "Esta carpeta no es una carpeta de modelo PaddleOCR válida.",
-"This program cannot run this model.": "Este programa no puede ejecutar este modelo."
+"This program cannot run this model.": "Este programa no puede ejecutar este modelo.",
+"Minimize": "Minimizar","Open": "Abrir"
 },
 "id": {
 "This PC: # cores · # MB memory (# MB free)": "Komputer ini: # inti · # MB memori (# MB kosong)",
@@ -1326,6 +1329,7 @@ window.__I18X={
 "Add a PaddleOCR model folder…": "Tambahkan folder model PaddleOCR…",
 "A PaddleOCR folder holds inference.onnx and inference.yml. You can choose the recognizer folder and the detector folder together.": "Folder PaddleOCR berisi inference.onnx dan inference.yml. Anda dapat memilih folder pengenal dan folder pendeteksi sekaligus.",
 "This folder is not a valid PaddleOCR model folder.": "Folder ini bukan folder model PaddleOCR yang valid.",
-"This program cannot run this model.": "Program ini tidak dapat menjalankan model ini."
+"This program cannot run this model.": "Program ini tidak dapat menjalankan model ini.",
+"Minimize": "Perkecil","Open": "Buka"
 }
 };

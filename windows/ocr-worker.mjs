@@ -13,6 +13,8 @@ const why = (e) => String((e && e.message) || e || 'error').slice(0, 300);
 let srv = null, starting = null, loading = false, last = null;
 const cur = () => R.resolve(workerData.cache, 'ocr');
 const isPP = () => cur().engine === 'ppocr';
+// megabytes still to download for the active reader (the PaddleOCR files are about 50 MB in total; the person is asked only when it is large)
+const needMB = () => { try { const m = cur(), d = R.llamaDir ? R.llamaDir(workerData.cache) : null; const base = m.engine === 'ppocr' ? R.ppBase() : m; let b = 0; if (base && base.files) { const dd = E.llamaDir(workerData.cache); for (const f of base.files) { if (!E.fileOk(path.join(dd, f.name), f.bytes)) b += f.bytes; } } else if (!R.have(workerData.cache, m)) b = (m.mb || 800) * 1048576; return Math.round(b / 1048576); } catch (e) { return 800; } };
 const have = () => (isPP() || E.hasLlama(workerData.cache)) && R.have(workerData.cache, cur());
 const keepLast = (s) => { if (s) last = Object.assign(s.stats(), { state: 'stopped', name: s.mname }); };
 
@@ -64,7 +66,7 @@ async function page(dataUrl, lang) {
 const statsNow = () => (srv ? Object.assign(srv.stats(), { name: srv.mname }) : (loading || starting) ? { state: 'loading' } : (last || { state: 'stopped' }));
 let chain = Promise.resolve();
 parentPort.on('message', (m) => {
-  if (m.kind === 'status') return post({ kind: 'status', id: m.id, have: have(), ram: E.ramOk(isPP() ? 1.5 : 3.5), win: process.platform === 'win32' });
+  if (m.kind === 'status') return post({ kind: 'status', id: m.id, needMB: needMB(), have: have(), ram: E.ramOk(isPP() ? 1.5 : 3.5), win: process.platform === 'win32' });
   if (m.kind === 'ctl') { if (m.ctl === 'pause' && srv) srv.pause(); else if (m.ctl === 'resume' && srv) srv.resume(); else if (m.ctl === 'unload') { if (srv && srv.busy) return post({ kind: 'ctl', id: m.id, busy: true }); const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } } return post({ kind: 'ctl', id: m.id, stats: statsNow() }); }
   if (m.kind === 'stop') { const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } return post({ kind: 'stopped', id: m.id }); }
   if (m.kind === 'prep') { chain = chain.then(() => (starting = starting || start().finally(() => { starting = null; }))).then(() => post({ kind: 'ok', id: m.id }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); return; }

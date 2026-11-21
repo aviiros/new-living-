@@ -24,10 +24,19 @@ try {
   }
   console.log('ocr ready:', fs.readdirSync(od).join(', '));
 } catch (e) { console.warn('OCR files not added:', e.message); }
+// PaddleOCR reader inside the page (Android): ONNX Runtime Web files. The shared reading code must be the same file the Windows reader process uses.
+if (fs.readFileSync(path.join(src, 'pp-core.mjs'), 'utf8') !== fs.readFileSync(path.join(root, 'windows', 'pp-core.mjs'), 'utf8')) { console.error('web-src/pp-core.mjs and windows/pp-core.mjs differ: keep them identical.'); process.exit(1); }
+if (!desktop) {
+  const od = path.join(root, 'node_modules', 'onnxruntime-web', 'dist'), dst = path.join(out, 'ort');
+  if (!fs.existsSync(path.join(od, 'ort.wasm.min.js'))) { console.error('onnxruntime-web not found — run "npm install" first.'); process.exit(1); }
+  fs.mkdirSync(dst, { recursive: true });
+  fs.readdirSync(od).filter(f => /^(ort\.wasm\.min\.js|ort-wasm-simd-threaded\.(wasm|mjs))$/.test(f)).forEach(f => fs.copyFileSync(path.join(od, f), path.join(dst, f)));
+  console.log('ort ready:', fs.readdirSync(dst).join(', '));
+}
 fs.copyFileSync(path.join(root, 'platform', 'platform-android.js'), path.join(out, 'platform-android.js'));
 let html = fs.readFileSync(path.join(src, 'library.html'), 'utf8');
 if (desktop) ['platform-desktop.js', 'platform-desktop-pre.js'].forEach(f => fs.copyFileSync(path.join(root, 'platform', f), path.join(out, f)));
-const tag = '<script src="lib/jszip.min.js"></script>\n<script src="formats.js"></script>\n<script src="pdfgeo.js"></script>\n<script src="convert.js"></script>\n' + (desktop ? '<script src="platform-desktop-pre.js"></script>\n' : '') + '<script src="platform-android.js"></script>\n' + (desktop ? '<script src="platform-desktop.js"></script>\n' : '');
+const tag = '<script src="lib/jszip.min.js"></script>\n<script src="formats.js"></script>\n<script src="pdfgeo.js"></script>\n<script src="convert.js"></script>\n' + (desktop ? '' : '<script src="pp-web.js"></script>\n') + (desktop ? '<script src="platform-desktop-pre.js"></script>\n' : '') + '<script src="platform-android.js"></script>\n' + (desktop ? '<script src="platform-desktop.js"></script>\n' : '');
 if (!html.includes('<script src="i18n.js"></script>')) { console.error('library.html layout changed: cannot inject platform scripts'); process.exit(1); }
 html = html.replace('<script src="i18n.js"></script>', tag + '<script src="i18n.js"></script>');
 fs.writeFileSync(path.join(out, 'index.html'), html);

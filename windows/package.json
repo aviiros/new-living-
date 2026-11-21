@@ -42,6 +42,7 @@
       "pp-ocr-server.mjs",
       "smoke-extra.js",
       "smoke-pp.js",
+      "pp-testdata.js",
       "package.json",
       "app/**/*",
       "build/icon.png",

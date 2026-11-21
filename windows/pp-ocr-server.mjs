@@ -28,58 +28,13 @@ function decodePng(buf) {
   return { w: p.width, h: p.height, data: d };
 }
 
-async function detect(img, P) {
-  const post = conf(P.detYml).PostProcess || {}, { dw, dh } = C.detSize(img.w, img.h), s = await session(P.det);
-  const x = new (getOrt().Tensor)('float32', C.toTensor(img, null, dw, dh, 'det'), [1, 3, dh, dw]);
-  const out = await s.run({ [s.inputNames[0]]: x }), prob = out[s.outputNames[0]].data;
-  const bx = C.dbBoxes(prob, dw, dh, { thresh: post.thresh, boxThresh: post.box_thresh, unclip: post.unclip_ratio, max: post.max_candidates });
-  const fx = img.w / dw, fy = img.h / dh;
-  return bx.map((b) => [Math.max(0, Math.floor(b[0] * fx)), Math.max(0, Math.floor(b[1] * fy)), Math.min(img.w, Math.ceil(b[2] * fx)), Math.min(img.h, Math.ceil(b[3] * fy))]).filter((b) => b[2] - b[0] > 4 && b[3] - b[1] > 4);
-}
-
-// Recognizes every box with one recognizer (batches of similar width). Returns [{text, conf}] in box order.
-async function recognize(img, boxes, recFile, ymlFile, reverse) {
-  const s = await session(recFile), ch = chars(ymlFile), H = 48, res = new Array(boxes.length);
-  const order = boxes.map((b, i) => i).sort((a, b) => (boxes[a][2] - boxes[a][0]) / (boxes[a][3] - boxes[a][1]) - (boxes[b][2] - boxes[b][0]) / (boxes[b][3] - boxes[b][1]));
-  for (let i = 0; i < order.length; i += 6) {
-    const grp = order.slice(i, i + 6), ratios = grp.map((k) => (boxes[k][2] - boxes[k][0]) / (boxes[k][3] - boxes[k][1]));
-    const W = Math.min(3200, Math.max(320, Math.ceil(H * Math.max(...ratios)))), data = new Float32Array(grp.length * 3 * H * W);
-    grp.forEach((k, j) => { const w = Math.min(W, Math.max(8, Math.ceil(H * ratios[j]))); C.toTensor(img, boxes[k], w, H, 'rec', data, j * 3 * H * W, W); });
-    const out = await s.run({ [s.inputNames[0]]: new (getOrt().Tensor)('float32', data, [grp.length, 3, H, W]) }), o = out[s.outputNames[0]], [B, T, Cn] = o.dims;
-    grp.forEach((k, j) => { const r = C.ctcDecode(o.data, j * T * Cn, T, Cn, ch); res[k] = { text: reverse ? C.reverseVisual(r.text) : r.text, conf: r.conf }; });
-  }
-  return res;
-}
-
-async function readPage(png, lang) {
-  const t0 = Date.now(), img = decodePng(png), A = spec.pipelines.arabic, L = spec.pipelines.latin;
-  let script = lang === 'ar' ? 'arabic' : (lang === 'latin' ? 'latin' : 'auto'), items = [];
-  const runArabic = async () => {
-    const boxes = await detect(img, A), rs = await recognize(img, boxes, A.rec, A.recYml, A.reverse !== false);
-    return boxes.map((b, i) => ({ box: b, text: rs[i].text, conf: rs[i].conf }));
-  };
-  const runLatin = async () => {
-    const boxes = await detect(img, L), rs = await recognize(img, boxes, L.rec, L.recYml, false);
-    return boxes.map((b, i) => ({ box: b, text: rs[i].text, conf: rs[i].conf }));
-  };
-  if (script === 'latin') items = await runLatin();
-  else {
-    items = await runArabic();
-    const all = items.map((x) => x.text).join(' '), share = C.arabicShare(all);
-    if (script === 'auto') {
-      if (C.letters(all) >= 8 && share < 0.1) { items = await runLatin(); script = 'latin'; } // a Latin-script page: the Latin reader is the better one
-      else {
-        script = 'arabic';
-        // mixed pages: lines that are clearly Latin go to the Latin reader, the better answer wins
-        const idx = items.map((x, i) => i).filter((i) => C.letters(items[i].text) >= 3 && C.arabicShare(items[i].text) < 0.3);
-        if (idx.length) { const rs = await recognize(img, idx.map((i) => items[i].box), L.rec, L.recYml, false); idx.forEach((i, j) => { if (rs[j].conf >= items[i].conf - 0.02) items[i] = Object.assign(items[i], rs[j]); }); }
-      }
-    } else script = 'arabic';
-  }
-  items = items.filter((x) => x.conf >= 0.3 && x.text.trim());
-  const md = C.toMarkdown(items, script === 'arabic');
-  return { md, lines: items.length, script, ms: Date.now() - t0 };
-}
+const reader = C.makeReader({
+  get Tensor() { return getOrt().Tensor; },
+  session: (f) => session(f),
+  chars: (f) => chars(f),
+  conf: (f) => conf(f).PostProcess || {}
+});
+const readPage = (png, lang) => reader(decodePng(png), lang, spec);
 
 let chain = Promise.resolve(), loaded = false;
 const srv = http.createServer((req, res) => {

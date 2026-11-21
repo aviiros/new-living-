@@ -1,0 +1,22 @@
+name: Test in-page PaddleOCR reader (Android code path)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['web-src/pp-*', 'windows/pp-core.mjs', 'scripts/test-pp-web.js', 'scripts/prepare-www.js', '.github/workflows/test-pp-web.yml']
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright yaml && npx playwright install --with-deps chromium
+      - run: node scripts/prepare-www.js && cp scripts/pp-test.html www/pp-test.html
+      - run: node scripts/test-pp-web.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with: { name: pp-web-report, path: pp-web-report.json }

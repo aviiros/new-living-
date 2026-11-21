@@ -285,16 +285,34 @@
   }
   // ---- Local AI reading (Windows only): the Nuqta model reads Arabic and English pages much more accurately than the built-in reader ----
   function aiAvail() { var D = window.liDesk; return !!(D && D.ocrPage && D.ocrStatus); }
+  // Android: the same PaddleOCR models run inside the page (pp-web.js, ONNX Runtime Web)
+  function webAvail() { return !window.liDesk && !!(window.liPP && window.WebAssembly); }
+  function webGate(onP) {
+    try { if (localStorage.getItem('li-ai-ocr2') === '0') return Promise.resolve(false); } catch (e) {}
+    return window.liPP.have().then(function (h) {
+      if (h) return window.liPP.prep().then(function () { return true; });
+      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق للنص', 'More accurate text reading'), TT('لقراءة الصفحات الممسوحة بدقة أعلى يلزم تنزيل نموذج صغير (نحو 44 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages more accurately needs a one-time download of a small model (about 44 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      return ask.then(function (yes) {
+        if (!yes) return false;
+        if (onP) onP(1, TT('جارٍ تنزيل نموذج القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
+        return window.liPP.prep(function (pc) { if (onP) onP(1, TT('جارٍ تنزيل نموذج القراءة (مرة واحدة) ', 'Downloading the reading model (one time) ') + pc + '%'); }).then(function () { return true; });
+      });
+    }).catch(function () { return false; });
+  }
+  function scaleCv(cv, maxSide) { var sc = Math.min(1, maxSide / Math.max(cv.width, cv.height)); if (sc >= 1) return cv; var c = document.createElement('canvas'); c.width = Math.round(cv.width * sc); c.height = Math.round(cv.height * sc); var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0, c.width, c.height); return c; }
   function aiGate(onP) {
+    if (webAvail()) return webGate(onP);
     if (!aiAvail()) return Promise.resolve(false);
-    try { if (localStorage.getItem('li-ai-ocr') === '0') return Promise.resolve(false); } catch (e) {}
+    // 'li-ai-ocr2': the person's own switch (default on). The older key 'li-ai-ocr' is ignored: it may have been set to off by an early "no" to a big download.
+    try { if (localStorage.getItem('li-ai-ocr2') === '0') return Promise.resolve(false); } catch (e) {}
     var D = window.liDesk;
     return D.ocrStatus().then(function (st) {
       if (!st || !st.win || !st.ram) return false;
       if (st.have) return true;
-      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 50 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 50 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      var small = (st.needMB || 0) <= 150; // PaddleOCR (about 50 MB): downloaded without asking, once
+      var ask = small ? Promise.resolve(true) : window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 50 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 50 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
       return ask.then(function (yes) {
-        if (!yes) { try { localStorage.setItem('li-ai-ocr', '0'); } catch (e) {} return false; }
+        if (!yes) return false;
         if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
         try { D.onAiProg && D.onAiProg(function (t) { if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة) ', 'Downloading the reading model (one time) ') + t); }); } catch (e) {}
         return D.ocrPrep().then(function (r) { return !!(r && r.kind === 'ok'); });
@@ -344,15 +362,22 @@
       if (onP) onP(Math.round((i - 1) / count * 95), label(i));
       return getCanvas(i).then(function (cv) {
         if (!useAI) return tessPage(i, cv);
+        if (webAvail()) {
+          var c2 = scaleCv(cv, 1700);
+          return window.liPP.page(c2, 'auto').then(function (md) { if (c2 !== cv) c2.width = c2.height = 1; cv.width = cv.height = 1; return { kind: 'ok', text: md }; }, function () { return { kind: 'err' }; }).then(handleAi(i));
+        }
         var png = canvasPng(cv, 1700); cv.width = cv.height = 1;
-        return window.liDesk.ocrPage(png).then(function (r) {
+        return window.liDesk.ocrPage(png).then(handleAi(i));
+      }).then(function () { return step(i + 1); });
+    };
+    var handleAi = function (i) {
+      return function (r) {
           if (r && r.kind === 'ok' && r.text) { var pp = mdParas(r.text); all.push(pp); done++; return; }
           // The AI reader failed on this page: continue with the built-in reader (redraw the page for it)
           useAI = false; return getCanvas(i).then(function (cv2) { return tessPage(i, cv2); });
-        });
-      }).then(function () { return step(i + 1); });
+      };
     };
-    var fin = function () { var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} return p; };
+    var fin = function () { var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} if (webAvail()) try { window.liPP.stop(); } catch (e) {} return p; };
     return aiGate(onP).then(function (ok) { useAI = ok; return step(1); }).then(fin, function (e) { try { fin(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
   }
   var TT = function (a, e) { try { if (typeof window.T === 'function') return window.T(a, e); } catch (x) {} return EN() ? e : a; };
