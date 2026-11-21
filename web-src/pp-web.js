@@ -31,7 +31,7 @@
         var v = m[2].trim(); if (v !== '' && !isNaN(Number(v))) P[m[1]] = Number(v); else if (v !== '') P[m[1]] = unq(v);
         continue;
       }
-      if (inDict) { var d = /^\s*-\s?(.*)$/.exec(l); if (d) P.character_dict.push(unq(d[1])); }
+      if (inDict) { var d = /^[ \t]*- ?(.*)$/.exec(l); if (d) P.character_dict.push(d[1].length && !d[1].trim() ? d[1] : unq(d[1])); }
     }
     return out;
   }
