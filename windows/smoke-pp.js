@@ -62,7 +62,7 @@ module.exports = async function (c) {
     if (got) {
       const V = (await api.aiVerify('hymt2')); x.tr.verify = V.ok;
       // the larger model, used the way the app uses it (the "more accurate" switch)
-      try { await api.aiDl('hymt2-q8'); const q0 = Date.now(); for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'hymt2-q8'); if (m.have && !m.dl) break; if (m.dl && m.dl.state === 'error') { x.tr.q8Error = m.dl.err; break; } if (Date.now() - q0 > 10 * 60000) { x.tr.q8Error = 'timeout'; break; } } } catch (e) { x.tr.q8Error = String(e && e.message || e); }
+      try { await api.aiDl('hymt2-q8'); const q0 = Date.now(); for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'hymt2-q8'); if (m.have && !m.dl) break; if (m.dl && m.dl.state === 'error') { x.tr.q8Error = m.dl.err; break; } if (Date.now() - q0 > 22 * 60000) { x.tr.q8Error = 'timeout'; break; } } } catch (e) { x.tr.q8Error = String(e && e.message || e); }
       for (const [id, tag, acc] of [['hymt', 'mt15'], ['hymt2', 'mt2'], ['hymt2', 'mt2acc', true]]) {
         if (acc && x.tr.q8Error) continue;
         await api.aiSelect('translate', id); await wait(1500);
