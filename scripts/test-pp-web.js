@@ -18,7 +18,8 @@ const srv = http.createServer((q, r) => { let f = path.join(root, decodeURICompo
     const txt = await (await fetch('https://huggingface.co/PaddlePaddle/' + repo + '/resolve/main/inference.yml')).text();
     const mine = await pg.evaluate((t) => window.liPP.parseYml(t), txt), real = (YAML.parse(txt).PostProcess) || {};
     const a = JSON.stringify((mine.PostProcess.character_dict || []).map(String)), c = JSON.stringify((real.character_dict || []).map(String));
-    out.yml[k] = { dictSame: a === c, n: (real.character_dict || []).length, thresh: [mine.PostProcess.thresh, real.thresh], unclip: [mine.PostProcess.unclip_ratio, real.unclip_ratio] };
+    const ma = (mine.PostProcess.character_dict || []).map(String), re = (real.character_dict || []).map(String), diffs = []; for (let i = 0; i < Math.max(ma.length, re.length) && diffs.length < 8; i++) if (ma[i] !== re[i]) diffs.push([i, ma[i], re[i]]);
+    out.yml[k] = { diffs, lens: [ma.length, re.length], dictSame: a === c, n: (real.character_dict || []).length, thresh: [mine.PostProcess.thresh, real.thresh], unclip: [mine.PostProcess.unclip_ratio, real.unclip_ratio] };
   }
   // 2. download (one time) and read the pages
   const t0 = Date.now(); out.prepSec = await pg.evaluate(async () => { const t = Date.now(); await window.liPP.prep(); return Math.round((Date.now() - t) / 1000); });
