@@ -97,7 +97,7 @@ function toUI(m) { if (smokeSink) smokeSink(m); if (win && !win.isDestroyed()) w
 function getWorker() {
   if (worker) return worker;
   const w = new Worker(path.join(__dirname, 'translator-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models'), runner: RUNNER() } });
-  w.on('message', (m) => { if (m.kind === 'ctl') { const f = ctlWait.get(m.rid); if (f) { ctlWait.delete(m.rid); f(m); } return; } if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
+  w.on('message', (m) => { if (m.kind === 'freeocr') { freeOcrNow(); return; } if (m.kind === 'lowmem') { try { new Notification({ title: 'Living Ideas', body: 'الذاكرة ممتلئة: نموذج الترجمة ينتظر. أغلق برامج أخرى وسيكمل وحده · Memory is full: the translation model is waiting. Close other programs.', icon: ICON }).show(); } catch (e) {} return; } if (m.kind === 'ctl') { const f = ctlWait.get(m.rid); if (f) { ctlWait.delete(m.rid); f(m); } return; } if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
   const dead = (why) => { if (worker === w) worker = null; toUI({ id: '', kind: 'nomodel', text: why }); pending.forEach((id) => toUI({ id, kind: 'err', text: why })); pending.clear(); };
   w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 90)));
   w.on('exit', (c) => { if (worker === w) dead('translator stopped (' + c + ')'); });
@@ -125,6 +125,8 @@ function getOcr() {
   w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 120))); w.on('exit', () => dead('stopped'));
   ocrW = w; return w;
 }
+let lastFreeOcr = 0;
+function freeOcrNow() { const t = Date.now(); if (t - lastFreeOcr < 5000) return; lastFreeOcr = t; try { ocrCall({ kind: 'stop' }); } catch (e) {} }
 function ocrCall(msg, freeTranslator) {
   return new Promise((ok) => {
     if (freeTranslator && worker) { try { worker.postMessage({ aistop: true }); } catch (e) {} }

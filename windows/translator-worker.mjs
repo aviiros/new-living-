@@ -177,7 +177,9 @@ async function aiStart() {
   const exe = await E.ensureLlama(workerData.cache, pct);
   // do not load while the memory is short: a transient problem, the faster engines answer instead
   const need = Math.round((m.files ? m.files[0].bytes : 1100000000) / 1048576 * 1.15 + 250);
-  for (let i = 0; i < 10 && !E.memOk(need); i++) await new Promise((r) => setTimeout(r, 2000));
+  // short of memory: ask the reader (PaddleOCR) to step aside, wait up to 3 minutes, tell the person once
+  let told = false;
+  for (let i = 0; i < 90 && !E.memOk(need); i++) { if (i === 0) post('', 'freeocr'); if (i === 5 && !told) { told = true; post('', 'lowmem'); } await new Promise((r) => setTimeout(r, 2000)); }
   if (!E.memOk(need)) { const e = new Error('not enough free memory right now (' + need + ' MB needed)'); e.transient = true; throw e; }
   aiLoading = true;
   try {
@@ -235,7 +237,7 @@ async function go(m) {
     const local = m.hq || process.env.LI_SMOKE !== '1';
     if (local) {
       try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
-      if (r == null && !aiBad) { await new Promise((ok) => setTimeout(ok, 3000)); try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; why1 = ''; } catch (e) { r = null; why1 = 'local AI: ' + why(e); } }
+      for (let k = 0; k < 4 && r == null && !aiBad; k++) { await new Promise((ok) => setTimeout(ok, 3000 * (k + 1))); try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; why1 = ''; } catch (e) { r = null; why1 = 'local AI: ' + why(e); } }
       // No silent internet use: if the local model cannot answer, the person is told why (the old engines stay only for the self-test)
       if (r == null && process.env.LI_SMOKE !== '1') return post(id, 'err', why1 || 'local AI model failed');
       if (r == null) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot (' + why1 + ')'; } catch (e) { r = null; } }
