@@ -58,8 +58,11 @@ jobs:
         run: |
           gh release view windows-latest >/dev/null 2>&1 || gh release create windows-latest --prerelease --title "Latest Windows build" --notes "Automatic build of the newest version."
           gh release upload windows-latest windows/dist/Living-Ideas-Setup-*.exe windows/dist/Living-Ideas-Portable-*.exe --clobber
+          # keep only the files of this version, so there is one Setup and one Portable file to choose from
+          V=$(node -p "require('./windows/package.json').version")
+          for n in $(gh release view windows-latest --json assets -q '.assets[].name' 2>/dev/null | grep -E '^Living-Ideas-(Setup|Portable)-' | grep -v "\-$V\.exe$"); do gh release delete-asset windows-latest "$n" -y || true; done
           if [ -f smoke.json ]; then cp smoke.json selftest-report.json; gh release upload windows-latest selftest-report.json --clobber; fi
-          gh release edit windows-latest --notes "Built from commit ${GITHUB_SHA::7} on $(date -u +%F) UTC"
+          gh release edit windows-latest --title "Living Ideas $V (latest Windows build)" --notes "Version $V · commit ${GITHUB_SHA::7} · $(date -u +%F) UTC. Download Living-Ideas-Setup-$V.exe (installs) or Living-Ideas-Portable-$V.exe (no install)."
       - uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true
