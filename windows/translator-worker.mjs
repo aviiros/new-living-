@@ -235,6 +235,9 @@ async function go(m) {
     const local = m.hq || process.env.LI_SMOKE !== '1';
     if (local) {
       try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
+      if (r == null && !aiBad) { await new Promise((ok) => setTimeout(ok, 3000)); try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; why1 = ''; } catch (e) { r = null; why1 = 'local AI: ' + why(e); } }
+      // No silent internet use: if the local model cannot answer, the person is told why (the old engines stay only for the self-test)
+      if (r == null && process.env.LI_SMOKE !== '1') return post(id, 'err', why1 || 'local AI model failed');
       if (r == null) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot (' + why1 + ')'; } catch (e) { r = null; } }
       if (r == null) { try { r = await marian(text, src, tgt); eng = 'marian (' + why1 + ')'; } catch (e) { r = null; } }
     }
