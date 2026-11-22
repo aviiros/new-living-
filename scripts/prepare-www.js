@@ -36,7 +36,7 @@ if (!desktop) {
 fs.copyFileSync(path.join(root, 'platform', 'platform-android.js'), path.join(out, 'platform-android.js'));
 let html = fs.readFileSync(path.join(src, 'library.html'), 'utf8');
 if (desktop) ['platform-desktop.js', 'platform-desktop-pre.js'].forEach(f => fs.copyFileSync(path.join(root, 'platform', f), path.join(out, f)));
-const tag = '<script src="lib/jszip.min.js"></script>\n<script src="formats.js"></script>\n<script src="pdfgeo.js"></script>\n<script src="convert.js"></script>\n' + (desktop ? '' : '<script src="pp-web.js"></script>\n') + (desktop ? '<script src="platform-desktop-pre.js"></script>\n' : '') + '<script src="platform-android.js"></script>\n' + (desktop ? '<script src="platform-desktop.js"></script>\n' : '');
+const tag = '<script src="lib/jszip.min.js"></script>\n<script src="formats.js"></script>\n<script src="pdfgeo.js"></script>\n<script src="ar-fix.js"></script>\n<script src="convert.js"></script>\n' + (desktop ? '' : '<script src="pp-web.js"></script>\n') + (desktop ? '<script src="platform-desktop-pre.js"></script>\n' : '') + '<script src="platform-android.js"></script>\n' + (desktop ? '<script src="platform-desktop.js"></script>\n' : '');
 if (!html.includes('<script src="i18n.js"></script>')) { console.error('library.html layout changed: cannot inject platform scripts'); process.exit(1); }
 html = html.replace('<script src="i18n.js"></script>', tag + '<script src="i18n.js"></script>');
 fs.writeFileSync(path.join(out, 'index.html'), html);

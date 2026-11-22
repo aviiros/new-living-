@@ -222,6 +222,28 @@
     });
   }
   // Removes light watermarks, stamps and paper texture, keeping only the dark text.
+  // Gentle page clean-up for the PaddleOCR reader (it likes grey pages): flatten uneven shading and stretch the contrast. No hard black/white cut.
+  function enhanceCanvas(cv) {
+    try {
+      var w = cv.width, h = cv.height, ctx = cv.getContext('2d'), im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h, lum = new Uint8Array(n), i, j;
+      for (i = 0, j = 0; j < n; i += 4, j++) lum[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0;
+      var B = Math.max(16, Math.round(Math.max(w, h) / 48)), gw = Math.ceil(w / B), gh = Math.ceil(h / B), g = new Float32Array(gw * gh), x, y;
+      for (y = 0; y < gh; y++) for (x = 0; x < gw; x++) { // paper level of each block: a high percentile (text is dark, so the brightest pixels are the paper)
+        var hist = new Uint32Array(256), cnt = 0, yy, xx; for (yy = y * B; yy < Math.min(h, y * B + B); yy += 2) for (xx = x * B; xx < Math.min(w, x * B + B); xx += 2) { hist[lum[yy * w + xx]]++; cnt++; }
+        var acc = 0, lv = 255, tgt = cnt * 0.15; for (var k = 0; k < 256; k++) { acc += hist[k]; if (acc >= cnt - tgt) { lv = k; break; } } g[y * gw + x] = Math.max(60, lv);
+      }
+      var out = new Uint8Array(n), hh = new Uint32Array(256);
+      for (y = 0; y < h; y++) { var fy = Math.min(gh - 1, Math.max(0, (y + 0.5) / B - 0.5)), y0 = fy | 0, y1 = Math.min(gh - 1, y0 + 1), ty = fy - y0;
+        for (x = 0; x < w; x++) { var fx = Math.min(gw - 1, Math.max(0, (x + 0.5) / B - 0.5)), x0 = fx | 0, x1 = Math.min(gw - 1, x0 + 1), tx = fx - x0;
+          var bg = (g[y0 * gw + x0] * (1 - tx) + g[y0 * gw + x1] * tx) * (1 - ty) + (g[y1 * gw + x0] * (1 - tx) + g[y1 * gw + x1] * tx) * ty;
+          var v = Math.min(255, lum[y * w + x] * 255 / bg) | 0; out[y * w + x] = v; hh[v]++; } }
+      var lo = 0, hi = 255, a2 = 0; for (i = 0; i < 256; i++) { a2 += hh[i]; if (a2 >= n * 0.005) { lo = i; break; } } a2 = 0; for (i = 255; i >= 0; i--) { a2 += hh[i]; if (a2 >= n * 0.30) { hi = i; break; } }
+      if (hi - lo < 40) return cv; var sc = 255 / (hi - lo);
+      for (i = 0, j = 0; j < n; i += 4, j++) { var q = Math.max(0, Math.min(255, (out[j] - lo) * sc)) | 0; d[i] = d[i + 1] = d[i + 2] = q; d[i + 3] = 255; }
+      ctx.putImageData(im, 0, 0);
+    } catch (e) { /* keep the page as it is */ }
+    return cv;
+  }
   function cleanCanvas(cv) {
     var w = cv.width, h = cv.height, ctx = cv.getContext('2d'), im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h, lum = new Uint8Array(n), hist = new Array(256).fill(0), i, j;
     for (i = 0, j = 0; j < n; i += 4, j++) { var l = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; lum[j] = l; hist[l]++; }
@@ -356,33 +378,39 @@
         }
       });
     };
+    // pages already read are kept, so a stopped or interrupted conversion of the same file continues where it stopped
+    var rkey = cx && cx.key ? 'li-ocrp:' + cx.key : '', saved = {};
+    if (rkey) { try { saved = JSON.parse(localStorage.getItem(rkey) || '{}') || {}; } catch (e) { saved = {}; } }
+    var keep = function (i) { if (!rkey || !all.length) return; try { saved[i] = all[all.length - 1]; localStorage.setItem(rkey, JSON.stringify(saved)); } catch (e) { /* storage full: continue without saving */ } };
     var step = function (i) {
       if (i > count) return Promise.resolve();
       if (cx && cx.stop) return Promise.reject(new Error('cancel'));
+      if (saved[i]) { all.push(saved[i]); done++; return step(i + 1); }
       if (onP) onP(Math.round((i - 1) / count * 95), label(i));
       return getCanvas(i).then(function (cv) {
         if (!useAI) return tessPage(i, cv);
         if (webAvail()) {
-          var c2 = scaleCv(cv, 1700);
+          var c2 = scaleCv(enhanceCanvas(cv), 1700);
           return window.liPP.page(c2, 'auto').then(function (md) { if (c2 !== cv) c2.width = c2.height = 1; cv.width = cv.height = 1; return { kind: 'ok', text: md }; }, function () { return { kind: 'err' }; }).then(handleAi(i));
         }
-        var png = canvasPng(cv, 1700); cv.width = cv.height = 1;
+        var png = canvasPng(enhanceCanvas(cv), 2400); cv.width = cv.height = 1;
         return window.liDesk.ocrPage(png).then(handleAi(i));
-      }).then(function () { return step(i + 1); });
+      }).then(function () { keep(i); return step(i + 1); });
     };
     var handleAi = function (i) {
       return function (r) {
-          if (r && r.kind === 'ok' && r.text) { var pp = mdParas(r.text); all.push(pp); done++; return; }
+          if (r && r.kind === 'ok' && r.text) { var pp = mdParas(r.text); if (window.liArFix) pp.forEach(function (x) { x.t = window.liArFix.fix(x.t); }); all.push(pp); done++; return; }
           // The AI reader failed on this page: continue with the built-in reader (redraw the page for it)
           useAI = false; return getCanvas(i).then(function (cv2) { return tessPage(i, cv2); });
       };
     };
     var fin = function () { var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} if (webAvail()) try { window.liPP.stop(); } catch (e) {} return p; };
-    return aiGate(onP).then(function (ok) { useAI = ok; return step(1); }).then(fin, function (e) { try { fin(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); });
+    return aiGate(onP).then(function (ok) { useAI = ok; return ok && window.liArFix ? window.liArFix.load().then(function () { return step(1); }) : step(1); }).then(fin, function (e) { try { fin(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); }).then(function (r) { if (rkey) { try { localStorage.removeItem(rkey); } catch (e) {} } return r; });
   }
   var TT = function (a, e) { try { if (typeof window.T === 'function') return window.T(a, e); } catch (x) {} return EN() ? e : a; };
   var EN = function () { try { return typeof LANG !== 'undefined' && LANG !== 'ar'; } catch (e) { return false; } };
   function ocrPdf(doc, name, onP, cx) {
+    cx = cx || {}; cx.key = 'pdf|' + String(name || '') + '|' + doc.numPages;
     return ocrRun(doc.numPages, function (i) {
       return doc.getPage(i).then(function (pg) {
         var v1 = pg.getViewport({ scale: 1 }), sc = Math.min(3, 2300 / Math.max(v1.width, v1.height)), vp = pg.getViewport({ scale: sc }), cv = document.createElement('canvas');
@@ -394,7 +422,7 @@
   }
   // Photos / images (camera or gallery) -> book
   function imagesToHtml(files, name, onP, cx) {
-    var list = [].slice.call(files);
+    var list = [].slice.call(files); cx = cx || {}; cx.key = 'img|' + list.map(function (f) { return (f.name || '') + ':' + (f.size || 0); }).join(',').slice(0, 300);
     return ocrRun(list.length, function (i) { return blobBitmap(list[i - 1]).then(function (bm) { var cv = drawBitmap(bm, 2400); try { bm.close(); } catch (e) {} return cv; }); }, onP, cx).then(function (built) {
       if (!built.items.length) throw new Error('noText');
       var rtl = isArabic(built.text.slice(0, 6000)), title = String(name || '').replace(/\.[^.]+$/, '') || built.firstHeading || 'Scan';
