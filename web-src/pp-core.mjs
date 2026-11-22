@@ -76,6 +76,26 @@ export function reverseVisual(s) {
   return parts.reverse().join('');
 }
 
+// The models do not always write in the same order. Three candidates: as is, the whole line reversed, or only the letters of each word reversed.
+// Real Arabic text gives itself away: words start with "ال", never start with ة or ى, and end with ة ى ات ون ين.
+const revWord = (w) => Array.from(w).reverse().join('');
+const perWord = (t) => t.split(' ').map(revWord).join(' ');
+export function orderScore(lines) {
+  let sc = 0;
+  for (const l of lines) for (const w0 of l.split(/\s+/)) {
+    const w = w0.replace(/[^\u0621-\u064a]/g, ''); if (w.length < 2) continue;
+    if (/^ال./.test(w) || /^(وال|بال|لل|فال)/.test(w)) sc += 2;
+    if (/(ة|ى|ات|ون|ين|ان)$/.test(w)) sc += 1;
+    if (/^[ةىءًٌٍ]/.test(w)) sc -= 3;
+    if (/(لا|لاو|لابو)$/.test(w) && w.length > 3) sc -= 1;
+  }
+  return sc;
+}
+export function pickOrder(lines) { // returns a function that puts one raw line into reading order
+  const c = [[(t) => reverseVisual(t), lines.map(reverseVisual)], [(t) => t, lines], [perWord, lines.map(perWord)]];
+  let best = 0, bs = -1e9; c.forEach((x, i) => { const v = orderScore(x[1]); if (v > bs + 1) { bs = v; best = i; } });
+  return c[best][0];
+}
 export const arabicShare = (s) => { const L = (s.match(/\p{L}/gu) || []).length; if (!L) return 0; return (s.match(/[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/g) || []).length / L; };
 export const letters = (s) => (s.match(/\p{L}/gu) || []).length;
 
@@ -137,7 +157,7 @@ export function makeReader(env) {
   return async function readPage(img, lang, spec) {
     const t0 = Date.now(), A = spec.pipelines.arabic, L = spec.pipelines.latin;
     let script = lang === 'ar' ? 'arabic' : (lang === 'latin' ? 'latin' : 'auto'), items = [];
-    const run = async (P, rev) => { const boxes = await detect(img, P), rs = await recognize(img, boxes, P.rec, P.recYml, rev); return boxes.map((b, i) => ({ box: b, text: rs[i].text, conf: rs[i].conf })); };
+    const run = async (P, rev) => { const boxes = await detect(img, P), rs = await recognize(img, boxes, P.rec, P.recYml, false); if (rev) { const f = pickOrder(rs.map((x) => x.text)); rs.forEach((x) => { x.text = f(x.text); }); } return boxes.map((b, i) => ({ box: b, text: rs[i].text, conf: rs[i].conf })); };
     if (script === 'latin') items = await run(L, false);
     else {
       items = await run(A, A.reverse !== false);
