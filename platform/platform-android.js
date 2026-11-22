@@ -565,6 +565,73 @@
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') { showMenu(); } else if (d && d.liCmd === 'trgo' && NAMES[d.tgt]) { start(d.tgt); } else if (d && d.liCmd === 'trstop') { queue.length = 0; state.run++; btn.textContent = 'A文'; } });
   }
 
+
+  // Runs INSIDE the PDF viewer page: guided reading. A dark mask leaves a bright band of a few lines; the page moves under it by buttons, keys, a tap on the dark area, or by itself at a chosen speed.
+  function PDFG() {
+    var UI = (window.__LI && window.__LI.ui) || 'ar', $ = function (i) { return document.getElementById(i); };
+    var S = {
+      ar: { t: 'القراءة الموجهة', n: 'التالي', p: 'السابق', a: 'تلقائي', x: 'إغلاق', w: 'كلمة/د', b: 'أسطر' },
+      en: { t: 'Guided reading', n: 'Next', p: 'Previous', a: 'Auto', x: 'Close', w: 'wpm', b: 'lines' },
+      fr: { t: 'Lecture guidée', n: 'Suivant', p: 'Précédent', a: 'Auto', x: 'Fermer', w: 'mots/min', b: 'lignes' },
+      es: { t: 'Lectura guiada', n: 'Siguiente', p: 'Anterior', a: 'Auto', x: 'Cerrar', w: 'palabras/min', b: 'líneas' },
+      it: { t: 'Lettura guidata', n: 'Avanti', p: 'Indietro', a: 'Auto', x: 'Chiudi', w: 'parole/min', b: 'righe' },
+      id: { t: 'Membaca terpandu', n: 'Berikutnya', p: 'Sebelumnya', a: 'Otomatis', x: 'Tutup', w: 'kata/mnt', b: 'baris' }
+    };
+    var s = S[UI] || S.en, sc = $('sc'), bar = $('bar'); if (!sc || !bar) return;
+    var st = { on: false, auto: false, wpm: 180, band: 3, timer: null, lh: 0, wpl: 8 }, mt = null, mb = null, pn = null, key = 'li-pdf-guide';
+    try { var sv = JSON.parse(localStorage.getItem(key) || '{}'); if (sv.wpm) st.wpm = sv.wpm; if (sv.band) st.band = sv.band; } catch (e) {}
+    var save = function () { try { localStorage.setItem(key, JSON.stringify({ wpm: st.wpm, band: st.band })); } catch (e) {} };
+    var btn = document.createElement('button'); btn.id = 'gd'; btn.title = s.t; btn.setAttribute('aria-label', s.t); btn.textContent = '▤'; bar.appendChild(btn);
+    var bandTop = function () { return Math.round(bar.offsetHeight + sc.clientHeight * 0.26); };
+    var bandPx = function () { return Math.round(st.band * (st.lh || 26)); };
+    // line height and words per line of the page now on screen, from its text (a scanned page without text keeps the defaults)
+    function measure() {
+      var d = window.__pdoc, n = window.__pcur ? window.__pcur() : 1; if (!d) return;
+      d.getPage(n).then(function (pg) {
+        var vp1 = pg.getViewport({ scale: 1 }), el = document.querySelectorAll('.pg')[n - 1], r = el ? el.offsetHeight / vp1.height : 1;
+        return pg.getTextContent().then(function (tc) {
+          var hs = [], rows = {}, words = 0;
+          tc.items.forEach(function (it) { if (!it.str || !it.str.trim()) return; if (it.height > 2) hs.push(it.height); var y = Math.round(it.transform[5] / 3); rows[y] = 1; words += it.str.trim().split(/\s+/).length; });
+          if (!hs.length) return; hs.sort(function (a, b) { return a - b; });
+          st.lh = Math.max(14, hs[hs.length >> 1] * r * 1.35); var nr = Object.keys(rows).length; st.wpl = Math.max(3, words / Math.max(1, nr));
+        });
+      }).catch(function () {});
+    }
+    function masks() {
+      if (!mt) {
+        mt = document.createElement('div'); mb = document.createElement('div');
+        [mt, mb].forEach(function (m) { m.style.cssText = 'position:fixed;left:0;right:0;z-index:6;background:rgba(0,0,0,.58);cursor:pointer'; document.body.appendChild(m); });
+        mt.addEventListener('click', function () { move(-1); }); mb.addEventListener('click', function () { move(1); });
+      }
+      var t = bandTop(), h = bandPx(); mt.style.top = bar.offsetHeight + 'px'; mt.style.height = (t - bar.offsetHeight) + 'px'; mb.style.top = (t + h) + 'px'; mb.style.bottom = '0';
+    }
+    function panel() {
+      if (pn) return; pn = document.createElement('div');
+      pn.style.cssText = 'position:fixed;z-index:7;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:var(--bar);border:1px solid var(--ln);color:var(--tx);font-size:13px;direction:ltr;box-shadow:0 4px 18px rgba(0,0,0,.35)';
+      var b = function (id, txt, ttl) { return '<button id="' + id + '" title="' + ttl + '" aria-label="' + ttl + '" style="border:1px solid var(--ln);background:none;color:inherit;border-radius:8px;height:30px;min-width:34px;cursor:pointer;font:inherit">' + txt + '</button>'; };
+      pn.innerHTML = b('gdp', '▲', s.p) + b('gda', '▶', s.a) + b('gdn', '▼', s.n) + '<input id="gdw" type="range" min="80" max="450" step="10" style="width:90px" title="' + s.w + '"><span id="gdv" style="min-width:74px"></span>' + b('gdb', '3 ' + s.b, s.b) + b('gdx', '✕', s.x);
+      document.body.appendChild(pn);
+      var up = function () { $('gdv').textContent = st.wpm + ' ' + s.w; $('gda').textContent = st.auto ? '❚❚' : '▶'; $('gdb').textContent = st.band + ' ' + s.b; $('gdw').value = st.wpm; };
+      pn.up = up; up();
+      $('gdp').onclick = function () { move(-1); }; $('gdn').onclick = function () { move(1); }; $('gdx').onclick = stop;
+      $('gda').onclick = function () { st.auto = !st.auto; up(); sched(); };
+      $('gdw').oninput = function () { st.wpm = +this.value; save(); up(); };
+      $('gdb').onclick = function () { st.band = st.band >= 5 ? 2 : st.band + 1; save(); up(); masks(); };
+    }
+    function sched() { clearTimeout(st.timer); st.timer = null; if (!st.on || !st.auto) return; var ms = Math.max(900, st.wpl * st.band * 0.9 / st.wpm * 60000); st.timer = setTimeout(function () { move(1); }, ms); }
+    function move(dir) { sc.scrollBy({ top: dir * bandPx() * 0.9, behavior: 'smooth' }); setTimeout(measure, 500); sched(); }
+    function start() { st.on = true; measure(); masks(); panel(); btn.style.background = 'rgba(195,113,76,.3)'; }
+    function stop() { st.on = false; st.auto = false; clearTimeout(st.timer); [mt, mb, pn].forEach(function (x) { if (x) x.remove(); }); mt = mb = pn = null; btn.style.background = ''; }
+    btn.onclick = function () { st.on ? stop() : start(); };
+    window.addEventListener('resize', function () { if (st.on) masks(); });
+    window.addEventListener('keydown', function (e) {
+      if (!st.on) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { move(1); e.preventDefault(); e.stopPropagation(); }
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') { move(-1); e.preventDefault(); e.stopPropagation(); }
+      else if (e.key === 'Escape') stop();
+    }, true);
+  }
+
   // Runs INSIDE the PDF viewer page: translates page text and paints it over the original text, in place.
   function PDFX() {
     var N = window.LiNative; if (!N || !N.translate) return;
@@ -739,7 +806,7 @@
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
-    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TTSX.toString() + ')();<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
+    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TTSX.toString() + ')();<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script><script>(' + PDFG.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------
