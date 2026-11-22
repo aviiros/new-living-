@@ -33,7 +33,15 @@ async function startPP(m) {
     s.mname = m.name; s.pp = true; srv = s; return s;
   } finally { loading = false; }
 }
+let gen = 0;
 async function start() {
+  const g = gen, s0 = await start0();
+  if (g !== gen) { // the person changed the reader while this one was starting: drop it and start the chosen one
+    try { s0.kill(); } catch (e) {} if (srv === s0) srv = null; return start();
+  }
+  return s0;
+}
+async function start0() {
   if (srv) return srv;
   if (isPP()) return startPP(cur());
   if (!E.ramOk(3.5)) throw new Error('not enough memory for the local AI model');
@@ -68,7 +76,7 @@ let chain = Promise.resolve();
 parentPort.on('message', (m) => {
   if (m.kind === 'status') return post({ kind: 'status', id: m.id, needMB: needMB(), have: have(), ram: E.ramOk(isPP() ? 1.5 : 3.5), win: process.platform === 'win32' });
   if (m.kind === 'ctl') { if (m.ctl === 'pause' && srv) srv.pause(); else if (m.ctl === 'resume' && srv) srv.resume(); else if (m.ctl === 'unload') { if (srv && srv.busy) return post({ kind: 'ctl', id: m.id, busy: true }); const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } } return post({ kind: 'ctl', id: m.id, stats: statsNow() }); }
-  if (m.kind === 'stop') { const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } return post({ kind: 'stopped', id: m.id }); }
+  if (m.kind === 'stop') { gen++; const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } return post({ kind: 'stopped', id: m.id }); }
   if (m.kind === 'prep') { chain = chain.then(() => (starting = starting || start().finally(() => { starting = null; }))).then(() => post({ kind: 'ok', id: m.id }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); return; }
   if (m.kind === 'page') { chain = chain.then(() => page(m.image, m.lang)).then((t) => post({ kind: 'ok', id: m.id, text: t }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); }
 });

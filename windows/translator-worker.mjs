@@ -176,7 +176,8 @@ async function aiStart() {
   }
   const exe = await E.ensureLlama(workerData.cache, pct);
   // do not load while the memory is short: a transient problem, the faster engines answer instead
-  const need = Math.round((m.files ? m.files[0].bytes : 1100000000) / 1048576 * 1.4 + 400);
+  const need = Math.round((m.files ? m.files[0].bytes : 1100000000) / 1048576 * 1.15 + 250);
+  for (let i = 0; i < 10 && !E.memOk(need); i++) await new Promise((r) => setTimeout(r, 2000));
   if (!E.memOk(need)) { const e = new Error('not enough free memory right now (' + need + ' MB needed)'); e.transient = true; throw e; }
   aiLoading = true;
   try {
@@ -230,15 +231,17 @@ async function go(m) {
   try {
     let r = null, eng = 'marian', why1 = '';
     // Fast by default (small model per language pair). The big NLLB model is only used when the person asks for higher quality.
-    if (m.hq) {
+    // The local model is the default engine now (offline, no per-pair downloads). Internet engines are only a last resort.
+    const local = m.hq || process.env.LI_SMOKE !== '1';
+    if (local) {
       try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
       if (r == null) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot (' + why1 + ')'; } catch (e) { r = null; } }
       if (r == null) { try { r = await marian(text, src, tgt); eng = 'marian (' + why1 + ')'; } catch (e) { r = null; } }
     }
-    if (!m.hq) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot'; } catch (e) { r = null; why1 = 'bergamot: ' + why(e); } }
-    if (!m.hq && (r == null || !String(r).trim())) { try { r = await marian(text, src, tgt); eng = 'marian' + (why1 ? ' (' + why1 + ')' : ''); } catch (e) { r = null; why1 = why1 || why(e); } }
+    if (!local) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot'; } catch (e) { r = null; why1 = 'bergamot: ' + why(e); } }
+    if (!local && (r == null || !String(r).trim())) { try { r = await marian(text, src, tgt); eng = 'marian' + (why1 ? ' (' + why1 + ')' : ''); } catch (e) { r = null; why1 = why1 || why(e); } }
     if (r == null && !nllbBad) { try { r = await viaNllb(text, src, tgt); eng = 'nllb'; } catch (e) { r = null; why1 = why1 || why(e); } } else if (r == null) why1 = why1 || nllbWhy;
-    if (r == null && m.hq) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
+    if (r == null && local) { eng = 'marian' + (why1 ? ' (nllb failed: ' + why1 + ')' : ''); r = await marian(text, src, tgt); }
     if (!r || !String(r).trim()) { try { r = await marian(text, src, tgt); eng = 'marian'; } catch (e) { r = null; } }
     if (!r || !String(r).trim()) return post(id, 'err', 'empty result ' + src + '>' + tgt);
     post(id, 'ok', r, eng);
