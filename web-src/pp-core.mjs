@@ -172,7 +172,7 @@ export function makeReader(env) {
       } else script = 'arabic';
     }
     items = items.filter((x) => x.conf >= 0.3 && x.text.trim());
-    return { md: toMarkdown(items, script === 'arabic'), lines: items.length, script, ms: Date.now() - t0 };
+    return { md: toMarkdown(items, script === 'arabic'), lines: items.length, script, ms: Date.now() - t0, w: img.w, h: img.h, rows: items.map((x) => ({ t: x.text, b: x.box })) };
   };
 }
 // dictionary of a recognizer from its settings: blank first, space last

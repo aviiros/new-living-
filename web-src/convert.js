@@ -341,6 +341,24 @@
       });
     }).catch(function () { return false; });
   }
+  // Lines of a scanned page with their place on it (fractions of the page), for the text layer of a PDF opened as it is.
+  // Uses the same local reader and the same page clean-up as the conversion. Returns null when no reader is available.
+  var linesGate = null;
+  window.liOcrLines = function (cv) {
+    if (!linesGate) linesGate = aiGate(null).catch(function () { return false; });
+    return linesGate.then(function (ok) {
+      if (!ok) return null;
+      var load = window.liArFix ? window.liArFix.load() : Promise.resolve();
+      return load.then(function () {
+        var job = webAvail() ? window.liPP.lines(scaleCv(enhanceCanvas(cv), 1700), 'auto')
+          : window.liDesk.ocrLines(canvasPng(enhanceCanvas(cv), 2400), 'auto').then(function (r) { if (!r || r.kind !== 'ok' || !r.text) return null; try { return JSON.parse(r.text); } catch (e) { return null; } });
+        return job.then(function (r) {
+          if (!r || !r.rows || !r.w) return null;
+          return { script: r.script, rows: r.rows.map(function (x) { var b = x.b, t = window.liArFix && r.script === 'arabic' ? window.liArFix.fix(x.t) : x.t; return { t: t, x: b[0] / r.w, y: b[1] / r.h, w: (b[2] - b[0]) / r.w, h: (b[3] - b[1]) / r.h }; }) };
+        });
+      });
+    }).catch(function () { return null; });
+  };
   // The model answers in Markdown (# headings, paragraphs, sometimes an HTML table) -> paragraphs [{t, big}]
   function mdParas(md) {
     var out = [], s = String(md || '').replace(/\r/g, '');

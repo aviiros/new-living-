@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('liDesk', {
   ocrStatus: () => ipcRenderer.invoke('ai:ocr:status'),
   ocrPrep: () => ipcRenderer.invoke('ai:ocr:prep'),
   ocrPage: (img, lang) => ipcRenderer.invoke('ai:ocr:page', img, lang),
+  ocrLines: (img, lang) => ipcRenderer.invoke('ai:ocr:lines', img, lang),
   ocrStop: () => ipcRenderer.invoke('ai:ocr:stop'),
   aiList: () => ipcRenderer.invoke('ai:list'),
   aiSelect: (k, id) => ipcRenderer.invoke('ai:select', k, id),

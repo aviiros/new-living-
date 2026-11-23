@@ -30,8 +30,11 @@ const srv = http.createServer((q, r) => { let f = path.join(root, decodeURICompo
     const e = T.cer(T.PAGES[k].join(' '), r.md); out.pages[key] = { cer: e, sec: Math.round(r.ms / 100) / 10, text: r.md.slice(0, 200) }; sum += e; n++;
   }
   out.meanCER = Math.round(sum / n * 10) / 10;
+  // line boxes (for the text layer of scanned PDFs): every line has text and a box inside the page
+  out.lines = await pg.evaluate(async () => { const url = window.__mkPage(window.__T0 || ['Hello world, this is a test line', 'A second line of the page'], false, 0), img = new Image(); await new Promise((ok) => { img.onload = ok; img.src = url; }); const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height; cv.getContext('2d').drawImage(img, 0, 0); const r = await window.liPP.lines(cv, 'auto'); return { w: r.w, h: r.h, n: r.rows.length, inside: r.rows.every((x) => x.t && x.b[0] >= 0 && x.b[1] >= 0 && x.b[2] <= r.w && x.b[3] <= r.h && x.b[2] > x.b[0]) }; });
+
   console.log(JSON.stringify(out, null, 1));
   fs.writeFileSync('pp-web-report.json', JSON.stringify(out, null, 1));
-  const ok = out.haveAfter && Object.values(out.yml).every((y) => y.dictSame) && out.meanCER < 8;
+  const ok = out.haveAfter && Object.values(out.yml).every((y) => y.dictSame) && out.meanCER < 8 && out.lines.n >= 1 && out.lines.inside;
   await b.close(); srv.close(); process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

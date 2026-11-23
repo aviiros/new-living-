@@ -137,6 +137,7 @@ function ocrCall(msg, freeTranslator) {
 ipcMain.handle('ai:ocr:status', () => ocrCall({ kind: 'status' }));
 ipcMain.handle('ai:ocr:prep', () => ocrCall({ kind: 'prep' }, true));
 ipcMain.handle('ai:ocr:page', (_e, image, lang) => ocrCall({ kind: 'page', image: String(image), lang: lang ? String(lang) : '' }, true));
+ipcMain.handle('ai:ocr:lines', (_e, image, lang) => ocrCall({ kind: 'page', image: String(image), lang: lang ? String(lang) : '', rows: true }, true));
 ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
 
 

@@ -100,6 +100,16 @@
     };
     var p = chain.then(run, run); chain = p.catch(function () {}); return p;
   }
+  // the same, but the lines with their boxes: {w, h, rows:[{t, b:[x0,y0,x1,y1]}]}
+  function lines(cv, lang) {
+    var run = function () {
+      return init().then(function () {
+        var c = cv.getContext('2d'), d = c.getImageData(0, 0, cv.width, cv.height);
+        return reader({ w: cv.width, h: cv.height, data: d.data }, lang || 'auto', SPEC);
+      }).then(function (r) { return { w: r.w, h: r.h, rows: r.rows || [], script: r.script }; });
+    };
+    var p = chain.then(run, run); chain = p.catch(function () {}); return p;
+  }
   function stop() { sessions = {}; reader = null; buffers = {}; }
-  window.liPP = { have: have, prep: prep, page: page, stop: stop, parseYml: parseYml, _F: F, _Y: Y };
+  window.liPP = { have: have, prep: prep, page: page, lines: lines, stop: stop, parseYml: parseYml, _F: F, _Y: Y };
 })();

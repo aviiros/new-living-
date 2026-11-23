@@ -572,18 +572,60 @@
     var lib = window['pdfjs-dist/build/pdf'], sc = document.getElementById('sc'), pagesEl = document.getElementById('pages'); if (!lib || !sc || !pagesEl) return;
     var UI = (window.__LI && window.__LI.ui) || 'ar';
     var S = {
-      ar: { hl: 'تظليل', note: 'ملاحظة', copy: 'نسخ', del: 'حذف', save: 'حفظ', ph: 'اكتب ملاحظتك…', bmOn: 'أُضيفت إشارة مرجعية', bmOff: 'أُزيلت الإشارة المرجعية', none: 'لا توجد نتائج', scan: 'هذا الملف صور فقط، فلا يمكن البحث فيه. حوّله إلى كتاب HTML.', pg: 'صفحة', done: 'تم النسخ' },
-      en: { hl: 'Highlight', note: 'Note', copy: 'Copy', del: 'Delete', save: 'Save', ph: 'Write your note…', bmOn: 'Bookmark added', bmOff: 'Bookmark removed', none: 'No results', scan: 'This file is only images, so it cannot be searched. Convert it to an HTML book.', pg: 'Page', done: 'Copied' },
-      fr: { hl: 'Surligner', note: 'Note', copy: 'Copier', del: 'Supprimer', save: 'Enregistrer', ph: 'Écrivez votre note…', bmOn: 'Signet ajouté', bmOff: 'Signet retiré', none: 'Aucun résultat', scan: 'Ce fichier ne contient que des images : recherche impossible. Convertissez-le en livre HTML.', pg: 'Page', done: 'Copié' },
-      es: { hl: 'Subrayar', note: 'Nota', copy: 'Copiar', del: 'Eliminar', save: 'Guardar', ph: 'Escribe tu nota…', bmOn: 'Marcador añadido', bmOff: 'Marcador eliminado', none: 'Sin resultados', scan: 'Este archivo solo tiene imágenes, así que no se puede buscar. Conviértelo en libro HTML.', pg: 'Página', done: 'Copiado' },
-      it: { hl: 'Evidenzia', note: 'Nota', copy: 'Copia', del: 'Elimina', save: 'Salva', ph: 'Scrivi la tua nota…', bmOn: 'Segnalibro aggiunto', bmOff: 'Segnalibro rimosso', none: 'Nessun risultato', scan: 'Questo file contiene solo immagini, quindi non si può cercare. Convertilo in libro HTML.', pg: 'Pagina', done: 'Copiato' },
-      id: { hl: 'Sorot', note: 'Catatan', copy: 'Salin', del: 'Hapus', save: 'Simpan', ph: 'Tulis catatan Anda…', bmOn: 'Penanda ditambahkan', bmOff: 'Penanda dihapus', none: 'Tidak ada hasil', scan: 'File ini hanya gambar, jadi tidak bisa dicari. Ubah menjadi buku HTML.', pg: 'Halaman', done: 'Disalin' }
+      ar: { ocr: 'جارٍ قراءة نص الصفحة', hl: 'تظليل', note: 'ملاحظة', copy: 'نسخ', del: 'حذف', save: 'حفظ', ph: 'اكتب ملاحظتك…', bmOn: 'أُضيفت إشارة مرجعية', bmOff: 'أُزيلت الإشارة المرجعية', none: 'لا توجد نتائج', scan: 'هذا الملف صور فقط، فلا يمكن البحث فيه. حوّله إلى كتاب HTML.', pg: 'صفحة', done: 'تم النسخ' },
+      en: { ocr: 'Reading the text of page', hl: 'Highlight', note: 'Note', copy: 'Copy', del: 'Delete', save: 'Save', ph: 'Write your note…', bmOn: 'Bookmark added', bmOff: 'Bookmark removed', none: 'No results', scan: 'This file is only images, so it cannot be searched. Convert it to an HTML book.', pg: 'Page', done: 'Copied' },
+      fr: { ocr: 'Lecture du texte de la page', hl: 'Surligner', note: 'Note', copy: 'Copier', del: 'Supprimer', save: 'Enregistrer', ph: 'Écrivez votre note…', bmOn: 'Signet ajouté', bmOff: 'Signet retiré', none: 'Aucun résultat', scan: 'Ce fichier ne contient que des images : recherche impossible. Convertissez-le en livre HTML.', pg: 'Page', done: 'Copié' },
+      es: { ocr: 'Leyendo el texto de la página', hl: 'Subrayar', note: 'Nota', copy: 'Copiar', del: 'Eliminar', save: 'Guardar', ph: 'Escribe tu nota…', bmOn: 'Marcador añadido', bmOff: 'Marcador eliminado', none: 'Sin resultados', scan: 'Este archivo solo tiene imágenes, así que no se puede buscar. Conviértelo en libro HTML.', pg: 'Página', done: 'Copiado' },
+      it: { ocr: 'Lettura del testo della pagina', hl: 'Evidenzia', note: 'Nota', copy: 'Copia', del: 'Elimina', save: 'Salva', ph: 'Scrivi la tua nota…', bmOn: 'Segnalibro aggiunto', bmOff: 'Segnalibro rimosso', none: 'Nessun risultato', scan: 'Questo file contiene solo immagini, quindi non si può cercare. Convertilo in libro HTML.', pg: 'Pagina', done: 'Copiato' },
+      id: { ocr: 'Membaca teks halaman', hl: 'Sorot', note: 'Catatan', copy: 'Salin', del: 'Hapus', save: 'Simpan', ph: 'Tulis catatan Anda…', bmOn: 'Penanda ditambahkan', bmOff: 'Penanda dihapus', none: 'Tidak ada hasil', scan: 'File ini hanya gambar, jadi tidak bisa dicari. Ubah menjadi buku HTML.', pg: 'Halaman', done: 'Disalin' }
     };
     var s = S[UI] || S.en, AN = [], pg = [], dims = {}, tcs = {}, outline = null, Q = { q: '', n: '', pageNo: 0, k: -1, matches: {} };
     function P(m) { m.liBook = 1; try { parent.postMessage(m, '*'); } catch (e) {} }
     function doc() { return window.__pdoc || null; }
     function curPage() { return window.__pcur ? window.__pcur() : 1; }
     function pageEl(n) { return document.querySelectorAll('.pg')[n - 1]; }
+
+    // ---- scanned pages (pictures only): the text is read once by the local reader, kept, and then behaves like the text of any PDF:
+    // search, selection, highlights, translation and reading aloud all get it through getTextContent below.
+    var ocrC = {}, ocrQ = Promise.resolve();
+    function idb() { return new Promise(function (ok, no) { try { var q = indexedDB.open('li-pdf-ocr', 1); q.onupgradeneeded = function () { q.result.createObjectStore('p'); }; q.onsuccess = function () { ok(q.result); }; q.onerror = function () { no(q.error); }; } catch (e) { no(e); } }); }
+    function idbGet(k) { return idb().then(function (db) { return new Promise(function (ok) { var r = db.transaction('p').objectStore('p').get(k); r.onsuccess = function () { ok(r.result || null); }; r.onerror = function () { ok(null); }; }); }).catch(function () { return null; }); }
+    function idbSet(k, v) { return idb().then(function (db) { db.transaction('p', 'readwrite').objectStore('p').put(v, k); }).catch(function () {}); }
+    function readRows(p, n) {
+      var lp = parent && parent.liOcrLines; if (!lp) return Promise.resolve(null);
+      var v1 = p.getViewport({ scale: 1 }), sc2 = Math.min(3, 2000 / Math.max(v1.width, v1.height)), vp = p.getViewport({ scale: sc2 }), cv = document.createElement('canvas'), cx = cv.getContext('2d');
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      return p.render({ canvasContext: cx, viewport: vp }).promise.then(function () { toast(s.ocr + ' ' + n + '…'); return lp(cv); }).then(function (r) { return r && r.rows ? r.rows : null; });
+    }
+    function toItems(p, rows) {
+      var v = p.getViewport({ scale: 1 }), W = v.width, H = v.height, vw = p.view || [0, 0, W, H];
+      return rows.filter(function (r) { return r.t && r.t.trim(); }).map(function (r) {
+        var fs = Math.max(4, r.h * H * 0.9);
+        return { str: r.t, dir: /[֐-ࣿ]/.test(r.t) ? 'rtl' : 'ltr', transform: [fs, 0, 0, fs, r.x * W + vw[0], vw[3] - (r.y + r.h * 0.82) * H], width: r.w * W, height: fs, fontName: 'ocr', hasEOL: true };
+      });
+    }
+    function ocrItems(p, n) {
+      if (ocrC[n]) return ocrC[n];
+      var key = ((window.__LI && window.__LI.id) || '') + ':' + n;
+      return ocrC[n] = idbGet(key).then(function (hit) {
+        if (hit) return hit;
+        var job = ocrQ.then(function () { return readRows(p, n); }); ocrQ = job.catch(function () {});
+        return job.then(function (rows) { if (rows && rows.length) idbSet(key, rows); return rows; });
+      }).then(function (rows) { return rows && rows.length ? toItems(p, rows) : null; }).catch(function () { return null; });
+    }
+    var ocrReady = new Promise(function (ok) { (function installOcr() {
+      var d = doc(); if (!d) return setTimeout(installOcr, 300);
+      d.getPage(1).then(function (p) {
+        var pr = Object.getPrototypeOf(p); if (pr.__lio) return; pr.__lio = 1; var orig = pr.getTextContent;
+        pr.getTextContent = function (o) {
+          var self = this;
+          return orig.call(self, o).then(function (tc) {
+            if (tc.items.some(function (i) { return i.str && i.str.trim(); })) return tc;
+            return ocrItems(self, self.pageNumber).then(function (items) { return items ? { items: items, styles: tc.styles || {} } : tc; });
+          });
+        };
+      }).then(ok, ok);
+    })(); });
     function rid() { return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
     var st = document.createElement('style');
     st.textContent = '.tl,.fl,.hl{position:absolute;inset:0;overflow:hidden}.tl{z-index:3;line-height:1;-webkit-user-select:text;user-select:text}.tl span{position:absolute;white-space:pre;color:transparent;transform-origin:0 0;cursor:text}.tl span::selection{background:rgba(70,130,255,.35);color:transparent}.fl{z-index:1;pointer-events:none}.hl{z-index:2;pointer-events:none}.fl i{position:absolute;background:rgba(255,200,0,.35);border-radius:2px}.fl i.cur{background:rgba(255,120,0,.5);outline:2px solid rgba(255,120,0,.9)}.hl i{position:absolute;background:rgba(255,214,0,.42);mix-blend-mode:multiply;border-radius:2px}.hl i.n{box-shadow:0 2px 0 #c3714c}body.night .hl i{mix-blend-mode:screen;background:rgba(255,214,0,.3)}.bk{position:absolute;top:0;inset-inline-end:14px;width:18px;height:30px;background:#c3714c;clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:4;pointer-events:none}#lipop{position:fixed;z-index:20;display:none;background:var(--bar);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:6px;box-shadow:0 4px 18px rgba(0,0,0,.35);gap:6px;font-size:13px;direction:ltr}#lipop button{border:1px solid var(--ln);background:none;color:inherit;border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font:inherit}#lipop button:hover{background:rgba(195,113,76,.18)}#lipop textarea{width:230px;height:72px;font:inherit;border:1px solid var(--ln);border-radius:8px;background:transparent;color:inherit;padding:6px;resize:none}#litoast{position:fixed;z-index:21;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(20,30,36,.92);color:#fff;border-radius:10px;padding:8px 14px;font-size:13px;display:none;max-width:80vw;text-align:center}';
@@ -595,7 +637,7 @@
     function dim(n) { return dims[n] || (dims[n] = doc().getPage(n).then(function (p) { var v = p.getViewport({ scale: 1 }); return { page: p, vp: v, w: v.width, h: v.height }; })); }
     function text(n) {
       if (tcs[n]) return tcs[n];
-      return tcs[n] = dim(n).then(function (d) {
+      return tcs[n] = ocrReady.then(function () { return dim(n); }).then(function (d) {
         return d.page.getTextContent().then(function (tc) {
           var items = [], i;
           for (i = 0; i < tc.items.length; i++) {
@@ -625,6 +667,7 @@
     // ---- layers on every page that has been drawn
     function build(el, n) {
       if (el.querySelector('.tl')) return;
+      if (Math.abs(n - curPage()) > 1 && !tcs[n]) return; // far pages are filled when they come near
       var fl = document.createElement('div'), hl = document.createElement('div'), tl = document.createElement('div'); fl.className = 'fl'; hl.className = 'hl'; tl.className = 'tl';
       el.appendChild(fl); el.appendChild(hl); el.appendChild(tl);
       paintAnnots(el, n);
@@ -666,9 +709,8 @@
       return out.sort(function (a, b) { return a.i - b.i; });
     }
     function repaint() { [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('.tl')) { paintAnnots(el, i + 1); paintFind(el, i + 1); } }); }
-    var raf = 0, mo = new MutationObserver(function () {
-      if (raf) return; raf = requestAnimationFrame(function () { raf = 0; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('canvas') && !el.querySelector('.tl')) { build(el, i + 1); } }); });
-    });
+    var raf = 0, pass = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('canvas') && !el.querySelector('.tl')) { build(el, i + 1); } }); }); }, mo = new MutationObserver(pass), scT = null;
+    sc.addEventListener('scroll', function () { clearTimeout(scT); scT = setTimeout(pass, 300); });
     mo.observe(pagesEl, { childList: true, subtree: true });
     function scaleBase() {}
     // ---- go to a page
@@ -676,10 +718,11 @@
     // ---- search
     function find(q, back) {
       var nqv = nq(q || ''); if (!nqv) { Q.n = ''; Q.q = ''; Q.pageNo = 0; Q.k = -1; repaint(); return; }
-      var d = doc(); if (!d) return; var total = d.numPages, fresh = nqv !== Q.n, seen = false;
+      var d = doc(); if (!d) return; var total = d.numPages, fresh = nqv !== Q.n, seen = false, tok = Q.tok = (Q.tok || 0) + 1;
       Q.q = q; Q.n = nqv;
       var start = fresh ? curPage() : (Q.pageNo || curPage()), k0 = fresh ? (back ? Infinity : -1) : Q.k;
       function step(pn, k, tried) {
+        if (tok !== Q.tok) return;
         if (tried > total) { toast(seen ? s.none : s.scan); Q.pageNo = 0; Q.k = -1; repaint(); return; }
         return text(pn).then(function (t) {
           if (t.has) seen = true;

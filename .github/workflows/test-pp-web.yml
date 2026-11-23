@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['web-src/pp-*', 'windows/pp-core.mjs', 'scripts/test-pp-web.js', 'scripts/prepare-www.js', '.github/workflows/test-pp-web.yml']
+    paths: ['web-src/pp-*', 'web-src/convert.js', 'windows/pp-core.mjs', 'scripts/test-pp-web.js', 'scripts/prepare-www.js', '.github/workflows/test-pp-web.yml']
 jobs:
   t:
     runs-on: ubuntu-latest

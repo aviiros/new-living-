@@ -59,14 +59,17 @@ async function start0() {
     s.mname = m.name; srv = s; return s;
   } finally { loading = false; }
 }
-async function page(dataUrl, lang) {
+async function page(dataUrl, lang, rows) {
   if (!starting) starting = start().finally(() => { starting = null; });
   const s = await starting || srv;
   if (s.pp) {
     const png = Buffer.from(String(dataUrl).replace(/^data:[^,]*,/, ''), 'base64');
     const j = await s.work(async () => { const r = await fetch('http://127.0.0.1:' + s.port + '/ocr?lang=' + encodeURIComponent(lang || 'auto'), { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png }); if (!r.ok) throw new Error('reader http ' + r.status + ' ' + (await r.text()).slice(0, 120)); return r.json(); });
-    s.lastInfo = { script: j.script, lines: j.lines, ms: j.ms }; return String(j.md || '').trim();
+    s.lastInfo = { script: j.script, lines: j.lines, ms: j.ms };
+    if (rows) return JSON.stringify({ w: j.w, h: j.h, rows: j.rows || [], script: j.script }); // line boxes, for the text layer of scanned PDFs
+    return String(j.md || '').trim();
   }
+  if (rows) return ''; // the big models give text only, no line boxes
   const body = { messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }, { type: 'text', text: PROMPT }] }], temperature: 0, max_tokens: 4096 };
   const j = await s.work(async () => { const r = await fetch('http://127.0.0.1:' + s.port + '/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error('AI engine http ' + r.status); return r.json(); });
   return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
@@ -78,5 +81,5 @@ parentPort.on('message', (m) => {
   if (m.kind === 'ctl') { if (m.ctl === 'pause' && srv) srv.pause(); else if (m.ctl === 'resume' && srv) srv.resume(); else if (m.ctl === 'unload') { if (srv && srv.busy) return post({ kind: 'ctl', id: m.id, busy: true }); const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } } return post({ kind: 'ctl', id: m.id, stats: statsNow() }); }
   if (m.kind === 'stop') { gen++; const s = srv; srv = null; if (s) { keepLast(s); s.kill(); } return post({ kind: 'stopped', id: m.id }); }
   if (m.kind === 'prep') { chain = chain.then(() => (starting = starting || start().finally(() => { starting = null; }))).then(() => post({ kind: 'ok', id: m.id }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); return; }
-  if (m.kind === 'page') { chain = chain.then(() => page(m.image, m.lang)).then((t) => post({ kind: 'ok', id: m.id, text: t }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); }
+  if (m.kind === 'page') { chain = chain.then(() => page(m.image, m.lang, !!m.rows)).then((t) => post({ kind: 'ok', id: m.id, text: t }), (e) => post({ kind: 'err', id: m.id, text: why(e) })); }
 });
