@@ -750,10 +750,10 @@
     function toc() {
       var d = doc(); if (!d) return P({ type: 'toc', items: [] });
       var go = outline ? Promise.resolve(outline) : d.getOutline().then(function (o) { return (outline = flat(o, 1, [])); }).catch(function () { return (outline = []); });
-      go.then(function (list) { P({ type: 'toc', items: list.filter(function (x) { return x.dest && x.t.trim(); }).map(function (x, i) { x.id = i; return { id: i, t: x.t.trim(), l: Math.min(2, x.l) }; }) }); });
+      go.then(function (list) { if (!list.some(function (x) { return x.dest && x.t.trim(); })) { var pgs = []; for (var k = 1; k <= d.numPages && k <= 2000; k++) pgs.push({ t: s.pg + ' ' + k, l: 1, pg: k }); list = outline = pgs; } P({ type: 'toc', items: list.filter(function (x) { return (x.dest || x.pg) && x.t.trim(); }).map(function (x, i) { x.id = i; return { id: i, t: x.t.trim(), l: Math.min(2, x.l) }; }) }); });
     }
     function jump(id) {
-      var list = (outline || []).filter(function (x) { return x.dest && x.t.trim(); }), it = list[id]; if (!it) return; var d = doc();
+      var list = (outline || []).filter(function (x) { return (x.dest || x.pg) && x.t.trim(); }), it = list[id]; if (!it) return; if (it.pg) { goPage(it.pg); return; } var d = doc();
       Promise.resolve(typeof it.dest === 'string' ? d.getDestination(it.dest) : it.dest).then(function (arr) { if (!arr) return; var ref = arr[0]; return (typeof ref === 'object' && ref ? d.getPageIndex(ref) : Promise.resolve(ref | 0)).then(function (ix) { goPage(ix + 1); }); }).catch(function () {});
     }
     // ---- highlights and notes
@@ -1006,7 +1006,7 @@
       Object.keys(W).forEach(function (k) { var c = 0; W[k].forEach(function (w) { c += l.split(w).length - 1; }); if (c > bs) { bs = c; best = k; } }); return best;
     }
     function ptext(n) { return getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { var o = []; tc.items.forEach(function (it) { o.push(it.str); if (it.hasEOL) o.push(' '); }); return o.join(' ').replace(/\s+/g, ' ').trim(); }); }
-    function lstop() { LS.on = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); }
+    function lstop() { LS.on = false; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
     // Pages are queued ahead (on the phone the whole rest of the document), so reading continues by itself while the page is frozen in the background.
     function lpage(n, tok) {
       var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
@@ -1021,10 +1021,10 @@
           if (!t) { top(); return; }
           var cs = lchunks(t), lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
           cs.forEach(function (c, k) {
-            var u = new SpeechSynthesisUtterance(c); u.__g = 'p' + pn; u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1;
+            var u = new SpeechSynthesisUtterance(c); u.__g = 'p' + pn; u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1; u.volume = (G.vol == null ? 1 : G.vol); LS.lg = lg;
             try { var vs = (window.speechSynthesis.getVoices() || []).filter(function (v) { return (v.lang || '').toLowerCase().indexOf(lg) === 0; }); var pick = vs.filter(function (v) { return v.name === G.voice; })[0] || vs[0]; if (pick) { u.voice = pick; u.lang = pick.lang; } } catch (e) {}
             var fin = false; Q.out++;
-            u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { try { window.__pgo && window.__pgo(pn); } catch (e) {} } };
+            u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { LS.cur = pn; lpanel(); try { window.__pgo && window.__pgo(pn); } catch (e) {} } };
             var done = function () { if (fin) return; fin = true; Q.out--; if (!LS.on || tok !== LS.tok) return; top(); };
             u.onend = done; u.onerror = function (ev) { if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return; done(); };
             try { window.speechSynthesis.speak(u); } catch (e) { lstop(); }
@@ -1035,7 +1035,55 @@
       top();
     }
     window.__liPdfStop = function () { if (LS.on) lstop(); };
-    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'plisten') { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; var tok = ++LS.tok; lsay(true); lpage((window.__pcur && window.__pcur()) || 1, tok); } });
+    // ---- player: entry button + control panel (play/pause, previous/next page, speed, volume, voice), like the book reader's dock
+    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic' },
+      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي' },
+      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique' },
+      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático' },
+      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico' },
+      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis' } };
+    var P = PL[UI] || PL.en;
+    var lb = document.createElement('button'); lb.type = 'button'; lb.id = 'li-pl-btn'; lb.title = P.l; lb.setAttribute('aria-label', P.l); lb.textContent = '🔊';
+    lb.style.cssText = btn.style.cssText + ';margin-left:8px'; ui.insertBefore(lb, menu);
+    var pn = document.createElement('div'); pn.id = 'li-pl'; pn.setAttribute('translate', 'no'); pn.style.cssText = 'display:none;position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:2147483001;width:min(92vw,360px);box-sizing:border-box;background:rgba(251,247,236,.98);color:#14262e;border:1px solid #d9cdb0;border-radius:18px;box-shadow:0 6px 22px rgba(0,0,0,.28);padding:10px 12px;font:13px system-ui,sans-serif;direction:' + (UI === 'ar' ? 'rtl' : 'ltr');
+    var bs = 'min-width:40px;height:38px;border-radius:19px;border:1px solid #d9cdb0;background:#fff;color:#14262e;font:700 16px system-ui,sans-serif;cursor:pointer';
+    pn.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:8px;direction:ltr"><button type="button" data-a="pv" title="' + P.pv + '" aria-label="' + P.pv + '" style="' + bs + '">⏮</button><button type="button" data-a="pp" title="' + P.pp + '" aria-label="' + P.pp + '" style="' + bs + ';min-width:52px;background:#14262e;color:#f5eedd">⏸</button><button type="button" data-a="nx" title="' + P.nx + '" aria-label="' + P.nx + '" style="' + bs + '">⏭</button><button type="button" data-a="x" title="' + P.x + '" aria-label="' + P.x + '" style="' + bs + '">✕</button></div>'
+      + '<div data-r="pg" style="text-align:center;margin:6px 0 2px;font-weight:600"></div>'
+      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.sp + '</span><input data-r="sp" type="range" min="0.6" max="2" step="0.1" style="flex:1"><b data-r="spv" style="min-width:34px;text-align:center"></b></label>'
+      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.vo + '</span><input data-r="vo" type="range" min="0" max="1" step="0.05" style="flex:1"><b data-r="vov" style="min-width:34px;text-align:center"></b></label>'
+      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.vc + '</span><select data-r="vc" style="flex:1;min-width:0;height:32px;border-radius:8px;border:1px solid #d9cdb0;background:#fff;color:#14262e"></select></label>';
+    document.body.appendChild(pn);
+    function gset(k, v) { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} G[k] = v; try { parent.localStorage.setItem('li-dock', JSON.stringify(G)); } catch (e) {} }
+    function gget() { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} return G; }
+    function q(r) { return pn.querySelector('[data-r="' + r + '"]'); }
+    function fillVoices() {
+      var sel = q('vc'), G = gget(), vs = []; try { vs = window.speechSynthesis.getVoices() || []; } catch (e) {}
+      var f = LS.lg ? vs.filter(function (v) { return (v.lang || '').toLowerCase().indexOf(LS.lg) === 0; }) : []; if (!f.length) f = vs;
+      var key = f.map(function (v) { return v.name; }).join('|'); if (sel.__k === key) { sel.value = G.voice || ''; return; } sel.__k = key;
+      sel.innerHTML = ''; var o = document.createElement('option'); o.value = ''; o.textContent = P.au; sel.appendChild(o);
+      f.forEach(function (v) { var x = document.createElement('option'); x.value = v.name; x.textContent = v.name + ' (' + v.lang + ')'; sel.appendChild(x); }); sel.value = G.voice || '';
+    }
+    function lpanel() {
+      if (!LS.on) { pn.style.display = 'none'; lb.style.background = btn.style.background; return; }
+      pn.style.display = 'block'; lb.style.background = '#b08d57'; var G = gget();
+      q('sp').value = G.rate || 1; q('spv').textContent = (+(G.rate || 1)).toFixed(1) + '×'; q('vo').value = G.vol == null ? 1 : G.vol; q('vov').textContent = Math.round((G.vol == null ? 1 : G.vol) * 100) + '%';
+      q('pg').textContent = P.pg + ' ' + (LS.cur || '') + (LS.q && LS.q.total ? ' / ' + LS.q.total : ''); pn.querySelector('[data-a="pp"]').textContent = LS.paused ? '▶' : '⏸'; fillVoices();
+    }
+    function lrestart(n) { if (!LS.on) return; LS.paused = false; var tok = ++LS.tok; try { window.speechSynthesis.cancel(); } catch (e) {} LS.cur = n; lpanel(); setTimeout(function () { if (LS.on && tok === LS.tok) lpage(n, tok); }, 120); }
+    function lstart() { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; LS.paused = false; var tok = ++LS.tok; lsay(true); LS.cur = (window.__pcur && window.__pcur()) || 1; lpanel(); lpage(LS.cur, tok); }
+    var plt = 0; function plLater(f) { clearTimeout(plt); plt = setTimeout(f, 450); }
+    pn.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-a]') : null; if (!b) return; var a = b.getAttribute('data-a'), n = LS.cur || 1;
+      if (a === 'x') lstop(); else if (a === 'pv') lrestart(Math.max(1, n - 1)); else if (a === 'nx') lrestart(Math.min((LS.q && LS.q.total) || 1e6, n + 1));
+      else if (a === 'pp') { if (LS.paused) lrestart(n); else { LS.paused = true; LS.tok++; try { window.speechSynthesis.cancel(); } catch (x) {} lpanel(); } }
+    });
+    q('sp').addEventListener('input', function () { gset('rate', +this.value); q('spv').textContent = (+this.value).toFixed(1) + '×'; plLater(function () { if (LS.on && !LS.paused) lrestart(LS.cur || 1); }); });
+    q('vo').addEventListener('input', function () { gset('vol', +this.value); q('vov').textContent = Math.round(this.value * 100) + '%'; plLater(function () { if (LS.on && !LS.paused) lrestart(LS.cur || 1); }); });
+    q('vc').addEventListener('change', function () { gset('voice', this.value); if (LS.on && !LS.paused) lrestart(LS.cur || 1); });
+    try { window.speechSynthesis.addEventListener('voiceschanged', function () { if (LS.on) fillVoices(); }); } catch (e) {}
+    lb.addEventListener('click', function (e) { e.stopPropagation(); lstart(); });
+    window.__liPdfListen = lstart;
+    window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'plisten') lstart(); });
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     var saved = null; try { saved = localStorage.getItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {}

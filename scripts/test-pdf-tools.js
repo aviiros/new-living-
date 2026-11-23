@@ -5,11 +5,11 @@ const port=srv.address().port;
 const pa=fs.readFileSync(__dirname+'/../platform/platform-android.js','utf8');
 const fnOf=(n)=>{const a=pa.indexOf('function '+n+'()');let d=0,i=pa.indexOf('{',a);for(let j=i;j<pa.length;j++){if(pa[j]=='{')d++;else if(pa[j]=='}'){d--;if(d==0)return pa.slice(a,j+1)}}};
 let html=fs.readFileSync(__dirname+'/../web-src/pdfviewer.html','utf8').replace(/book:\/\/__ID__\/__pdfjs\//g,'/pdfjs/').replace(/book:\/\/__ID__\/__file/g,'/'+(process.env.PDF||'test.pdf')).replace(/__ID__/g,'x').replace(/__TITLE__/g,'t').replace(/__LANG__/g,'ar');
-const pre=`<script>window.__LI=${JSON.stringify({ui:'ar',id:'x',url:'/test.pdf',base:'/pdfjs/'})};window.__msgs=[];addEventListener('message',e=>{if(e.data&&e.data.liBook)__msgs.push(e.data)});<\/script>`;
-const post=`<script>(${fnOf('PDFG')})();<\/script><script>(${fnOf('PDFN')})();<\/script>`;
+const pre=`<script>window.__LI=${JSON.stringify({ui:'ar',id:'x',url:'/test.pdf',base:'/pdfjs/'})};window.__msgs=[];addEventListener('message',e=>{if(e.data&&e.data.liBook)__msgs.push(e.data)});window.LiNative={translate(){}};window.__TRU={};window.__TRS={ID:'x',NAMES:{en:'English',ar:'Arabic'},TX:new Proxy({},{get:()=>new Proxy({},{get:(t,k)=>String(k)})})};window.__spoken=[];addEventListener('error',e=>{console.error('ERRLOC '+e.filename+':'+e.lineno+':'+e.colno+' '+e.message)});window.SpeechSynthesisUtterance=function(t){this.text=t};Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{speak(u){__spoken.push(u);setTimeout(()=>{u.onstart&&u.onstart();setTimeout(()=>u.onend&&u.onend(),2500)},10)},cancel(){},pause(){},resume(){},getVoices(){return[]},addEventListener(){}}});<\/script>`;
+const post=`<script>(${fnOf('PDFG')})();<\/script><script>(${fnOf('PDFN')})();<\/script><script>(${fnOf('PDFX')})();<\/script>`;
 html=html.replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/,m=>pre+m+post);
 fs.writeFileSync(root+'/v.html',html);const fail=[];const ck=(n,c)=>{if(!c)fail.push(n)};
-(async()=>{const br=await chromium.launch();const pg=await br.newPage({viewport:{width:900,height:900}});const errs=[];pg.on('pageerror',e=>errs.push(String(e)));pg.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text())});
+(async()=>{const br=await chromium.launch();const pg=await br.newPage({viewport:{width:900,height:900}});const errs=[];pg.on('pageerror',e=>errs.push(String(e)+(e.stack||'').slice(0,300)));pg.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text())});
 await pg.goto(`http://127.0.0.1:${port}/v.html`);
 await pg.waitForFunction(()=>document.querySelectorAll('.pg').length===3&&document.querySelectorAll('.pg canvas').length>=1,null,{timeout:20000});
 await pg.waitForTimeout(1500);
@@ -29,7 +29,15 @@ r.none=await pg.evaluate(()=>document.getElementById('litoast').textContent);
 // bookmark
 await send({liCmd:'bookmark'});await pg.waitForTimeout(400);
 r.bm=await pg.evaluate(()=>({msgs:__msgs.filter(m=>m.type==='annots').pop(),bk:document.querySelectorAll('.bk').length}));
+// listening player
+await pg.click('#li-pl-btn');await pg.waitForTimeout(900);
+r.pl=await pg.evaluate(()=>({shown:getComputedStyle(document.getElementById('li-pl')).display,spoken:__spoken.length,ctr:document.querySelectorAll('#li-pl button').length,sliders:document.querySelectorAll('#li-pl input[type=range]').length}));
+await pg.click('#li-pl [data-a="nx"]');await pg.waitForTimeout(900);
+r.pl.page=await pg.evaluate(()=>document.querySelector('#li-pl [data-r=pg]').textContent);
+await pg.click('#li-pl [data-a="pp"]');await pg.waitForTimeout(200);r.pl.pp=await pg.evaluate(()=>document.querySelector('#li-pl [data-a=pp]').textContent);
+await pg.click('#li-pl [data-a="x"]');await pg.waitForTimeout(200);r.pl.hidden=await pg.evaluate(()=>getComputedStyle(document.getElementById('li-pl')).display);
 // toc
+await pg.evaluate(()=>{document.getElementById('sc').scrollTop=0});await pg.waitForTimeout(500);
 await send({liCmd:'toc'});await pg.waitForTimeout(800);
 r.toc=await pg.evaluate(()=>__msgs.filter(m=>m.type==='toc').pop());
 if(r.toc&&r.toc.items&&r.toc.items.length>1){const t0=await pg.evaluate(()=>document.getElementById('sc').scrollTop);await send({liCmd:'jump',id:r.toc.items.length-1});await pg.waitForTimeout(800);r.jump=await pg.evaluate(t=>({from:Math.round(t),to:Math.round(document.getElementById('sc').scrollTop)}),t0)}
@@ -45,4 +53,4 @@ await pg.screenshot({path:'/tmp/pv/shot.png'});
 const idh=await pg.evaluate(()=>__msgs.filter(m=>m.type==='annots').pop().annots.filter(a=>a.type==='hl')[0].id);
 await send({liCmd:'delannot',id:idh});await pg.waitForTimeout(300);
 r.del=await pg.evaluate(()=>({layer:document.querySelectorAll('.hl i').length,n:__msgs.filter(m=>m.type==='annots').pop().annots.length}));
-ck('layer text',r.spans>5);ck('find arabic',r.find1.cur>=1);ck('find next moves',r.find2.cur>=1);ck('no result message',r.none&&r.none.length>3);ck('bookmark',r.bm.bk===1&&r.bm.msgs.annots[0].type==='bm');ck('highlight popup',/flex/.test(r.popup));ck('highlight saved',r.hl.layer>=1&&r.hl.annots.some(a=>a.type==='hl'&&a.n>=1));ck('delete',r.del.layer===0);ck('no page errors',errs.length===0);if(process.env.PDF==='test2.pdf'){ck('contents list',r.toc.items.length>=1)}else{ck('contents list',r.toc.items.length>=2&&r.jump&&r.jump.to>r.jump.from)}console.log(process.env.PDF,JSON.stringify(r),errs.slice(0,3));console.log(fail.length?'FAIL: '+fail.join(', '):'PASS');await br.close();srv.close();process.exit(fail.length?1:0)})();
+ck('layer text',r.spans>5);ck('find arabic',r.find1.cur>=1);ck('find next moves',r.find2.cur>=1);ck('no result message',r.none&&r.none.length>3);ck('bookmark',r.bm.bk===1&&r.bm.msgs.annots[0].type==='bm');ck('highlight popup',/flex/.test(r.popup));ck('highlight saved',r.hl.layer>=1&&r.hl.annots.some(a=>a.type==='hl'&&a.n>=1));ck('delete',r.del.layer===0);ck('listen panel',r.pl.shown==='block'&&r.pl.spoken>=1&&r.pl.ctr===4&&r.pl.sliders===2&&r.pl.hidden==='none'&&r.pl.pp==='▶');ck('no page errors',errs.length===0);if(process.env.PDF==='test2.pdf'){ck('contents list',r.toc.items.length>=1)}else{ck('contents list',r.toc.items.length>=2&&r.jump&&r.jump.to>r.jump.from)}console.log(process.env.PDF,JSON.stringify(r),errs.slice(0,3));console.log(fail.length?'FAIL: '+fail.join(', '):'PASS');await br.close();srv.close();process.exit(fail.length?1:0)})();
