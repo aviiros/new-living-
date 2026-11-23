@@ -176,14 +176,15 @@ async function aiStart() {
   }
   const exe = await E.ensureLlama(workerData.cache, pct);
   // do not load while the memory is short: a transient problem, the faster engines answer instead
-  const need = Math.round((m.files ? m.files[0].bytes : 1100000000) / 1048576 * 1.15 + 250);
+  const need = Math.round((m.files ? (m.files[0].bytes || m.files[0].est) : 1100000000) / 1048576 * 1.15 + 250);
   // short of memory: ask the reader (PaddleOCR) to step aside, wait up to 3 minutes, tell the person once
   let told = false;
   for (let i = 0; i < 90 && !E.memOk(need); i++) { if (i === 0) post('', 'freeocr'); if (i === 5 && !told) { told = true; post('', 'lowmem'); } await new Promise((r) => setTimeout(r, 2000)); }
   if (!E.memOk(need)) { const e = new Error('not enough free memory right now (' + need + ' MB needed)'); e.transient = true; throw e; }
   aiLoading = true;
   try {
-    const srv = await E.startServer(exe, ['-m', m.model, '-t', String(E.threads()), '-c', '2048'], () => { ai = null; aiSrv = null; }, { runner: runnerPath(), name: m.name, kind: 'translate', cap: () => R.capOf(workerData.cache), idleMs: () => R.idleMsOf(workerData.cache), onIdle: (s) => { aiLast = Object.assign(s.stats(), { state: 'stopped', name: m.name }); ai = null; aiSrv = null; } });
+    aiFam = /^plamo/.test(m.id || '') ? 'plamo' : '';
+    const srv = await E.startServer(exe, ['-m', m.model, '-t', String(E.threads()), '-c', aiFam ? '4096' : '2048'].concat(aiFam ? ['--jinja', '--no-prefill-assistant'] : []), () => { ai = null; aiSrv = null; }, { runner: runnerPath(), name: m.name, kind: 'translate', cap: () => R.capOf(workerData.cache), idleMs: () => R.idleMsOf(workerData.cache), onIdle: (s) => { aiLast = Object.assign(s.stats(), { state: 'stopped', name: m.name }); ai = null; aiSrv = null; } });
     aiSrv = srv; srv.mname = m.name; post('', 'ready'); return srv;
   } finally { aiLoading = false; }
 }
@@ -210,13 +211,14 @@ function aiOk(src, out, tgt) {
   if (tgt === 'ar' && !/[؀-ۿ]/.test(o) && /[A-Za-z]{4}/.test(src)) return false;
   return true;
 }
+let aiFam = '';
 async function viaAi(text, src, tgt, acc) {
   const srv = await aiGet(acc), port = srv.port;
   const out = [];
   for (const s of pieces(text)) {
     let t = '';
     for (const temp of [0, 0.3]) {
-      const body = { messages: [{ role: 'user', content: 'Translate the following segment into ' + LNAME[tgt] + ', without additional explanation.\n\n' + s }], temperature: temp, top_k: 20, top_p: 0.6, repeat_penalty: 1.05, max_tokens: Math.min(1500, s.length * 3 + 60) };
+      const body = aiFam === 'plamo' ? { messages: [{ role: 'user', content: s }], chat_template_kwargs: { target_lang: tgt }, temperature: temp, max_tokens: Math.min(1400, 80 + s.length * 3) } : { messages: [{ role: 'user', content: 'Translate the following segment into ' + LNAME[tgt] + ', without additional explanation.\n\n' + s }], temperature: temp, top_k: 20, top_p: 0.6, repeat_penalty: 1.05, max_tokens: Math.min(1500, s.length * 3 + 60) };
       const j = await srv.work(async () => { const r = await fetch('http://127.0.0.1:' + port + '/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error('AI engine http ' + r.status); return r.json(); }); t = ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
       if (aiOk(s, t, tgt)) break; t = '';
     }
@@ -233,11 +235,11 @@ async function go(m) {
   try {
     let r = null, eng = 'marian', why1 = '';
     // Fast by default (small model per language pair). The big NLLB model is only used when the person asks for higher quality.
-    // The local model is the default engine now (offline, no per-pair downloads). Internet engines are only a last resort.
-    const local = m.hq || process.env.LI_SMOKE !== '1';
+    // Default: the small models of the language pair (one download per pair, then offline). The AI model is used only when the person turned it on (advanced).
+    const local = !!m.hq;
     if (local) {
-      try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
-      for (let k = 0; k < 4 && r == null && !aiBad; k++) { await new Promise((ok) => setTimeout(ok, 3000 * (k + 1))); try { r = await viaAi(text, src, tgt, m.acc); eng = 'hymt'; why1 = ''; } catch (e) { r = null; why1 = 'local AI: ' + why(e); } }
+      try { r = await viaAi(text, src, tgt, m.acc); eng = aiFam || 'hymt'; } catch (e) { r = null; why1 = 'local AI: ' + why(e); }
+      for (let k = 0; k < 4 && r == null && !aiBad; k++) { await new Promise((ok) => setTimeout(ok, 3000 * (k + 1))); try { r = await viaAi(text, src, tgt, m.acc); eng = aiFam || 'hymt'; why1 = ''; } catch (e) { r = null; why1 = 'local AI: ' + why(e); } }
       // No silent internet use: if the local model cannot answer, the person is told why (the old engines stay only for the self-test)
       if (r == null && process.env.LI_SMOKE !== '1') return post(id, 'err', why1 || 'local AI model failed');
       if (r == null) { try { r = await viaBergamot(text, src, tgt); eng = 'bergamot (' + why1 + ')'; } catch (e) { r = null; } }

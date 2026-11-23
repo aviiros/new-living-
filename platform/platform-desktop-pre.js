@@ -15,7 +15,7 @@
     // the choices live in the program (main process), so they survive closing it and are the same in every book
     pref: function (k) { try { var p = D.prefs && D.prefs(); return !!(p && p[k]); } catch (e) { return false; } },
     setPref: function (k, v) { try { D.setPref(k, !!v); } catch (e) {} },
-    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online(), true, this.hq()); },
+    translate: function (id, text, src, tgt) { D.translate(id, text, src, tgt, this.online(), this.hq(), false); },
     slow: function () { return !this.online(); },
     hq: function () { return this.pref('acc'); },
     setHQ: function (v) { this.setPref('acc', v); },

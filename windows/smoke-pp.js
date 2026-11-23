@@ -63,14 +63,16 @@ module.exports = async function (c) {
       const V = (await api.aiVerify('hymt2')); x.tr.verify = V.ok;
       // the larger model, used the way the app uses it (the "more accurate" switch)
       try { await api.aiDl('hymt2-q8'); const q0 = Date.now(); for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'hymt2-q8'); if (m.have && !m.dl) break; if (m.dl && m.dl.state === 'error') { x.tr.q8Error = m.dl.err; break; } if (Date.now() - q0 > 22 * 60000) { x.tr.q8Error = 'timeout'; break; } } } catch (e) { x.tr.q8Error = String(e && e.message || e); }
-      for (const [id, tag, acc] of [['hymt', 'mt15'], ['hymt2', 'mt2'], ['hymt2', 'mt2acc', true]]) {
-        if (acc && x.tr.q8Error) continue;
+      // the small PLaMo 3 Translate (0.57 GB), offered as an advanced model
+      try { await api.aiDl('plamo3'); const p0 = Date.now(); for (;;) { await wait(2000); const m = (await api.aiState()).models.find((z) => z.id === 'plamo3'); if (m.have && !m.dl) break; if (m.dl && m.dl.state === 'error') { x.tr.plamoError = m.dl.err; break; } if (Date.now() - p0 > 10 * 60000) { x.tr.plamoError = 'timeout'; break; } } } catch (e) { x.tr.plamoError = String(e).slice(0, 200); }
+      for (const [id, tag, acc] of [['hymt', 'mt15'], ['hymt2', 'mt2'], ['hymt2', 'mt2acc', true], ['plamo3', 'plamo3']]) {
+        if (acc && x.tr.q8Error) continue; if (id === 'plamo3' && x.tr.plamoError) continue;
         await api.aiSelect('translate', id); await wait(1500);
         const o = x.tr[tag] = { items: [] }; let sum = 0, n = 0, secs = 0, ai = 0;
         for (let i = 0; i < SENT.length; i++) {
           const [text, s, t, ref] = SENT[i], r = await hq(tag + i, text, s, t, acc), score = r.kind === 'ok' ? chrf(ref, r.text) : null;
           o.items.push({ pair: s + '>' + t, engine: r.engine, sec: r.sec, chrf: score, out: String(r.text || '').slice(0, 160) });
-          if (score != null) { sum += score; n++; } secs += r.sec; if (r.engine === 'hymt') ai++;
+          if (score != null) { sum += score; n++; } secs += r.sec; if (r.engine === 'hymt' || r.engine === 'plamo') ai++;
         }
         o.meanChrF = n ? Math.round(sum / n * 10) / 10 : null; o.totalSec = Math.round(secs * 10) / 10; o.byAiEngine = ai; o.stats = (await api.aiState()).stats.translate;
       }

@@ -171,7 +171,7 @@ async function aiState() {
   const [t, o] = await Promise.all([trCtl('stats'), ocrCtl('stats')]);
   const models = R.all(MODELS()).map((m) => {
     const have = R.have(MODELS(), m.files ? m : Object.assign({}, m, { model: m.file, mm: m.mm || '' }));
-    let mb = m.files ? MB(m.files.reduce((a, f) => a + f.bytes, 0)) : 0;
+    let mb = m.files ? MB(m.files.reduce((a, f) => a + (f.bytes || f.est || 0), 0)) : 0;
     if (!m.files) { try { mb = MB(fs.statSync(m.file).size) + (m.mm ? MB(fs.statSync(m.mm).size) : 0); } catch (e) {} }
     const d = dls.get(m.id);
     return { id: m.id, engine: m.engine || '', kind: m.kind, name: m.name, quant: m.quant || '', version: m.version || '', builtin: !!m.builtin, custom: !!m.custom, tested: !!m.tested, mb, ramMB: m.ramMB || 0, langs: m.langs || null, license: m.license || '', licenseNote: m.licenseNote || '', repo: m.repo || '', have, active: r.active[m.kind] === m.id, dl: d ? { state: d.state, pct: d.pct, err: d.err || '' } : null };
@@ -211,7 +211,7 @@ async function aiVerify(id) {
   if (!m || !m.files) return { ok: false };
   const d = { state: 'verifying', pct: 0, ctl: {}, err: '' }; dls.set(id, d); let bad = false;
   try {
-    for (const f of m.files) { const p = path.join(E.llamaDir(MODELS()), f.name); if (!E.fileOk(p, f.bytes) || !E.shaOk(await E.sha256(p), f.sha256)) { bad = true; try { fs.rmSync(p, { force: true }); } catch (e) {} } }
+    for (const f of m.files) { const p = path.join(E.llamaDir(MODELS()), f.name); if (!E.fileOk(p, f.bytes) || (f.sha256 && !E.shaOk(await E.sha256(p), f.sha256))) { bad = true; try { fs.rmSync(p, { force: true }); } catch (e) {} } }
   } finally { dls.delete(id); }
   if (bad) freeServers();
   return { ok: !bad, bad };

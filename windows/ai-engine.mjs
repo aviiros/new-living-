@@ -55,14 +55,14 @@ export function sha256(file) { return new Promise((res, rej) => { const h = cryp
 export function fileOk(f, bytes) { try { const st = fs.statSync(f); return st.isFile() && (!bytes || st.size === bytes); } catch (e) { return false; } }
 // Download every file of a catalog model (resumes after a stop), then check its fingerprint. cb: { pct(n), phase('verifying') }.
 export async function fetchModel(m, cb, ctl) {
-  cb = cb || {}; const dir = llamaDir(m.cache), files = m.files, total = files.reduce((a, f) => a + f.bytes, 0); let done = 0;
+  cb = cb || {}; const dir = llamaDir(m.cache), files = m.files, sz = (f) => f.bytes || f.est || 1, total = files.reduce((a, f) => a + sz(f), 0); let done = 0;
   for (const f of files) {
     const dest = path.join(dir, f.name);
     if (!fileOk(dest, f.bytes)) {
-      await download(f.url, dest, (p) => { if (cb.pct) cb.pct(Math.round((done + f.bytes * p / 100) * 100 / total)); }, 0, ctl);
+      await download(f.url, dest, (p) => { if (cb.pct) cb.pct(Math.round((done + sz(f) * p / 100) * 100 / total)); }, 0, ctl);
       if (f.sha256) { if (cb.phase) cb.phase('verifying'); if (!shaOk(await sha256(dest), f.sha256)) { try { fs.rmSync(dest, { force: true }); } catch (e) {} throw new Error('file check failed (damaged download)'); } }
     }
-    done += f.bytes;
+    done += sz(f);
   }
   if (cb.pct) cb.pct(100);
 }

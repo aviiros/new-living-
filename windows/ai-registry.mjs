@@ -22,6 +22,9 @@ export const CATALOG = [
   { id: 'nuqta-q8', kind: 'ocr', name: 'Nuqta OCR (0.8B)', quant: 'Q8_0', version: '0.8B', tested: false, ramMB: 2300, langs: { ar: true, en: true }, license: 'Apache-2.0', repo: 'SalahALHaismawi/Nuqta-Arabic-OCR-0.8B-GGUF',
     files: [{ name: 'nuqta-ocr-0.8b-Q8_0.gguf', url: NQ + 'nuqta-ocr-0.8b-Q8_0.gguf', bytes: 872607744, sha256: '9e668a31aaaa0262134737262298d53f8240f390004f5ff72270334acc90532c' }, NQMM] }
 ];
+// PLaMo 3 Translate (Preferred Networks), 53 languages including the six of this app. Small: about 0.57 GB. The exact size is not published on the page, so progress uses an estimate and the finished download is accepted as it is.
+CATALOG.push({ id: 'plamo3', kind: 'translate', name: 'PLaMo 3 Translate (0.8B)', quant: 'Q4_K_M', version: '3', tested: false, ramMB: 1100, langs: { n: 53, app: true }, license: 'PLaMo Community License (free for personal use; commercial use needs a free registration)', repo: 'pfnet/plamo-3-translate-0.8b-GGUF',
+  files: [{ name: 'plamo-3-translate-0.8b-Q4_K_M.gguf', url: 'https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_K_M.gguf', bytes: 0, est: 573000000 }] });
 CATALOG.push(
   mt2('hymt2', 'Q4_K_M', 2200, 1133080448, 'dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699'),
   mt2('hymt2-q6', 'Q6_K', 2700, 1474785120, 'd98fe604dec1f28f58f80d7d560f7177e584d3b8e5835862687660e5ff97cb40'),
