@@ -1,0 +1,17 @@
+name: Test PDF tools (search, bookmarks, notes, contents)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['platform/platform-android.js', 'web-src/pdfviewer.html', 'scripts/test-pdf-tools.js', 'scripts/testdata/**', '.github/workflows/test-pdf-tools.yml']
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-save --no-audit --no-fund playwright && npx playwright install --with-deps chromium
+      - run: PDF=test2.pdf node scripts/test-pdf-tools.js
+      - run: PDF=test.pdf node scripts/test-pdf-tools.js

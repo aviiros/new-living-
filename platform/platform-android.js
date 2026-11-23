@@ -566,6 +566,213 @@
   }
 
 
+  // Runs INSIDE the PDF viewer page: search, bookmarks, highlights and notes, and the contents list of a PDF opened as it is.
+  // It speaks the same small messages as the HTML books, so the library's own search bar, notes panel and contents list work for PDF too.
+  function PDFN() {
+    var lib = window['pdfjs-dist/build/pdf'], sc = document.getElementById('sc'), pagesEl = document.getElementById('pages'); if (!lib || !sc || !pagesEl) return;
+    var UI = (window.__LI && window.__LI.ui) || 'ar';
+    var S = {
+      ar: { hl: 'تظليل', note: 'ملاحظة', copy: 'نسخ', del: 'حذف', save: 'حفظ', ph: 'اكتب ملاحظتك…', bmOn: 'أُضيفت إشارة مرجعية', bmOff: 'أُزيلت الإشارة المرجعية', none: 'لا توجد نتائج', scan: 'هذا الملف صور فقط، فلا يمكن البحث فيه. حوّله إلى كتاب HTML.', pg: 'صفحة', done: 'تم النسخ' },
+      en: { hl: 'Highlight', note: 'Note', copy: 'Copy', del: 'Delete', save: 'Save', ph: 'Write your note…', bmOn: 'Bookmark added', bmOff: 'Bookmark removed', none: 'No results', scan: 'This file is only images, so it cannot be searched. Convert it to an HTML book.', pg: 'Page', done: 'Copied' },
+      fr: { hl: 'Surligner', note: 'Note', copy: 'Copier', del: 'Supprimer', save: 'Enregistrer', ph: 'Écrivez votre note…', bmOn: 'Signet ajouté', bmOff: 'Signet retiré', none: 'Aucun résultat', scan: 'Ce fichier ne contient que des images : recherche impossible. Convertissez-le en livre HTML.', pg: 'Page', done: 'Copié' },
+      es: { hl: 'Subrayar', note: 'Nota', copy: 'Copiar', del: 'Eliminar', save: 'Guardar', ph: 'Escribe tu nota…', bmOn: 'Marcador añadido', bmOff: 'Marcador eliminado', none: 'Sin resultados', scan: 'Este archivo solo tiene imágenes, así que no se puede buscar. Conviértelo en libro HTML.', pg: 'Página', done: 'Copiado' },
+      it: { hl: 'Evidenzia', note: 'Nota', copy: 'Copia', del: 'Elimina', save: 'Salva', ph: 'Scrivi la tua nota…', bmOn: 'Segnalibro aggiunto', bmOff: 'Segnalibro rimosso', none: 'Nessun risultato', scan: 'Questo file contiene solo immagini, quindi non si può cercare. Convertilo in libro HTML.', pg: 'Pagina', done: 'Copiato' },
+      id: { hl: 'Sorot', note: 'Catatan', copy: 'Salin', del: 'Hapus', save: 'Simpan', ph: 'Tulis catatan Anda…', bmOn: 'Penanda ditambahkan', bmOff: 'Penanda dihapus', none: 'Tidak ada hasil', scan: 'File ini hanya gambar, jadi tidak bisa dicari. Ubah menjadi buku HTML.', pg: 'Halaman', done: 'Disalin' }
+    };
+    var s = S[UI] || S.en, AN = [], pg = [], dims = {}, tcs = {}, outline = null, Q = { q: '', n: '', pageNo: 0, k: -1, matches: {} };
+    function P(m) { m.liBook = 1; try { parent.postMessage(m, '*'); } catch (e) {} }
+    function doc() { return window.__pdoc || null; }
+    function curPage() { return window.__pcur ? window.__pcur() : 1; }
+    function pageEl(n) { return document.querySelectorAll('.pg')[n - 1]; }
+    function rid() { return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    var st = document.createElement('style');
+    st.textContent = '.tl,.fl,.hl{position:absolute;inset:0;overflow:hidden}.tl{z-index:3;line-height:1;-webkit-user-select:text;user-select:text}.tl span{position:absolute;white-space:pre;color:transparent;transform-origin:0 0;cursor:text}.tl span::selection{background:rgba(70,130,255,.35);color:transparent}.fl{z-index:1;pointer-events:none}.hl{z-index:2;pointer-events:none}.fl i{position:absolute;background:rgba(255,200,0,.35);border-radius:2px}.fl i.cur{background:rgba(255,120,0,.5);outline:2px solid rgba(255,120,0,.9)}.hl i{position:absolute;background:rgba(255,214,0,.42);mix-blend-mode:multiply;border-radius:2px}.hl i.n{box-shadow:0 2px 0 #c3714c}body.night .hl i{mix-blend-mode:screen;background:rgba(255,214,0,.3)}.bk{position:absolute;top:0;inset-inline-end:14px;width:18px;height:30px;background:#c3714c;clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:4;pointer-events:none}#lipop{position:fixed;z-index:20;display:none;background:var(--bar);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:6px;box-shadow:0 4px 18px rgba(0,0,0,.35);gap:6px;font-size:13px;direction:ltr}#lipop button{border:1px solid var(--ln);background:none;color:inherit;border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font:inherit}#lipop button:hover{background:rgba(195,113,76,.18)}#lipop textarea{width:230px;height:72px;font:inherit;border:1px solid var(--ln);border-radius:8px;background:transparent;color:inherit;padding:6px;resize:none}#litoast{position:fixed;z-index:21;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(20,30,36,.92);color:#fff;border-radius:10px;padding:8px 14px;font-size:13px;display:none;max-width:80vw;text-align:center}';
+    document.head.appendChild(st);
+    var toastT = null, tEl = document.createElement('div'); tEl.id = 'litoast'; document.body.appendChild(tEl);
+    function toast(t) { tEl.textContent = t; tEl.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(function () { tEl.style.display = 'none'; }, 2600); }
+    function save() { P({ type: 'annots', annots: AN.slice() }); }
+    // ---- page text, with its place on the page as a fraction of the page size
+    function dim(n) { return dims[n] || (dims[n] = doc().getPage(n).then(function (p) { var v = p.getViewport({ scale: 1 }); return { page: p, vp: v, w: v.width, h: v.height }; })); }
+    function text(n) {
+      if (tcs[n]) return tcs[n];
+      return tcs[n] = dim(n).then(function (d) {
+        return d.page.getTextContent().then(function (tc) {
+          var items = [], i;
+          for (i = 0; i < tc.items.length; i++) {
+            var it = tc.items[i]; if (!it.str) continue;
+            var t = lib.Util.transform(d.vp.transform, it.transform), hh = Math.abs(it.height) || Math.hypot(t[2], t[3]) || 8, w = Math.abs(it.width) || 0;
+            items.push({ str: it.str, x: t[4] / d.w, y: (t[5] - hh * 0.85) / d.h, w: w / d.w, h: hh * 1.1 / d.h, fs: hh, rtl: it.dir === 'rtl' || /[֐-ࣿ]/.test(it.str) });
+          }
+          var norm = '', map = [];
+          items.forEach(function (it, k) {
+            for (var c = 0; c < it.str.length; c++) { var ch = nz(it.str[c]); for (var q = 0; q < ch.length; q++) { norm += ch[q]; map.push([k, c]); } }
+            norm += ' '; map.push([k, it.str.length]);
+          });
+          var sq = '', sqpos = []; for (i = 0; i < norm.length; i++) if (norm[i] !== ' ') { sq += norm[i]; sqpos.push(i); }
+          return { items: items, norm: norm, map: map, has: norm.trim().length > 0, pw: d.w, sq: sq, sqpos: sqpos, glyph: items.length > 20 && sq.length / items.length < 1.6 };
+        });
+      });
+    }
+    function nz(c) { var x = c.normalize('NFKC').toLowerCase(); if (/[ً-ٰٟـ]/.test(x)) return ''; return x.replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه'); }
+    function nq(q) { var o = ''; for (var i = 0; i < q.length; i++) o += nz(q[i]); return o.replace(/\s+/g, ' ').trim(); }
+    function rectsOf(t, a, b, vis) { // match [a,b) in the normalised page text -> boxes (fractions of the page)
+      var by = {}, out = [], k;
+      for (var i = a; i < b; i++) { var m = t.map[i]; if (!m || m[0] === undefined) continue; var it = t.items[m[0]]; if (!it || m[1] >= it.str.length) continue; var o = by[m[0]] || (by[m[0]] = [1e9, -1]); if (m[1] < o[0]) o[0] = m[1]; if (m[1] > o[1]) o[1] = m[1]; }
+      for (k in by) { var it2 = t.items[k], L = it2.str.length || 1, c0 = by[k][0], c1 = by[k][1] + 1, x = (it2.rtl && !vis) ? it2.x + it2.w * (1 - c1 / L) : it2.x + it2.w * (c0 / L); out.push([x, it2.y, it2.w * (c1 - c0) / L, it2.h]); }
+      return out;
+    }
+    function pctRects(list, cls) { return list.map(function (r) { return '<i class="' + (cls || '') + '" style="left:' + (r[0] * 100).toFixed(3) + '%;top:' + (r[1] * 100).toFixed(3) + '%;width:' + (r[2] * 100).toFixed(3) + '%;height:' + (r[3] * 100).toFixed(3) + '%"></i>'; }).join(''); }
+    // ---- layers on every page that has been drawn
+    function build(el, n) {
+      if (el.querySelector('.tl')) return;
+      var fl = document.createElement('div'), hl = document.createElement('div'), tl = document.createElement('div'); fl.className = 'fl'; hl.className = 'hl'; tl.className = 'tl';
+      el.appendChild(fl); el.appendChild(hl); el.appendChild(tl);
+      paintAnnots(el, n);
+      text(n).then(function (t) {
+        if (!el.contains(tl)) return;
+        var W = el.offsetWidth, H = el.offsetHeight, spans = [];
+        t.items.forEach(function (it) {
+          if (!it.str.trim()) return;
+          var sp = document.createElement('span'); sp.textContent = it.str; sp.style.cssText = 'left:' + (it.x * 100).toFixed(3) + '%;top:' + (it.y * 100).toFixed(3) + '%;font-size:' + (it.fs * W / t.pw).toFixed(2) + 'px;direction:' + (it.rtl ? 'rtl' : 'ltr');
+          tl.appendChild(sp); spans.push([sp, it]);
+        });
+        var meas = spans.map(function (x) { return x[0].offsetWidth; });
+        spans.forEach(function (x, i) { var want = x[1].w * W; if (meas[i] > 1 && want > 1) x[0].style.transform = 'scaleX(' + (want / meas[i]).toFixed(4) + ')'; });
+        paintFind(el, n);
+      });
+    }
+    function paintAnnots(el, n) {
+      var hl = el.querySelector('.hl'); if (!hl) return; var h = '';
+      AN.forEach(function (a) { if (a.type === 'hl' && a.page === n && a.rects) h += pctRects(a.rects, a.note ? 'n' : ''); });
+      hl.innerHTML = h; var b = el.querySelector('.bk'), has = AN.some(function (a) { return a.type === 'bm' && a.page === n; });
+      if (has && !b) { b = document.createElement('div'); b.className = 'bk'; el.appendChild(b); } else if (!has && b) b.remove();
+    }
+    function paintFind(el, n) {
+      var fl = el.querySelector('.fl'); if (!fl) return;
+      if (!Q.n) { fl.innerHTML = ''; return; }
+      text(n).then(function (t) {
+        var ms = matchesIn(t, Q.n), h = ''; ms.forEach(function (m, k) { h += pctRects(rectsOf(t, m.i, m.e, m.vis), (Q.pageNo === n && Q.k === k) ? 'cur' : ''); }); fl.innerHTML = h;
+      });
+    }
+    // Some Arabic PDFs keep their text in the order it is drawn (letters reversed). The reversed word is searched too, and such a match is placed from the left.
+    function matchesIn(t, q) {
+      var out = [], i = -1, r = q.split('').reverse().join(''), ar = /[\u0600-\u06ff]/.test(q); if (!q) return out;
+      while ((i = t.norm.indexOf(q, i + 1)) >= 0) out.push({ i: i, e: i + q.length, vis: false });
+      if (r !== q && ar) { i = -1; while ((i = t.norm.indexOf(r, i + 1)) >= 0) out.push({ i: i, e: i + q.length, vis: true }); }
+      if (t.glyph && !out.length) { // a PDF that stores every letter as its own piece: search without the spaces between pieces
+        var qq = q.replace(/ /g, ''), rr = qq.split('').reverse().join('');
+        [[qq, false], [rr, true]].forEach(function (c) { if (c[1] && (rr === qq || !ar)) return; i = -1; while ((i = t.sq.indexOf(c[0], i + 1)) >= 0) out.push({ i: t.sqpos[i], e: t.sqpos[i + c[0].length - 1] + 1, vis: c[1] }); });
+      }
+      return out.sort(function (a, b) { return a.i - b.i; });
+    }
+    function repaint() { [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('.tl')) { paintAnnots(el, i + 1); paintFind(el, i + 1); } }); }
+    var raf = 0, mo = new MutationObserver(function () {
+      if (raf) return; raf = requestAnimationFrame(function () { raf = 0; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('canvas') && !el.querySelector('.tl')) { build(el, i + 1); } }); });
+    });
+    mo.observe(pagesEl, { childList: true, subtree: true });
+    function scaleBase() {}
+    // ---- go to a page
+    function goPage(n, y) { var el = pageEl(n); if (!el) return; sc.scrollTop = el.offsetTop - sc.offsetTop + (y ? y * el.offsetHeight - sc.clientHeight * 0.3 : -8); }
+    // ---- search
+    function find(q, back) {
+      var nqv = nq(q || ''); if (!nqv) { Q.n = ''; Q.q = ''; Q.pageNo = 0; Q.k = -1; repaint(); return; }
+      var d = doc(); if (!d) return; var total = d.numPages, fresh = nqv !== Q.n, seen = false;
+      Q.q = q; Q.n = nqv;
+      var start = fresh ? curPage() : (Q.pageNo || curPage()), k0 = fresh ? (back ? Infinity : -1) : Q.k;
+      function step(pn, k, tried) {
+        if (tried > total) { toast(seen ? s.none : s.scan); Q.pageNo = 0; Q.k = -1; repaint(); return; }
+        return text(pn).then(function (t) {
+          if (t.has) seen = true;
+          var ms = matchesIn(t, nqv), pick = back ? (k === Infinity ? ms.length - 1 : k - 1) : k + 1;
+          if (pick >= 0 && pick < ms.length) {
+            Q.pageNo = pn; Q.k = pick; var r = rectsOf(t, ms[pick].i, ms[pick].e, ms[pick].vis)[0];
+            goPage(pn, r ? r[1] : 0); setTimeout(repaint, 350); setTimeout(repaint, 900); return;
+          }
+          var next = pn + (back ? -1 : 1); if (next > total) next = 1; if (next < 1) next = total;
+          return step(next, back ? Infinity : -1, tried + 1);
+        });
+      }
+      step(start, k0, 0);
+    }
+    // ---- bookmarks
+    function bookmark() {
+      var n = curPage(), i = -1; AN.forEach(function (a, k) { if (a.type === 'bm' && a.page === n) i = k; });
+      var total = (doc() && doc().numPages) || 1;
+      if (i >= 0) { AN.splice(i, 1); toast(s.bmOff + ' · ' + s.pg + ' ' + n); }
+      else { AN.push({ id: rid(), type: 'bm', page: n, pct: total > 1 ? (n - 1) / (total - 1) * 100 : 0, quote: s.pg + ' ' + n, date: Date.now() }); toast(s.bmOn + ' · ' + s.pg + ' ' + n); }
+      save(); repaint();
+    }
+    // ---- contents
+    function flat(list, l, out) { (list || []).forEach(function (o) { out.push({ t: o.title || '', l: l, dest: o.dest }); flat(o.items, l + 1, out); }); return out; }
+    function toc() {
+      var d = doc(); if (!d) return P({ type: 'toc', items: [] });
+      var go = outline ? Promise.resolve(outline) : d.getOutline().then(function (o) { return (outline = flat(o, 1, [])); }).catch(function () { return (outline = []); });
+      go.then(function (list) { P({ type: 'toc', items: list.filter(function (x) { return x.dest && x.t.trim(); }).map(function (x, i) { x.id = i; return { id: i, t: x.t.trim(), l: Math.min(2, x.l) }; }) }); });
+    }
+    function jump(id) {
+      var list = (outline || []).filter(function (x) { return x.dest && x.t.trim(); }), it = list[id]; if (!it) return; var d = doc();
+      Promise.resolve(typeof it.dest === 'string' ? d.getDestination(it.dest) : it.dest).then(function (arr) { if (!arr) return; var ref = arr[0]; return (typeof ref === 'object' && ref ? d.getPageIndex(ref) : Promise.resolve(ref | 0)).then(function (ix) { goPage(ix + 1); }); }).catch(function () {});
+    }
+    // ---- highlights and notes
+    var pop = document.createElement('div'); pop.id = 'lipop'; document.body.appendChild(pop);
+    function hide() { pop.style.display = 'none'; pop.innerHTML = ''; }
+    function showAt(x, y) { pop.style.display = 'flex'; var w = pop.offsetWidth, h = pop.offsetHeight; pop.style.left = Math.max(6, Math.min(x - w / 2, innerWidth - w - 6)) + 'px'; pop.style.top = Math.max(48, Math.min(y, innerHeight - h - 10)) + 'px'; }
+    function selection() {
+      var sel = window.getSelection(); if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+      var r = sel.getRangeAt(0), node = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode, tl = node && node.closest && node.closest('.tl'); if (!tl) return null;
+      var el = tl.parentNode, n = [].indexOf.call(document.querySelectorAll('.pg'), el) + 1, b = el.getBoundingClientRect(), rs = [].slice.call(r.getClientRects()).filter(function (q) { return q.width > 1 && q.height > 2; });
+      if (!rs.length) return null;
+      rs = rs.filter(function (q) { return q.top >= b.top - 2 && q.bottom <= b.bottom + 2; });
+      // join the pieces of one line
+      rs.sort(function (a, c) { return a.top - c.top || a.left - c.left; }); var lines = [];
+      rs.forEach(function (q) { var l = lines[lines.length - 1]; if (l && Math.abs(l.top - q.top) < q.height * 0.5 && q.left <= l.right + 6) { l.left = Math.min(l.left, q.left); l.right = Math.max(l.right, q.right); l.top = Math.min(l.top, q.top); l.bottom = Math.max(l.bottom, q.bottom); } else lines.push({ left: q.left, right: q.right, top: q.top, bottom: q.bottom }); });
+      return { n: n, text: sel.toString().replace(/\s+/g, ' ').trim(), rects: lines.map(function (l) { return [(l.left - b.left) / b.width, (l.top - b.top) / b.height, (l.right - l.left) / b.width, (l.bottom - l.top) / b.height]; }), at: [lines[0].left + (lines[0].right - lines[0].left) / 2, lines[0].top - 46] };
+    }
+    function addAnnot(sl, note) {
+      var total = (doc() && doc().numPages) || 1;
+      AN.push({ id: rid(), type: 'hl', page: sl.n, rects: sl.rects, quote: sl.text.slice(0, 600), note: note || '', pct: total > 1 ? (sl.n - 1) / (total - 1) * 100 : 0, date: Date.now() });
+      save(); repaint(); try { window.getSelection().removeAllRanges(); } catch (e) {} hide();
+    }
+    var selT = null;
+    document.addEventListener('selectionchange', function () {
+      clearTimeout(selT); selT = setTimeout(function () {
+        if (pop.querySelector('textarea')) return;
+        var sl = selection(); if (!sl || !sl.text) { if (!pop.querySelector('textarea')) hide(); return; }
+        pop.innerHTML = '<button data-a="hl">' + s.hl + '</button><button data-a="nt">' + s.note + '</button><button data-a="cp">' + s.copy + '</button>'; showAt(sl.at[0], sl.at[1]);
+        pop.onclick = function (e) {
+          var a = e.target.getAttribute && e.target.getAttribute('data-a'); if (!a) return;
+          if (a === 'hl') addAnnot(sl); else if (a === 'cp') { try { navigator.clipboard.writeText(sl.text); } catch (x) {} toast(s.done); hide(); }
+          else if (a === 'nt') { pop.innerHTML = '<textarea placeholder="' + s.ph + '"></textarea><button data-a="sv">' + s.save + '</button>'; var ta = pop.querySelector('textarea'); ta.focus(); pop.onclick = function (e2) { if (e2.target.getAttribute && e2.target.getAttribute('data-a') === 'sv') addAnnot(sl, ta.value.trim()); }; }
+        };
+      }, 300);
+    });
+    // a tap on a highlight opens it: edit the note, copy, delete
+    sc.addEventListener('click', function (e) {
+      if (pop.contains(e.target)) return; var sel = window.getSelection(); if (sel && !sel.isCollapsed) return;
+      var el = e.target.closest && e.target.closest('.pg'); if (!el) { hide(); return; }
+      var n = [].indexOf.call(document.querySelectorAll('.pg'), el) + 1, b = el.getBoundingClientRect(), fx = (e.clientX - b.left) / b.width, fy = (e.clientY - b.top) / b.height, hit = null;
+      AN.forEach(function (a) { if (a.type === 'hl' && a.page === n) (a.rects || []).forEach(function (r) { if (fx >= r[0] && fx <= r[0] + r[2] && fy >= r[1] && fy <= r[1] + r[3]) hit = a; }); });
+      if (!hit) { hide(); return; }
+      pop.innerHTML = '<textarea placeholder="' + s.ph + '"></textarea><button data-a="sv">' + s.save + '</button><button data-a="cp">' + s.copy + '</button><button data-a="dl">' + s.del + '</button>';
+      var ta = pop.querySelector('textarea'); ta.value = hit.note || ''; showAt(e.clientX, e.clientY + 14);
+      pop.onclick = function (e2) { var a = e2.target.getAttribute && e2.target.getAttribute('data-a'); if (!a) return;
+        if (a === 'sv') { hit.note = ta.value.trim(); save(); repaint(); hide(); } else if (a === 'dl') { AN = AN.filter(function (x) { return x !== hit; }); save(); repaint(); hide(); } else if (a === 'cp') { try { navigator.clipboard.writeText(hit.quote || ''); } catch (x) {} toast(s.done); hide(); } };
+    });
+    // ---- messages from the library
+    window.addEventListener('message', function (e) {
+      var d = e.data; if (!d || !d.liCmd) return;
+      if (d.liCmd === 'init') { AN = Array.isArray(d.annots) ? d.annots.slice() : []; scaleBase(); repaint(); }
+      else if (d.liCmd === 'find') find(String(d.q || ''), !!d.back);
+      else if (d.liCmd === 'bookmark') bookmark();
+      else if (d.liCmd === 'toc') toc();
+      else if (d.liCmd === 'jump') jump(d.id | 0);
+      else if (d.liCmd === 'goto') { var a = d.annot; if (a && a.page) { goPage(a.page, a.rects && a.rects[0] ? a.rects[0][1] : 0); } }
+      else if (d.liCmd === 'delannot') { AN = AN.filter(function (x) { return x.id !== d.id; }); save(); repaint(); }
+    });
+    window.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); P({ type: 'findkey' }); } else if (e.key === 'Escape') hide(); }, true);
+    setTimeout(scaleBase, 1500);
+  }
+
   // Runs INSIDE the PDF viewer page: guided reading. A dark mask leaves a bright band of a few lines; the page moves under it by buttons, keys, a tap on the dark area, or by itself at a chosen speed.
   function PDFG() {
     var UI = (window.__LI && window.__LI.ui) || 'ar', $ = function (i) { return document.getElementById(i); };
@@ -806,7 +1013,7 @@
       INJECT_JS = r[1]; return r[0].text().then(function (h) { return b.orig === 'CBZ' && window.__FMT ? window.__FMT.resolvePages(h, function (n) { return fGet(b.id + '/' + n); }, function (u) { live.push(u); }) : h; }).then(function (h) { var tag = '<script>window.__LI=' + JSON.stringify({ tpl: !!b.tpl, id: b.id, lang: lang, ui: lib.settings.lang || 'ar' }) + ';' + INJECT_JS + '<\/script>', shim = SHIM(b.id);
         h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, function (m) { return m + shim; }) : shim + h; h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, function () { return tag + '</body>'; }) : h + tag; return { srcdoc: h }; }); });
     if (b.format === 'audio') return Promise.all([fGet(b.id + '/' + b.file), getText('player.html')]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var cu = (coverURL[b.id] || {}).u || ''; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__cover/g, cu).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__AUTHOR__/g, (b.author || '').replace(/</g, '&lt;')).replace('__HASCOVER__', b.cover ? '1' : '0').replace(/__LANG__/g, lang) }; });
-    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TTSX.toString() + ')();<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script><script>(' + PDFG.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
+    if (b.format === 'pdf') return Promise.all([fGet(b.id + '/' + b.file), getText('pdfviewer.html'), getText('pdfgeo.js').catch(function () { return ''; })]).then(function (r) { var u = URL.createObjectURL(r[0]); live.push(u); var base = location.origin + '/pdfjs/'; var pre = '<script>try{if(!window.LiNative&&parent.LiNative)window.LiNative=parent.LiNative}catch(e){}<\/script><script>window.__TRS=' + JSON.stringify(TRS) + ';<\/script><script>(' + TTSX.toString() + ')();<\/script><script>(' + GEST.toString() + ')();<\/script><script>(' + TRU.toString() + ')();<\/script><script>' + r[2].replace(/<\/script/gi, '<\\/script') + '<\/script><script>window.__LI=' + JSON.stringify({ ui: lib.settings.lang || 'ar', id: b.id, url: u, base: base }) + ';<\/script>', post = '<script>(' + PDFX.toString() + ')();<\/script><script>(' + PDFG.toString() + ')();<\/script><script>(' + PDFN.toString() + ')();<\/script>'; return { srcdoc: r[1].replace(/book:\/\/__ID__\/__file/g, u).replace(/book:\/\/__ID__\/__pdfjs\//g, base).replace(/__ID__/g, b.id).replace(/__TITLE__/g, b.title.replace(/</g, '&lt;')).replace(/__LANG__/g, lang).replace(/(<script src="[^"]*pdf\.min\.js"><\/script>)/, function (m) { return pre + m + post; }) }; });
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------
