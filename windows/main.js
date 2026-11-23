@@ -94,10 +94,11 @@ const ctlWait = new Map(); let ctlSeq = 0;
 let worker = null; const pending = new Set();
 let smokeSink = null;
 function toUI(m) { if (smokeSink) smokeSink(m); if (win && !win.isDestroyed()) win.webContents.send('tr:ev', m); }
+const diagWait = new Map();
 function getWorker() {
   if (worker) return worker;
   const w = new Worker(path.join(__dirname, 'translator-worker.mjs'), { workerData: { cache: path.join(app.getPath('userData'), 'models'), runner: RUNNER() } });
-  w.on('message', (m) => { if (m.kind === 'freeocr') { freeOcrNow(); return; } if (m.kind === 'lowmem') { try { new Notification({ title: 'Living Ideas', body: 'الذاكرة ممتلئة: نموذج الترجمة ينتظر. أغلق برامج أخرى وسيكمل وحده · Memory is full: the translation model is waiting. Close other programs.', icon: ICON }).show(); } catch (e) {} return; } if (m.kind === 'ctl') { const f = ctlWait.get(m.rid); if (f) { ctlWait.delete(m.rid); f(m); } return; } if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
+  w.on('message', (m) => { if (m.id && diagWait.has(m.id) && (m.kind === 'ok' || m.kind === 'err')) { diagWait.get(m.id)(m); diagWait.delete(m.id); return; } if (m.kind === 'freeocr') { freeOcrNow(); return; } if (m.kind === 'lowmem') { try { new Notification({ title: 'Living Ideas', body: 'الذاكرة ممتلئة: نموذج الترجمة ينتظر. أغلق برامج أخرى وسيكمل وحده · Memory is full: the translation model is waiting. Close other programs.', icon: ICON }).show(); } catch (e) {} return; } if (m.kind === 'ctl') { const f = ctlWait.get(m.rid); if (f) { ctlWait.delete(m.rid); f(m); } return; } if (m.kind === 'ok' || m.kind === 'err') pending.delete(m.id); toUI(m); });
   const dead = (why) => { if (worker === w) worker = null; toUI({ id: '', kind: 'nomodel', text: why }); pending.forEach((id) => toUI({ id, kind: 'err', text: why })); pending.clear(); };
   w.on('error', (e) => dead(String((e && e.message) || e).slice(0, 90)));
   w.on('exit', (c) => { if (worker === w) dead('translator stopped (' + c + ')'); });
@@ -138,6 +139,19 @@ ipcMain.handle('ai:ocr:status', () => ocrCall({ kind: 'status' }));
 ipcMain.handle('ai:ocr:prep', () => ocrCall({ kind: 'prep' }, true));
 ipcMain.handle('ai:ocr:page', (_e, image, lang) => ocrCall({ kind: 'page', image: String(image), lang: lang ? String(lang) : '' }, true));
 ipcMain.handle('ai:ocr:lines', (_e, image, lang) => ocrCall({ kind: 'page', image: String(image), lang: lang ? String(lang) : '', rows: true }, true));
+// "Test translation": translates one sentence with the model in use and reports exactly what happened (which model, how long, or why it failed)
+ipcMain.handle('ai:diag', async (_e, acc) => {
+  const out = { ok: false };
+  try {
+    const R = await reg(), cache = MODELS(), m = R.resolve(cache, 'translate'), r = R.load(cache);
+    out.active = r.active.translate; out.model = m.name || m.id; try { out.mb = Math.round(fs.statSync(m.model).size / 1048576); } catch (e) { out.mb = 0; }
+    out.freeMB = Math.round(os.freemem() / 1048576); out.totalMB = Math.round(os.totalmem() / 1048576);
+    const id = 'diag' + Date.now(), t0 = Date.now();
+    const res = await new Promise((ok) => { diagWait.set(id, ok); setTimeout(() => { if (diagWait.has(id)) { diagWait.delete(id); ok({ kind: 'err', text: 'no answer after 5 minutes' }); } }, 300000); try { getWorker().postMessage({ id, text: 'The book is on the table.', src: 'en', tgt: 'ar', online: false, hq: !!acc, acc: !!acc }); } catch (e) { diagWait.delete(id); ok({ kind: 'err', text: String((e && e.message) || e) }); } });
+    out.ms = Date.now() - t0; out.ok = res.kind === 'ok'; out.text = String(res.text || '').slice(0, 200); out.engine = String(res.eng || res.engine || '').slice(0, 120);
+  } catch (e) { out.text = String((e && e.message) || e).slice(0, 200); }
+  return out;
+});
 ipcMain.handle('ai:ocr:stop', () => ocrCall({ kind: 'stop' }));
 
 

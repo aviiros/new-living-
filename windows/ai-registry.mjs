@@ -59,7 +59,9 @@ export function resolveId(cache, id) {
 }
 export function resolve(cache, kind) {
   const r = load(cache), list = all(cache).filter((m) => m.kind === kind);
-  const m = list.find((x) => x.id === r.active[kind]) || list[0], d = llamaDir(cache);
+  let m = list.find((x) => x.id === r.active[kind]) || list[0]; const d = llamaDir(cache);
+  // the chosen translation model is not downloaded, but the base HY-MT 2 is: use the one that is on this computer instead of starting a big download of an old choice
+  if (kind === 'translate' && m.files && !have(cache, Object.assign({}, m, { model: path.join(d, m.files[0].name), mm: m.files[1] ? path.join(d, m.files[1].name) : '' }))) { const alt = list.find((x) => x.id === 'hymt2' && x.files && have(cache, Object.assign({}, x, { model: path.join(d, x.files[0].name), mm: '' }))); if (alt) m = alt; }
   if (m.engine === 'ppocr' && !m.files) return Object.assign({}, m, { cache, model: m.file, mm: '', dir: d });
   if (m.engine === 'ppocr' && m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: '', dir: d });
   if (m.files) return Object.assign({}, m, { cache, model: path.join(d, m.files[0].name), mm: m.files[1] ? path.join(d, m.files[1].name) : '' });

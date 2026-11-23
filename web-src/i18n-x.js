@@ -1,6 +1,13 @@
 // Translations for the interface, keyed by the English text. Missing keys fall back to English.
 window.__I18X={
 "fr": {
+"Test translation with the model in use": "Tester la traduction avec le modèle utilisé",
+"Testing… the first time can take a few minutes.": "Test en cours… la première fois, cela peut prendre quelques minutes.",
+"Translation worked: ": "La traduction fonctionne : ",
+"Translation failed: ": "La traduction a échoué : ",
+"Model: ": "Modèle : ",
+"Free memory: ": "Mémoire libre : ",
+"The test could not run.": "Le test n’a pas pu s’exécuter.",
 "This PC: # cores · # MB memory (# MB free)": "Cet ordinateur : # cœurs · # Mo de mémoire (# Mo libres)",
 "CPU limit: # % enforced by Windows": "Limite du processeur : # % appliquée par Windows",
 "CPU limit is not enforced in this build (the limiter file is missing)": "La limite du processeur n’est pas appliquée dans cette version (fichier limiteur manquant)",
@@ -334,6 +341,13 @@ window.__I18X={
 "Minimize": "Réduire","Open": "Ouvrir"
 },
 "it": {
+"Test translation with the model in use": "Prova la traduzione con il modello in uso",
+"Testing… the first time can take a few minutes.": "Test in corso… la prima volta può richiedere qualche minuto.",
+"Translation worked: ": "La traduzione funziona: ",
+"Translation failed: ": "Traduzione non riuscita: ",
+"Model: ": "Modello: ",
+"Free memory: ": "Memoria libera: ",
+"The test could not run.": "Impossibile eseguire il test.",
 "This PC: # cores · # MB memory (# MB free)": "Questo computer: # core · # MB di memoria (# MB liberi)",
 "CPU limit: # % enforced by Windows": "Limite del processore: # % applicato da Windows",
 "CPU limit is not enforced in this build (the limiter file is missing)": "Il limite del processore non è applicato in questa versione (manca il file limitatore)",
@@ -667,6 +681,13 @@ window.__I18X={
 "Minimize": "Riduci","Open": "Apri"
 },
 "es": {
+"Test translation with the model in use": "Probar la traducción con el modelo en uso",
+"Testing… the first time can take a few minutes.": "Probando… la primera vez puede tardar unos minutos.",
+"Translation worked: ": "La traducción funciona: ",
+"Translation failed: ": "La traducción falló: ",
+"Model: ": "Modelo: ",
+"Free memory: ": "Memoria libre: ",
+"The test could not run.": "No se pudo ejecutar la prueba.",
 "This PC: # cores · # MB memory (# MB free)": "Este equipo: # núcleos · # MB de memoria (# MB libres)",
 "CPU limit: # % enforced by Windows": "Límite de procesador: # % aplicado por Windows",
 "CPU limit is not enforced in this build (the limiter file is missing)": "El límite de procesador no se aplica en esta versión (falta el archivo limitador)",
@@ -1000,6 +1021,13 @@ window.__I18X={
 "Minimize": "Minimizar","Open": "Abrir"
 },
 "id": {
+"Test translation with the model in use": "Uji terjemahan dengan model yang dipakai",
+"Testing… the first time can take a few minutes.": "Menguji… pertama kali bisa memakan beberapa menit.",
+"Translation worked: ": "Terjemahan berhasil: ",
+"Translation failed: ": "Terjemahan gagal: ",
+"Model: ": "Model: ",
+"Free memory: ": "Memori kosong: ",
+"The test could not run.": "Pengujian tidak dapat dijalankan.",
 "This PC: # cores · # MB memory (# MB free)": "Komputer ini: # inti · # MB memori (# MB kosong)",
 "CPU limit: # % enforced by Windows": "Batas prosesor: # % diterapkan oleh Windows",
 "CPU limit is not enforced in this build (the limiter file is missing)": "Batas prosesor tidak diterapkan pada versi ini (berkas pembatas tidak ada)",

@@ -826,7 +826,7 @@ function aiDraw(){var s=aiS;if(!s||!window.__aiOpen)return;var on=true;try{on=lo
    +'<button class="srow" data-ai="ocr">'+T('استخدام الذكاء الاصطناعي المحلي لقراءة الصفحات الممسوحة','Use local AI for reading scanned pages')+'<small>'+(on?T('مفعّل','On'):T('متوقف','Off'))+'</small></button>'
    +'<div class="sh">'+T('الذاكرة والمعالج','Memory and processor')+'</div><div class="ainote">'+T('تفريغ الذاكرة بعد الخمول','Free the memory after being idle')+'</div><div class="chips">'+idle.map(function(v){return chip('idle',v,se.idleMin,v?T(NN(v)+' دقيقة',NN(v)+' min'):T('أبدًا','Never'))}).join('')+'</div>'
    +'<div class="ainote">'+T('استهلاك المعالج','Processor use')+'</div><div class="chips">'+chip('cpu','auto',se.cpu||'auto',T('تلقائي (حتى '+NN(70)+'٪)','Automatic (up to '+NN(70)+' %)'))+chip('cpu','light',se.cpu,T('خفيف (حتى '+NN(50)+'٪)','Light (up to '+NN(50)+' %)'))+'</div>'
-   +'<button class="srow" data-ai="free">'+T('تفريغ الذاكرة الآن','Free memory now')+'<small>›</small></button>'
+   +'<button class="srow" data-ai="tdiag">'+T('اختبار الترجمة بالنموذج المستخدم','Test translation with the model in use')+'<small>›</small></button>'    +'<button class="srow" data-ai="free">'+T('تفريغ الذاكرة الآن','Free memory now')+'<small>›</small></button>'
    +'<div class="acts"><button class="btn" id="aiBack">'+T('رجوع','Back')+'</button></div></div>';
   if(h===aiLastHtml)return;aiLastHtml=h;
   var bx=$('#box'),sh=$('#sheet'),a=bx?bx.scrollTop:0,b=sh?sh.scrollTop:0,mo=$('#modal'),c=mo?mo.scrollTop:0;
@@ -842,6 +842,10 @@ function aiClick(e){var D=window.liDesk,bt=e.target.closest('[data-ai]');if(!bt|
   else if(k==='eng')(bt.dataset.p==='resume'?D.aiResume(kind):D.aiPause(kind)).then(function(){say('')});
   else if(k==='idle')D.aiSet({idleMin:Number(bt.dataset.v)}).then(function(){say('')});
   else if(k==='cpu')D.aiSet({cpu:bt.dataset.v}).then(function(){say('')});
+  else if(k==='tdiag'){bt.disabled=true;aiHold=true;say(T('جارٍ الاختبار… قد يستغرق دقائق في أول مرة.','Testing… the first time can take a few minutes.'));
+    D.aiDiag(!!(window.LiNative&&LiNative.hq&&LiNative.hq())).then(function(r){aiHold=false;r=r||{};
+      var info=' · '+T('النموذج: ','Model: ')+(r.model||'?')+(r.mb?' ('+r.mb+' MB)':'')+' · '+T('الذاكرة الحرة: ','Free memory: ')+(r.freeMB||'?')+' / '+(r.totalMB||'?')+' MB';
+      say(r.ok?T('نجحت الترجمة: ','Translation worked: ')+'«'+r.text+'» · '+Math.round((r.ms||0)/100)/10+' s · '+(r.engine||'')+info:T('فشلت الترجمة: ','Translation failed: ')+(r.text||'?')+info)},function(){aiHold=false;say(T('تعذر الاختبار.','The test could not run.'))})}
   else if(k==='free')D.aiUnload().then(function(r){say(r&&r.busy?T('نموذج مشغول الآن، وسيُفرَّغ عند انتهاء مهمته.','A model is busy now. It will be freed when it finishes.'):T('تم تفريغ الذاكرة.','Memory freed.'))});
   else if(k==='ocr'){var on=true;try{on=localStorage.getItem('li-ai-ocr2')!=='0'}catch(x){}try{localStorage.setItem('li-ai-ocr2',on?'0':'1')}catch(x){}aiLastHtml='';aiDraw()}
   else if(k==='rm'){var m=aiS.models.filter(function(x){return x.id===id})[0];aiHold=true;
