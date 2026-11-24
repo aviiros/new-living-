@@ -607,6 +607,7 @@
     function ocrItems(p, n) {
       if (ocrC[n]) return ocrC[n];
       var key = ((window.__LI && window.__LI.id) || '') + ':' + n;
+      if (window.__liListening && !(window.__liPrio && window.__liPrio[n])) return idbGet(key).then(function (hit) { return hit && hit.length ? toItems(p, hit) : null; }); // the voice has the reader first
       return ocrC[n] = idbGet(key).then(function (hit) {
         if (hit) return hit;
         var job = ocrQ.then(function () { return readRows(p, n); }); ocrQ = job.catch(function () {});
@@ -918,7 +919,7 @@
       + '#li-pl .hd{display:flex;align-items:center;gap:8px;direction:ltr}#li-pl .hd b{flex:1;font-weight:700;text-align:center}#li-pl .ib{width:34px;height:34px;min-width:34px;border-radius:17px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}'
       + '#li-pl .cr{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0 4px;direction:ltr}#li-pl .cr button{width:46px;height:46px;border-radius:23px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}#li-pl .cr button.big{width:60px;height:60px;border-radius:30px;background:var(--lx-ac);color:#fff}'
       + '#li-pl .rw{display:flex;align-items:center;gap:10px;margin-top:10px}#li-pl .rw span{min-width:70px;opacity:.85}#li-pl .rw b{min-width:38px;text-align:center}#li-pl input[type=range]{direction:ltr;flex:1;accent-color:var(--lx-ac);height:28px}#li-pl select{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--lx-ln);background:var(--lx-soft);color:var(--lx-fg)}'
-      + '#li-pl.mini{width:auto;padding:6px 10px;border-radius:30px;bottom:66px}#li-pl.mini .hd b,#li-pl.mini .rw,#li-pl.mini [data-r=nv],#li-pl.mini .hd .ib.hx{display:none}#li-pl.mini .cr{margin:0}#li-pl.mini .hd{position:absolute;right:-6px;top:-10px;gap:4px}';
+      + '#li-pl.mini{display:flex!important;direction:ltr!important;align-items:center;gap:6px;width:auto;max-width:94vw;padding:6px 10px;border-radius:30px}#li-pl.mini .hd,#li-pl.mini .cr{display:contents}#li-pl.mini .hd b,#li-pl.mini .rw,#li-pl.mini [data-r=nv],#li-pl.mini [data-r=st],#li-pl.mini [data-a=html]{display:none!important}#li-pl.mini .cr button{width:38px;height:38px;border-radius:19px}#li-pl.mini .cr button.big{width:44px;height:44px;border-radius:22px}#li-pl.mini .ib[data-a=x]{order:9}#li-pl.mini .hd .hx{order:0}#li-pl.mini .cr button[data-a=pv]{order:1}#li-pl.mini .cr button[data-a=pp]{order:2}#li-pl.mini .cr button[data-a=nx]{order:3}';
     document.head.appendChild(st2);
     var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'lix'; btn.innerHTML = IC.tr; btn.setAttribute('aria-label', L('tr')); ui.appendChild(btn); ui.style.display = 'flex'; ui.style.gap = '10px'; ui.style.alignItems = 'center';
     var menu = document.createElement('div'); menu.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;min-width:150px;background:#fbf7ec;color:#1d2b33;border:1px solid #d9cdb0;border-radius:14px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.25)'; ui.appendChild(menu);
@@ -1046,20 +1047,37 @@
       for (var i = 1; i < 4; i++) if (sc[i] > sc[best] + 0.15) best = i; // keep the stored order unless another order is clearly better
       return cand[best];
     }
+    // Words stored letter-by-letter in screen order: keep the order that gives real Arabic words.
+    function fixPara(t, ar) {
+      if (!ar || !AR.test(t)) return t;
+      var rv = t.replace(/[؀-ۿ]+/g, function (w) { return w.split('').reverse().join(''); });
+      return arScore(rv, ar) > arScore(t, ar) + 0.2 ? revDigits(rv) : t;
+    }
+    function ptextLines(tc, ar) {
+      var lines = [], cur = null;
+      tc.items.forEach(function (it) {
+        var str = String(it.str == null ? '' : it.str).normalize('NFKC'); if (!str) return;
+        var tr = it.transform || [1, 0, 0, 1, 0, 0], h = Math.abs(it.height) || Math.hypot(tr[2], tr[3]) || 8, o = { s: str, x: tr[4], y: tr[5], w: Math.abs(it.width) || 0, h: h };
+        if (cur && Math.abs(cur.y - o.y) < 0.55 * Math.max(cur.h, h)) cur.its.push(o); else { cur = { y: o.y, h: h, its: [o] }; lines.push(cur); }
+        if (it.hasEOL) cur = null;
+      });
+      return lines.map(function (l) { return lineText(l.its, ar).replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' ');
+    }
+    // Text of a page in reading order: the same page geometry as the HTML converter (columns, headers and page numbers left out), then the Arabic order check.
     function ptext(n) {
       var arP = Promise.resolve(null); try { arP = parent.liArFix ? parent.liArFix.load().catch(function () { return null; }) : arP; } catch (e) {}
-      return Promise.all([getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }), arP]).then(function (r) {
-        var tc = r[0], ar = r[1], lines = [], cur = null;
-        tc.items.forEach(function (it) {
-          var str = String(it.str == null ? '' : it.str).normalize('NFKC'); if (!str) return;
-          var tr = it.transform || [1, 0, 0, 1, 0, 0], h = Math.abs(it.height) || Math.hypot(tr[2], tr[3]) || 8, o = { s: str, x: tr[4], y: tr[5], w: Math.abs(it.width) || 0, h: h };
-          if (cur && Math.abs(cur.y - o.y) < 0.55 * Math.max(cur.h, h) && !(it.hasEOL && false)) cur.its.push(o); else { cur = { y: o.y, h: h, its: [o] }; lines.push(cur); }
-          if (it.hasEOL) cur = null;
+      window.__liPrio = window.__liPrio || {}; window.__liPrio[n] = 1;
+      return Promise.all([getDoc().then(function (d) { return d.getPage(n); }), arP]).then(function (r) {
+        var pg = r[0], ar = r[1], G = window.__PDFGEO;
+        return pg.getTextContent().then(function (tc) {
+          delete window.__liPrio[n]; var vp = pg.getViewport({ scale: 1 }), out = '';
+          if (G) { try { out = G.pageBlocks(tc.items, vp.width, vp.height).map(function (b) { return fixPara(b.txt, ar); }).join('. ').replace(/\s+/g, ' ').trim(); } catch (e) { out = ''; } }
+          if (!out) out = ptextLines(tc, ar).replace(/\s+/g, ' ').trim();
+          return out;
         });
-        return lines.map(function (l) { return lineText(l.its, ar).replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
       });
     }
-    function lstop() { LS.on = false; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
+    function lstop() { LS.on = false; window.__liListening = false; LS.wait = null; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
     // Pages are queued ahead (on the phone the whole rest of the document), so reading continues by itself while the page is frozen in the background.
     function lpage(n, tok) {
       var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
@@ -1067,11 +1085,11 @@
         if (!LS.on || tok !== LS.tok || Q.loading) return;
         if (Q.out >= (Q.slow ? 80 : ((window.LiNative || parent.LiNative) ? 1e6 : 400))) return;
         if (Q.total && Q.np > Q.total) { if (Q.out <= 0) lstop(); return; }
-        Q.loading = true; var t0 = Date.now(); setTimeout(function () { if (Q.loading) lpanel(); }, 900);
+        Q.loading = true; var t0 = Date.now(), tm = setInterval(function () { if (!Q.loading || !LS.on || tok !== LS.tok) { clearInterval(tm); return; } LS.wait = { n: Q.np, s: Math.round((Date.now() - t0) / 1000) }; lpanel(); }, 1000);
         getDoc().then(function (d) { Q.total = d.numPages; if (Q.np > d.numPages) return ''; return ptext(Q.np); }).then(function (t) {
-          Q.loading = false; if (Date.now() - t0 > 500) Q.slow = true; if (!LS.on || tok !== LS.tok) return;
+          Q.loading = false; LS.wait = null; if (Date.now() - t0 > 500) Q.slow = true; if (!LS.on || tok !== LS.tok) return;
           var pn = Q.np; Q.np++;
-          if (!t) { top(); return; }
+          if (!t) { LS.note = { n: pn, at: Date.now() }; lpanel(); top(); return; }
           var cs = lchunks(t), lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
           cs.forEach(function (c, k) {
             var u = new SpeechSynthesisUtterance(c); u.__g = 'p' + pn; u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1; u.volume = (G.vol == null ? 1 : G.vol); LS.lg = lg;
@@ -1090,12 +1108,12 @@
     window.__liPdfStop = function () { if (LS.on) lstop(); };
     window.__liPtext = ptext;
     // ---- player: entry button + control panel (play/pause, previous/next page, speed, volume, voice), like the book reader's dock
-    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic', nv: 'No voice for this language is installed on this device. Add one in the system speech settings.', mn: 'Minimize', mx: 'Expand' },
-      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي', nv: 'لا يوجد صوت لهذه اللغة على هذا الجهاز. أضف صوتًا من إعدادات النطق في النظام.', mn: 'تصغير', mx: 'تكبير' },
-      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique', nv: 'Aucune voix pour cette langue n’est installée. Ajoutez-en une dans les paramètres vocaux du système.', mn: 'Réduire', mx: 'Agrandir' },
-      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático', nv: 'No hay una voz instalada para este idioma. Añade una en los ajustes de voz del sistema.', mn: 'Minimizar', mx: 'Ampliar' },
-      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico', nv: 'Nessuna voce installata per questa lingua. Aggiungine una nelle impostazioni vocali del sistema.', mn: 'Riduci', mx: 'Espandi' },
-      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis', nv: 'Belum ada suara untuk bahasa ini di perangkat. Tambahkan di pengaturan suara sistem.', mn: 'Perkecil', mx: 'Perbesar' } };
+    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic', nv: 'No voice for this language is installed on this device. Add one in the system speech settings.', prep: 'Reading the text of page #…', nt: 'Page # has no readable text — skipped', toh: 'Convert to an HTML book (faster, better listening)', mn: 'Minimize', mx: 'Expand' },
+      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي', nv: 'لا يوجد صوت لهذه اللغة على هذا الجهاز. أضف صوتًا من إعدادات النطق في النظام.', prep: 'جارٍ قراءة نص الصفحة #…', nt: 'الصفحة # بلا نص مقروء — تم تخطيها', toh: 'تحويل إلى كتاب HTML (استماع أسرع وأدق)', mn: 'تصغير', mx: 'تكبير' },
+      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique', nv: 'Aucune voix pour cette langue n’est installée. Ajoutez-en une dans les paramètres vocaux du système.', prep: 'Lecture du texte de la page #…', nt: 'La page # n’a pas de texte lisible — ignorée', toh: 'Convertir en livre HTML (écoute plus rapide et plus précise)', mn: 'Réduire', mx: 'Agrandir' },
+      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático', nv: 'No hay una voz instalada para este idioma. Añade una en los ajustes de voz del sistema.', prep: 'Leyendo el texto de la página #…', nt: 'La página # no tiene texto legible — omitida', toh: 'Convertir en libro HTML (escucha más rápida y precisa)', mn: 'Minimizar', mx: 'Ampliar' },
+      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico', nv: 'Nessuna voce installata per questa lingua. Aggiungine una nelle impostazioni vocali del sistema.', prep: 'Lettura del testo della pagina #…', nt: 'La pagina # non ha testo leggibile — saltata', toh: 'Converti in libro HTML (ascolto più rapido e preciso)', mn: 'Riduci', mx: 'Espandi' },
+      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis', nv: 'Belum ada suara untuk bahasa ini di perangkat. Tambahkan di pengaturan suara sistem.', prep: 'Membaca teks halaman #…', nt: 'Halaman # tidak memiliki teks yang terbaca — dilewati', toh: 'Ubah ke buku HTML (mendengarkan lebih cepat dan akurat)', mn: 'Perkecil', mx: 'Perbesar' } };
     var P = PL[UI] || PL.en;
     var lb = document.createElement('button'); lb.type = 'button'; lb.id = 'li-pl-btn'; lb.className = 'lix'; lb.title = P.l; lb.setAttribute('aria-label', P.l); lb.innerHTML = IC.sp; ui.insertBefore(lb, btn.nextSibling);
     var pn = document.createElement('div'); pn.id = 'li-pl'; pn.setAttribute('translate', 'no'); pn.style.direction = UI === 'ar' ? 'rtl' : 'ltr';
@@ -1103,6 +1121,7 @@
     function ab(a, t, c) { return '<button type="button" data-a="' + a + '" title="' + t + '" aria-label="' + t + '"' + (c ? ' class="' + c + '"' : '') + '>' + IC[a] + '</button>'; }
     pn.innerHTML = '<div class="hd"><button type="button" class="ib hx" data-a="mn" aria-label="' + P.mn + '" title="' + P.mn + '">' + IC.mn + '</button><b data-r="pg"></b><button type="button" class="ib" data-a="x" aria-label="' + P.x + '" title="' + P.x + '">' + IC.x + '</button></div>'
       + '<div class="cr"><button type="button" data-a="pv" title="' + P.pv + '" aria-label="' + P.pv + '">' + IC.pv + '</button><button type="button" class="big" data-a="pp" title="' + P.pp + '" aria-label="' + P.pp + '">' + IC.pa + '</button><button type="button" data-a="nx" title="' + P.nx + '" aria-label="' + P.nx + '">' + IC.nx + '</button></div>'
+      + '<div data-r="st" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;text-align:center;opacity:.9"></div><button type="button" data-a="html" style="display:none;width:100%;margin-top:6px;padding:8px 10px;border-radius:12px;border:0;background:var(--lx-soft);color:var(--lx-fg);font:600 12px system-ui,sans-serif;cursor:pointer">' + P.toh + '</button>'
       + '<label class="rw"><span>' + P.sp + '</span><input data-r="sp" type="range" min="0.6" max="2" step="0.1"><b data-r="spv"></b></label>'
       + '<label class="rw"><span>' + P.vo + '</span><input data-r="vo" type="range" min="0" max="1" step="0.05"><b data-r="vov"></b></label>'
       + '<label class="rw"><span>' + P.vc + '</span><select data-r="vc"></select></label><div data-r="nv" style="display:none;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(176,60,40,.12);font-size:12px;line-height:1.5">' + P.nv + '</div>';
@@ -1119,17 +1138,19 @@
     }
     function lpanel() {
       lb.classList.toggle('live', !!LS.on && !LS.paused); lb.classList.toggle('on', !!LS.on);
-      if (!LS.on) { pn.style.display = 'none'; return; }
+      if (!LS.on) { pn.classList.remove('mini'); pn.style.display = 'none'; return; }
       pn.style.display = 'block'; pn.classList.toggle('mini', mini); var G = gget(), hx = pn.querySelector('.hx'); hx.innerHTML = mini ? IC.mx : IC.mn; hx.title = mini ? P.mx : P.mn;
       q('sp').value = G.rate || 1; q('spv').textContent = (+(G.rate || 1)).toFixed(1) + '×'; q('vo').value = G.vol == null ? 1 : G.vol; q('vov').textContent = Math.round((G.vol == null ? 1 : G.vol) * 100) + '%';
       q('pg').textContent = P.pg + ' ' + (LS.cur || '') + (LS.q && LS.q.total ? ' / ' + LS.q.total : '') + (LS.q && LS.q.loading && LS.on && !LS.paused ? '  …' : ''); pn.querySelector('[data-a="pp"]').innerHTML = LS.paused ? IC.pl : IC.pa; if (!mini) fillVoices();
+      var stE = q('st'), hb = pn.querySelector('[data-a="html"]'), w = LS.wait, nt = LS.note && Date.now() - LS.note.at < 6000 ? LS.note : null;
+      stE.style.display = (w || nt) ? 'block' : 'none'; stE.textContent = w ? P.prep.replace('#', w.n) + (w.s > 2 ? ' · ' + w.s + 's' : '') : (nt ? P.nt.replace('#', nt.n) : ''); hb.style.display = (w && w.s > 40) ? 'block' : 'none';
     }
     function lrestart(n) { if (!LS.on) return; LS.paused = false; var tok = ++LS.tok; try { window.speechSynthesis.cancel(); } catch (e) {} LS.cur = n; lpanel(); setTimeout(function () { if (LS.on && tok === LS.tok) lpage(n, tok); }, 120); }
-    function lstart() { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; LS.paused = false; var tok = ++LS.tok; lsay(true); LS.cur = (window.__pcur && window.__pcur()) || 1; lpanel(); lpage(LS.cur, tok); }
+    function lstart() { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; window.__liListening = true; mini = false; try { localStorage.setItem('li-pl-mini', '0'); } catch (x) {} LS.paused = false; var tok = ++LS.tok; lsay(true); LS.cur = (window.__pcur && window.__pcur()) || 1; lpanel(); lpage(LS.cur, tok); }
     var plt = 0; function plLater(f) { clearTimeout(plt); plt = setTimeout(f, 450); }
     pn.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-a]') : null; if (!b) return; var a = b.getAttribute('data-a'), n = LS.cur || 1;
-      if (a === 'x') lstop(); else if (a === 'mn') { mini = !mini; try { localStorage.setItem('li-pl-mini', mini ? '1' : '0'); } catch (x) {} lpanel(); } else if (a === 'pv') lrestart(Math.max(1, n - 1)); else if (a === 'nx') lrestart(Math.min((LS.q && LS.q.total) || 1e6, n + 1));
+      if (a === 'html') { try { parent.postMessage({ liBook: 1, type: 'pdf-to-html', tr: '' }, '*'); } catch (x) {} } else if (a === 'x') lstop(); else if (a === 'mn') { mini = !mini; try { localStorage.setItem('li-pl-mini', mini ? '1' : '0'); } catch (x) {} lpanel(); } else if (a === 'pv') lrestart(Math.max(1, n - 1)); else if (a === 'nx') lrestart(Math.min((LS.q && LS.q.total) || 1e6, n + 1));
       else if (a === 'pp') { if (LS.paused) lrestart(n); else { LS.paused = true; LS.tok++; try { window.speechSynthesis.cancel(); } catch (x) {} lpanel(); } }
     });
     q('sp').addEventListener('input', function () { gset('rate', +this.value); q('spv').textContent = (+this.value).toFixed(1) + '×'; plLater(function () { if (LS.on && !LS.paused) lrestart(LS.cur || 1); }); });
