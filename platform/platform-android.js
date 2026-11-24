@@ -918,7 +918,7 @@
       + '#li-pl .hd{display:flex;align-items:center;gap:8px;direction:ltr}#li-pl .hd b{flex:1;font-weight:700;text-align:center}#li-pl .ib{width:34px;height:34px;min-width:34px;border-radius:17px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}'
       + '#li-pl .cr{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0 4px;direction:ltr}#li-pl .cr button{width:46px;height:46px;border-radius:23px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}#li-pl .cr button.big{width:60px;height:60px;border-radius:30px;background:var(--lx-ac);color:#fff}'
       + '#li-pl .rw{display:flex;align-items:center;gap:10px;margin-top:10px}#li-pl .rw span{min-width:70px;opacity:.85}#li-pl .rw b{min-width:38px;text-align:center}#li-pl input[type=range]{direction:ltr;flex:1;accent-color:var(--lx-ac);height:28px}#li-pl select{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--lx-ln);background:var(--lx-soft);color:var(--lx-fg)}'
-      + '#li-pl.mini{width:auto;padding:6px 10px;border-radius:30px;bottom:66px}#li-pl.mini .hd b,#li-pl.mini .rw,#li-pl.mini .hd .ib.hx{display:none}#li-pl.mini .cr{margin:0}#li-pl.mini .hd{position:absolute;right:-6px;top:-10px;gap:4px}';
+      + '#li-pl.mini{width:auto;padding:6px 10px;border-radius:30px;bottom:66px}#li-pl.mini .hd b,#li-pl.mini .rw,#li-pl.mini [data-r=nv],#li-pl.mini .hd .ib.hx{display:none}#li-pl.mini .cr{margin:0}#li-pl.mini .hd{position:absolute;right:-6px;top:-10px;gap:4px}';
     document.head.appendChild(st2);
     var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'lix'; btn.innerHTML = IC.tr; btn.setAttribute('aria-label', L('tr')); ui.appendChild(btn); ui.style.display = 'flex'; ui.style.gap = '10px'; ui.style.alignItems = 'center';
     var menu = document.createElement('div'); menu.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;min-width:150px;background:#fbf7ec;color:#1d2b33;border:1px solid #d9cdb0;border-radius:14px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.25)'; ui.appendChild(menu);
@@ -1016,21 +1016,56 @@
     function lchunks(t) {
       var out = [], re = /[^.!?؟۔…\n]+[.!?؟۔…]*\s*/g, m, c = '';
       while ((m = re.exec(t))) { var x = m[0]; while (x.length > 240) { var cut = x.lastIndexOf(' ', 220); if (cut < 80) cut = 220; if (c) { out.push(c); c = ''; } out.push(x.slice(0, cut)); x = x.slice(cut); } if ((c + x).length > 220 && c) { out.push(c); c = x; } else c += x; }
-      if (c.trim()) out.push(c); return out.length ? out : [t];
+      if (c.trim()) out.push(c); out = out.filter(function (x) { return /[A-Za-z0-9\u00C0-\u024F\u0600-\u06FF]/.test(x); }); return out;
     }
     function llang(t) {
       if (/[؀-ۿ]/.test(t)) return 'ar'; var l = ' ' + t.slice(0, 1500).toLowerCase() + ' ', best = 'en', bs = 0;
       var W = { fr: [' le ', ' la ', ' les ', ' des ', ' est ', ' une '], es: [' el ', ' los ', ' que ', ' una ', ' es ', ' por '], it: [' il ', ' che ', ' di ', ' una ', ' è ', ' per '], id: [' yang ', ' dan ', ' di ', ' ini ', ' itu ', ' dengan '], en: [' the ', ' and ', ' of ', ' to ', ' is ', ' in '] };
       Object.keys(W).forEach(function (k) { var c = 0; W[k].forEach(function (w) { c += l.split(w).length - 1; }); if (c > bs) { bs = c; best = k; } }); return best;
     }
-    function ptext(n) { return getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { var o = []; tc.items.forEach(function (it) { o.push(it.str); if (it.hasEOL) o.push(' '); }); return o.join(' ').replace(/\s+/g, ' ').trim(); }); }
+    // Text of a page in reading order, ready for the voice. Lines are rebuilt from the item positions; Arabic lines that some PDF makers store
+    // in screen order (letters or words reversed) are turned back by checking which order gives real Arabic words (the same word list the converter uses).
+    var AR = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/, DG = /[0-9٠-٩۰-۹]+/g;
+    function revDigits(t) { return t.replace(DG, function (m) { return m.split('').reverse().join(''); }); }
+    function arScore(t, ar) { var w = t.split(/[^؀-ۿ]+/).filter(function (x) { return x.length > 1; }); if (!w.length || !ar) return -1; var nm = parent.liArFixNorm || function (z) { return z; }, k = 0; w.forEach(function (x) { if (ar.known(nm(x))) k++; }); return k / w.length; }
+    function joinItems(its) {
+      var o = '', prev = null;
+      its.forEach(function (it) {
+        if (!it.s) return;
+        if (prev && !/^\s/.test(it.s) && !/\s$/.test(prev.s)) { var gap = Math.max(it.x - (prev.x + prev.w), prev.x - (it.x + it.w)); if (gap > 0.22 * Math.max(it.h, prev.h, 1) || (prev.s.length > 2 && it.s.length > 2 && gap > -0.1 * it.h)) o += ' '; }
+        o += it.s; prev = it;
+      });
+      return o;
+    }
+    function lineText(its, ar) {
+      var A = joinItems(its); if (!AR.test(A)) return A;
+      var R = its.slice().reverse(), B = revDigits(joinItems(R)), C = revDigits(joinItems(R.map(function (it) { return { s: it.s.split('').reverse().join(''), x: it.x, w: it.w, h: it.h }; })));
+      var D = joinItems(its.map(function (it) { return { s: it.s.split('').reverse().join(''), x: it.x, w: it.w, h: it.h }; }));
+      var cand = [A, B, C, D], sc = cand.map(function (c) { return arScore(c, ar); }), best = 0;
+      if (sc[0] < 0) return A;
+      for (var i = 1; i < 4; i++) if (sc[i] > sc[best] + 0.15) best = i; // keep the stored order unless another order is clearly better
+      return cand[best];
+    }
+    function ptext(n) {
+      var arP = Promise.resolve(null); try { arP = parent.liArFix ? parent.liArFix.load().catch(function () { return null; }) : arP; } catch (e) {}
+      return Promise.all([getDoc().then(function (d) { return d.getPage(n); }).then(function (pg) { return pg.getTextContent(); }), arP]).then(function (r) {
+        var tc = r[0], ar = r[1], lines = [], cur = null;
+        tc.items.forEach(function (it) {
+          var str = String(it.str == null ? '' : it.str).normalize('NFKC'); if (!str) return;
+          var tr = it.transform || [1, 0, 0, 1, 0, 0], h = Math.abs(it.height) || Math.hypot(tr[2], tr[3]) || 8, o = { s: str, x: tr[4], y: tr[5], w: Math.abs(it.width) || 0, h: h };
+          if (cur && Math.abs(cur.y - o.y) < 0.55 * Math.max(cur.h, h) && !(it.hasEOL && false)) cur.its.push(o); else { cur = { y: o.y, h: h, its: [o] }; lines.push(cur); }
+          if (it.hasEOL) cur = null;
+        });
+        return lines.map(function (l) { return lineText(l.its, ar).replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+      });
+    }
     function lstop() { LS.on = false; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
     // Pages are queued ahead (on the phone the whole rest of the document), so reading continues by itself while the page is frozen in the background.
     function lpage(n, tok) {
       var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
       function top() {
         if (!LS.on || tok !== LS.tok || Q.loading) return;
-        if (Q.out >= (Q.slow ? 30 : ((window.LiNative || parent.LiNative) ? 1e6 : 400))) return;
+        if (Q.out >= (Q.slow ? 80 : ((window.LiNative || parent.LiNative) ? 1e6 : 400))) return;
         if (Q.total && Q.np > Q.total) { if (Q.out <= 0) lstop(); return; }
         Q.loading = true; var t0 = Date.now(); setTimeout(function () { if (Q.loading) lpanel(); }, 900);
         getDoc().then(function (d) { Q.total = d.numPages; if (Q.np > d.numPages) return ''; return ptext(Q.np); }).then(function (t) {
@@ -1053,13 +1088,14 @@
       top();
     }
     window.__liPdfStop = function () { if (LS.on) lstop(); };
+    window.__liPtext = ptext;
     // ---- player: entry button + control panel (play/pause, previous/next page, speed, volume, voice), like the book reader's dock
-    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic', mn: 'Minimize', mx: 'Expand' },
-      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي', mn: 'تصغير', mx: 'تكبير' },
-      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique', mn: 'Réduire', mx: 'Agrandir' },
-      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático', mn: 'Minimizar', mx: 'Ampliar' },
-      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico', mn: 'Riduci', mx: 'Espandi' },
-      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis', mn: 'Perkecil', mx: 'Perbesar' } };
+    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic', nv: 'No voice for this language is installed on this device. Add one in the system speech settings.', mn: 'Minimize', mx: 'Expand' },
+      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي', nv: 'لا يوجد صوت لهذه اللغة على هذا الجهاز. أضف صوتًا من إعدادات النطق في النظام.', mn: 'تصغير', mx: 'تكبير' },
+      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique', nv: 'Aucune voix pour cette langue n’est installée. Ajoutez-en une dans les paramètres vocaux du système.', mn: 'Réduire', mx: 'Agrandir' },
+      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático', nv: 'No hay una voz instalada para este idioma. Añade una en los ajustes de voz del sistema.', mn: 'Minimizar', mx: 'Ampliar' },
+      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico', nv: 'Nessuna voce installata per questa lingua. Aggiungine una nelle impostazioni vocali del sistema.', mn: 'Riduci', mx: 'Espandi' },
+      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis', nv: 'Belum ada suara untuk bahasa ini di perangkat. Tambahkan di pengaturan suara sistem.', mn: 'Perkecil', mx: 'Perbesar' } };
     var P = PL[UI] || PL.en;
     var lb = document.createElement('button'); lb.type = 'button'; lb.id = 'li-pl-btn'; lb.className = 'lix'; lb.title = P.l; lb.setAttribute('aria-label', P.l); lb.innerHTML = IC.sp; ui.insertBefore(lb, btn.nextSibling);
     var pn = document.createElement('div'); pn.id = 'li-pl'; pn.setAttribute('translate', 'no'); pn.style.direction = UI === 'ar' ? 'rtl' : 'ltr';
@@ -1069,7 +1105,7 @@
       + '<div class="cr"><button type="button" data-a="pv" title="' + P.pv + '" aria-label="' + P.pv + '">' + IC.pv + '</button><button type="button" class="big" data-a="pp" title="' + P.pp + '" aria-label="' + P.pp + '">' + IC.pa + '</button><button type="button" data-a="nx" title="' + P.nx + '" aria-label="' + P.nx + '">' + IC.nx + '</button></div>'
       + '<label class="rw"><span>' + P.sp + '</span><input data-r="sp" type="range" min="0.6" max="2" step="0.1"><b data-r="spv"></b></label>'
       + '<label class="rw"><span>' + P.vo + '</span><input data-r="vo" type="range" min="0" max="1" step="0.05"><b data-r="vov"></b></label>'
-      + '<label class="rw"><span>' + P.vc + '</span><select data-r="vc"></select></label>';
+      + '<label class="rw"><span>' + P.vc + '</span><select data-r="vc"></select></label><div data-r="nv" style="display:none;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(176,60,40,.12);font-size:12px;line-height:1.5">' + P.nv + '</div>';
     document.body.appendChild(pn);
     function gset(k, v) { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} G[k] = v; try { parent.localStorage.setItem('li-dock', JSON.stringify(G)); } catch (e) {} }
     function gget() { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} return G; }
@@ -1077,7 +1113,7 @@
     function fillVoices() {
       var sel = q('vc'), G = gget(), vs = []; try { vs = window.speechSynthesis.getVoices() || []; } catch (e) {}
       var f = LS.lg ? vs.filter(function (v) { return (v.lang || '').toLowerCase().indexOf(LS.lg) === 0; }) : []; if (!f.length) f = vs;
-      var key = f.map(function (v) { return v.name; }).join('|'); if (sel.__k === key) { sel.value = G.voice || ''; return; } sel.__k = key;
+      q('nv').style.display = (vs.length && LS.lg && !vs.some(function (v) { return (v.lang || '').toLowerCase().indexOf(LS.lg) === 0; })) ? 'block' : 'none'; var key = f.map(function (v) { return v.name; }).join('|'); if (sel.__k === key) { sel.value = G.voice || ''; return; } sel.__k = key;
       sel.innerHTML = ''; var o = document.createElement('option'); o.value = ''; o.textContent = P.au; sel.appendChild(o);
       f.forEach(function (v) { var x = document.createElement('option'); x.value = v.name; x.textContent = v.name + ' (' + v.lang + ')'; sel.appendChild(x); }); sel.value = G.voice || '';
     }

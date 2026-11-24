@@ -1,5 +1,5 @@
 // Living Ideas — Windows (Electron) shell. The pages themselves are the same files the Android app uses.
-const { app, BrowserWindow, protocol, net, ipcMain, shell, Notification, Tray, Menu, nativeImage, session } = require('electron');
+const { app, BrowserWindow, protocol, net, ipcMain, shell, Notification, Tray, Menu, nativeImage, session, powerSaveBlocker } = require('electron');
 const path = require('path'), url = require('url'), fs = require('fs'), os = require('os'), { Worker } = require('worker_threads');
 const { dialog } = require('electron');
 
@@ -43,6 +43,9 @@ app.whenReady().then(() => {
 
 // ---------- window ----------
 ipcMain.handle('win:fs', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
+// reading aloud must go on when the screen turns off: stop the system from suspending the app while a voice is speaking
+let awakeId = -1;
+ipcMain.on('app:awake', (_e, on) => { try { if (on && awakeId < 0) awakeId = powerSaveBlocker.start('prevent-app-suspension'); else if (!on && awakeId >= 0) { powerSaveBlocker.stop(awakeId); awakeId = -1; } } catch (e) {} });
 ipcMain.on('open-url', (_e, u) => { if (/^(https?:|mailto:)/i.test(String(u))) shell.openExternal(String(u)); });
 
 // ---------- notifications (daily quote, reading reminder, goal reached) ----------
