@@ -241,7 +241,7 @@
     // Sentences are handed to the phone's own reader in one go (it keeps its queue and goes on by itself while this page sleeps).
     function flush() {
       var a = pend; pend = []; if (!a.length) return;
-      var arr = a.map(function (ent) { var u = ent.u; return { id: ent.id, t: u.text, l: u.lang || (u.voice && u.voice.lang) || '', v: u.voice ? u.voice.name : '', r: +u.rate || 1, p: +u.pitch || 1, g: u.__g !== undefined ? String(u.__g) : ent.id, b: u.onboundary ? 1 : 0 }; });
+      var arr = a.map(function (ent) { var u = ent.u; return { id: ent.id, t: u.text, l: u.lang || (u.voice && u.voice.lang) || '', v: u.voice ? u.voice.name : '', r: +u.rate || 1, p: +u.pitch || 1, vo: u.volume == null ? 1 : +u.volume, g: u.__g !== undefined ? String(u.__g) : ent.id, b: u.onboundary ? 1 : 0 }; });
       try { if (batchOk) N.speakBatch(JSON.stringify(arr), false); else arr.forEach(function (o) { N.speak(o.id, o.t, o.l, o.v, o.r, o.p); }); } catch (e) {}
     }
     // A book that reads sentence by sentence starts the next one from a short timer inside its "end" handler. Hidden pages slow timers down
@@ -523,7 +523,7 @@
       state.run++; queue = []; pend = {}; inflight = 0; units = [];
       [].forEach.call(document.querySelectorAll('[data-li-dir]'), function (b) { var v = b.getAttribute('data-li-dir'); if (v === '\u0000') b.removeAttribute('dir'); else b.setAttribute('dir', v); b.removeAttribute('data-li-dir'); if (b.hasAttribute('data-li-ta')) { var t = b.getAttribute('data-li-ta'); b.style.textAlign = t === '\u0000' ? '' : t; b.removeAttribute('data-li-ta'); } });
       var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n; while ((n = w.nextNode())) { if (n.__o !== undefined) { n.nodeValue = n.__o; delete n.__o; } }
-      window.__LI_TR = false; state.tgt = null; btn.textContent = 'A文'; btn.style.background = 'rgba(29,43,51,.88)'; tip.style.display = 'none';
+      window.__LI_TR = false; state.tgt = null; btn.textContent = 'A文'; btn.classList.remove('on'); tip.style.display = 'none';
       document.documentElement.removeAttribute('data-li-lang');
       try { localStorage.removeItem(key); } catch (e) {} if (!quiet) say(L('orig'), 1500);
     }
@@ -902,12 +902,30 @@
     var st = document.createElement('style'); st.textContent = '.tro{position:absolute;inset:0;pointer-events:none;overflow:hidden}body.night .tro{filter:invert(.92) hue-rotate(180deg)}body.sepia .tro{filter:sepia(.45) contrast(.95)}.tro .c{position:absolute}.tro .t{position:absolute;overflow:visible;line-height:1.18;font-family:system-ui,"Noto Naskh Arabic","Noto Sans",sans-serif;word-break:break-word}';
     document.head.appendChild(st);
     var ui = document.createElement('div'); ui.setAttribute('translate', 'no'); ui.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;font:600 13px/1.2 system-ui,sans-serif;direction:ltr';
-    var btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'A文'; btn.style.cssText = 'min-width:42px;height:42px;padding:0 12px;border-radius:21px;border:1px solid rgba(176,141,87,.8);background:rgba(29,43,51,.88);color:#f5eedd;font:700 15px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:.85'; ui.appendChild(btn);
+    var IC = { tr: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2M6 5c.6 3.3 2.7 6 5.5 7.5M12 5c-.7 3.4-3 6.2-6.4 8M13 20l4-9 4 9M14.6 17h4.8"/></svg>',
+      sp: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="M16 9a4 4 0 0 1 0 6M18.7 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+      pl: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.9l11-6.8a1 1 0 0 0 0-1.8l-11-6.8A1 1 0 0 0 8 5.2z"/></svg>',
+      pa: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg>',
+      pv: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="5" y="5" width="2.6" height="14" rx="1"/><path d="M19 6v12a.8.8 0 0 1-1.25.65L9.4 12.65a.8.8 0 0 1 0-1.3l8.35-6A.8.8 0 0 1 19 6z"/></svg>',
+      nx: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="16.4" y="5" width="2.6" height="14" rx="1"/><path d="M5 6v12a.8.8 0 0 0 1.25.65l8.35-6a.8.8 0 0 0 0-1.3l-8.35-6A.8.8 0 0 0 5 6z"/></svg>',
+      x: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+      mn: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></svg>',
+      mx: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14.5l6-6 6 6"/></svg>' };
+    var st2 = document.createElement('style'); st2.textContent = ':root{--lx-bg:rgba(251,247,236,.97);--lx-fg:#14262e;--lx-ln:#d9cdb0;--lx-ac:#b08d57;--lx-soft:rgba(20,38,46,.07)}body.night{--lx-bg:rgba(26,42,50,.97);--lx-fg:#f5eedd;--lx-ln:#2c3f48;--lx-soft:rgba(245,238,221,.09)}'
+      + '.lix{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:44px;height:44px;padding:0;border-radius:22px;border:1px solid var(--lx-ln);background:var(--lx-bg);color:var(--lx-fg);font:700 13px system-ui,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.25);cursor:pointer;-webkit-tap-highlight-color:transparent}.lix:active{transform:scale(.94)}.lix.on{background:var(--lx-ac);color:#fff;border-color:var(--lx-ac)}'
+      + '@keyframes lxp{0%{box-shadow:0 0 0 0 rgba(176,141,87,.55)}100%{box-shadow:0 0 0 12px rgba(176,141,87,0)}}.lix.live{animation:lxp 1.6s ease-out infinite}'
+      + '#li-pl{display:none;position:fixed;left:50%;bottom:66px;transform:translateX(-50%);z-index:2147483001;width:min(94vw,350px);box-sizing:border-box;background:var(--lx-bg);color:var(--lx-fg);border:1px solid var(--lx-ln);border-radius:22px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:10px 12px 12px;font:13px system-ui,sans-serif}'
+      + '#li-pl .hd{display:flex;align-items:center;gap:8px;direction:ltr}#li-pl .hd b{flex:1;font-weight:700;text-align:center}#li-pl .ib{width:34px;height:34px;min-width:34px;border-radius:17px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}'
+      + '#li-pl .cr{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0 4px;direction:ltr}#li-pl .cr button{width:46px;height:46px;border-radius:23px;border:0;background:var(--lx-soft);color:var(--lx-fg);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}#li-pl .cr button.big{width:60px;height:60px;border-radius:30px;background:var(--lx-ac);color:#fff}'
+      + '#li-pl .rw{display:flex;align-items:center;gap:10px;margin-top:10px}#li-pl .rw span{min-width:70px;opacity:.85}#li-pl .rw b{min-width:38px;text-align:center}#li-pl input[type=range]{direction:ltr;flex:1;accent-color:var(--lx-ac);height:28px}#li-pl select{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--lx-ln);background:var(--lx-soft);color:var(--lx-fg)}'
+      + '#li-pl.mini{width:auto;padding:6px 10px;border-radius:30px;bottom:66px}#li-pl.mini .hd b,#li-pl.mini .rw,#li-pl.mini .hd .ib.hx{display:none}#li-pl.mini .cr{margin:0}#li-pl.mini .hd{position:absolute;right:-6px;top:-10px;gap:4px}';
+    document.head.appendChild(st2);
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'lix'; btn.innerHTML = IC.tr; btn.setAttribute('aria-label', L('tr')); ui.appendChild(btn); ui.style.display = 'flex'; ui.style.gap = '10px'; ui.style.alignItems = 'center';
     var menu = document.createElement('div'); menu.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;min-width:150px;background:#fbf7ec;color:#1d2b33;border:1px solid #d9cdb0;border-radius:14px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.25)'; ui.appendChild(menu);
     var tip = document.createElement('div'); tip.style.cssText = 'display:none;position:absolute;bottom:50px;left:0;max-width:78vw;background:rgba(29,43,51,.92);color:#f5eedd;border-radius:10px;padding:7px 11px;font:600 12px/1.4 system-ui,sans-serif'; ui.appendChild(tip);
     var tt = 0; function say(t, ms) { tip.textContent = t; tip.style.display = 'block'; clearTimeout(tt); if (ms) tt = setTimeout(function () { tip.style.display = 'none'; }, ms); }
     document.body.appendChild(ui);
-    function label() { btn.textContent = busy > 0 ? '…' : 'A文'; }
+    function label() { if (busy > 0) btn.textContent = '…'; else btn.innerHTML = IC.tr; }
     // ---- extract text blocks of one page
     function blocksOf(items, vp) {
       var G = window.__PDFGEO; if (G) { try { return G.pageBlocks(items, vp.width, vp.height).map(function (b) { return { text: b.txt, l: b.l, r: b.r, t: b.t, b: b.b, fs: b.fs, rtl: b.rtl }; }); } catch (e) {} }
@@ -983,7 +1001,7 @@
     var rt = 0; function later() { clearTimeout(rt); rt = setTimeout(refresh, 160); }
     var sc0 = document.getElementById('sc'); if (sc0) sc0.addEventListener('scroll', later, { passive: true });
     new MutationObserver(function (ms) { if (!tgt) return; for (var i = 0; i < ms.length; i++) { var m = ms[i]; if ([].some.call(m.addedNodes, function (x) { return x.nodeType === 1 && x.tagName === 'CANVAS'; })) { later(); break; } } }).observe(document.getElementById('pages') || document.body, { childList: true, subtree: true });
-    function start(t) { revert(true); tgt = t; run++; SRC = null; store = {}; noText = 0; asked = {}; btn.style.background = 'rgba(93,101,64,.95)'; say(L('work') + '…', 0); try { localStorage.setItem('li-pdf-tr:' + (window.__LI && window.__LI.id), t); } catch (e) {} refresh(); }
+    function start(t) { revert(true); tgt = t; run++; SRC = null; store = {}; noText = 0; asked = {}; btn.classList.add('on'); say(L('work') + '…', 0); try { localStorage.setItem('li-pdf-tr:' + (window.__LI && window.__LI.id), t); } catch (e) {} refresh(); }
     function revert(quiet) { run++; pend = {}; tgt = null; store = {}; busy = 0; label(); [].forEach.call(document.querySelectorAll('.tro'), function (x) { x.remove(); }); btn.style.background = 'rgba(29,43,51,.88)'; tip.style.display = 'none'; try { localStorage.removeItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {} if (!quiet) say(L('orig'), 1500); }
     function sample() { return getDoc().then(function (dd) { return dd.getPage(Math.min(dd.numPages, 2)); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { return tc.items.map(function (i) { return i.str; }).join(' ').slice(0, 3000); }).catch(function () { return ''; }); }
     function showMenu() { menu.innerHTML = ''; var items = []; if (tgt) items.push(['', L('orig')]); Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); }); if (N.setOnline) items.push(['@online', (N.online && N.online() ? '✓ ' : '') + L('on')]); if (N.setHQ) items.push(['@hq', (N.hq && N.hq() ? '✓ ' : '') + L('hq')]); items.push(['@html', L('toh')]); items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0] === '@hq') { try { N.setHQ(!N.hq()); } catch (x) {} } else if (it[0] === '@html') { parent.postMessage({ liBook: 1, type: 'pdf-to-html', tr: tgt || '' }, '*'); } else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); }); menu.style.display = 'block'; }
@@ -1012,11 +1030,11 @@
       var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
       function top() {
         if (!LS.on || tok !== LS.tok || Q.loading) return;
-        if (Q.out >= ((window.LiNative || parent.LiNative) ? 1e6 : 400)) return;
+        if (Q.out >= (Q.slow ? 30 : ((window.LiNative || parent.LiNative) ? 1e6 : 400))) return;
         if (Q.total && Q.np > Q.total) { if (Q.out <= 0) lstop(); return; }
-        Q.loading = true;
+        Q.loading = true; var t0 = Date.now(); setTimeout(function () { if (Q.loading) lpanel(); }, 900);
         getDoc().then(function (d) { Q.total = d.numPages; if (Q.np > d.numPages) return ''; return ptext(Q.np); }).then(function (t) {
-          Q.loading = false; if (!LS.on || tok !== LS.tok) return;
+          Q.loading = false; if (Date.now() - t0 > 500) Q.slow = true; if (!LS.on || tok !== LS.tok) return;
           var pn = Q.np; Q.np++;
           if (!t) { top(); return; }
           var cs = lchunks(t), lg = llang(t), G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {}
@@ -1036,22 +1054,22 @@
     }
     window.__liPdfStop = function () { if (LS.on) lstop(); };
     // ---- player: entry button + control panel (play/pause, previous/next page, speed, volume, voice), like the book reader's dock
-    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic' },
-      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي' },
-      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique' },
-      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático' },
-      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico' },
-      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis' } };
+    var PL = { en: { l: 'Listen', pp: 'Play / pause', pv: 'Previous page', nx: 'Next page', sp: 'Speed', vo: 'Volume', vc: 'Voice', x: 'Stop', pg: 'Page', au: 'Automatic', mn: 'Minimize', mx: 'Expand' },
+      ar: { l: 'استماع', pp: 'تشغيل / إيقاف مؤقت', pv: 'الصفحة السابقة', nx: 'الصفحة التالية', sp: 'السرعة', vo: 'مستوى الصوت', vc: 'الصوت', x: 'إيقاف', pg: 'الصفحة', au: 'تلقائي', mn: 'تصغير', mx: 'تكبير' },
+      fr: { l: 'Écouter', pp: 'Lecture / pause', pv: 'Page précédente', nx: 'Page suivante', sp: 'Vitesse', vo: 'Volume', vc: 'Voix', x: 'Arrêter', pg: 'Page', au: 'Automatique', mn: 'Réduire', mx: 'Agrandir' },
+      es: { l: 'Escuchar', pp: 'Reproducir / pausa', pv: 'Página anterior', nx: 'Página siguiente', sp: 'Velocidad', vo: 'Volumen', vc: 'Voz', x: 'Detener', pg: 'Página', au: 'Automático', mn: 'Minimizar', mx: 'Ampliar' },
+      it: { l: 'Ascolta', pp: 'Riproduci / pausa', pv: 'Pagina precedente', nx: 'Pagina successiva', sp: 'Velocità', vo: 'Volume', vc: 'Voce', x: 'Ferma', pg: 'Pagina', au: 'Automatico', mn: 'Riduci', mx: 'Espandi' },
+      id: { l: 'Dengarkan', pp: 'Putar / jeda', pv: 'Halaman sebelumnya', nx: 'Halaman berikutnya', sp: 'Kecepatan', vo: 'Volume', vc: 'Suara', x: 'Berhenti', pg: 'Halaman', au: 'Otomatis', mn: 'Perkecil', mx: 'Perbesar' } };
     var P = PL[UI] || PL.en;
-    var lb = document.createElement('button'); lb.type = 'button'; lb.id = 'li-pl-btn'; lb.title = P.l; lb.setAttribute('aria-label', P.l); lb.textContent = '🔊';
-    lb.style.cssText = btn.style.cssText + ';margin-left:8px'; ui.insertBefore(lb, menu);
-    var pn = document.createElement('div'); pn.id = 'li-pl'; pn.setAttribute('translate', 'no'); pn.style.cssText = 'display:none;position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:2147483001;width:min(92vw,360px);box-sizing:border-box;background:rgba(251,247,236,.98);color:#14262e;border:1px solid #d9cdb0;border-radius:18px;box-shadow:0 6px 22px rgba(0,0,0,.28);padding:10px 12px;font:13px system-ui,sans-serif;direction:' + (UI === 'ar' ? 'rtl' : 'ltr');
-    var bs = 'min-width:40px;height:38px;border-radius:19px;border:1px solid #d9cdb0;background:#fff;color:#14262e;font:700 16px system-ui,sans-serif;cursor:pointer';
-    pn.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:8px;direction:ltr"><button type="button" data-a="pv" title="' + P.pv + '" aria-label="' + P.pv + '" style="' + bs + '">⏮</button><button type="button" data-a="pp" title="' + P.pp + '" aria-label="' + P.pp + '" style="' + bs + ';min-width:52px;background:#14262e;color:#f5eedd">⏸</button><button type="button" data-a="nx" title="' + P.nx + '" aria-label="' + P.nx + '" style="' + bs + '">⏭</button><button type="button" data-a="x" title="' + P.x + '" aria-label="' + P.x + '" style="' + bs + '">✕</button></div>'
-      + '<div data-r="pg" style="text-align:center;margin:6px 0 2px;font-weight:600"></div>'
-      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.sp + '</span><input data-r="sp" type="range" min="0.6" max="2" step="0.1" style="flex:1"><b data-r="spv" style="min-width:34px;text-align:center"></b></label>'
-      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.vo + '</span><input data-r="vo" type="range" min="0" max="1" step="0.05" style="flex:1"><b data-r="vov" style="min-width:34px;text-align:center"></b></label>'
-      + '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="min-width:74px">' + P.vc + '</span><select data-r="vc" style="flex:1;min-width:0;height:32px;border-radius:8px;border:1px solid #d9cdb0;background:#fff;color:#14262e"></select></label>';
+    var lb = document.createElement('button'); lb.type = 'button'; lb.id = 'li-pl-btn'; lb.className = 'lix'; lb.title = P.l; lb.setAttribute('aria-label', P.l); lb.innerHTML = IC.sp; ui.insertBefore(lb, btn.nextSibling);
+    var pn = document.createElement('div'); pn.id = 'li-pl'; pn.setAttribute('translate', 'no'); pn.style.direction = UI === 'ar' ? 'rtl' : 'ltr';
+    var mini = false; try { mini = localStorage.getItem('li-pl-mini') === '1'; } catch (e) {}
+    function ab(a, t, c) { return '<button type="button" data-a="' + a + '" title="' + t + '" aria-label="' + t + '"' + (c ? ' class="' + c + '"' : '') + '>' + IC[a] + '</button>'; }
+    pn.innerHTML = '<div class="hd"><button type="button" class="ib hx" data-a="mn" aria-label="' + P.mn + '" title="' + P.mn + '">' + IC.mn + '</button><b data-r="pg"></b><button type="button" class="ib" data-a="x" aria-label="' + P.x + '" title="' + P.x + '">' + IC.x + '</button></div>'
+      + '<div class="cr"><button type="button" data-a="pv" title="' + P.pv + '" aria-label="' + P.pv + '">' + IC.pv + '</button><button type="button" class="big" data-a="pp" title="' + P.pp + '" aria-label="' + P.pp + '">' + IC.pa + '</button><button type="button" data-a="nx" title="' + P.nx + '" aria-label="' + P.nx + '">' + IC.nx + '</button></div>'
+      + '<label class="rw"><span>' + P.sp + '</span><input data-r="sp" type="range" min="0.6" max="2" step="0.1"><b data-r="spv"></b></label>'
+      + '<label class="rw"><span>' + P.vo + '</span><input data-r="vo" type="range" min="0" max="1" step="0.05"><b data-r="vov"></b></label>'
+      + '<label class="rw"><span>' + P.vc + '</span><select data-r="vc"></select></label>';
     document.body.appendChild(pn);
     function gset(k, v) { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} G[k] = v; try { parent.localStorage.setItem('li-dock', JSON.stringify(G)); } catch (e) {} }
     function gget() { var G = {}; try { G = JSON.parse(parent.localStorage.getItem('li-dock') || '{}') || {}; } catch (e) {} return G; }
@@ -1064,24 +1082,25 @@
       f.forEach(function (v) { var x = document.createElement('option'); x.value = v.name; x.textContent = v.name + ' (' + v.lang + ')'; sel.appendChild(x); }); sel.value = G.voice || '';
     }
     function lpanel() {
-      if (!LS.on) { pn.style.display = 'none'; lb.style.background = btn.style.background; return; }
-      pn.style.display = 'block'; lb.style.background = '#b08d57'; var G = gget();
+      lb.classList.toggle('live', !!LS.on && !LS.paused); lb.classList.toggle('on', !!LS.on);
+      if (!LS.on) { pn.style.display = 'none'; return; }
+      pn.style.display = 'block'; pn.classList.toggle('mini', mini); var G = gget(), hx = pn.querySelector('.hx'); hx.innerHTML = mini ? IC.mx : IC.mn; hx.title = mini ? P.mx : P.mn;
       q('sp').value = G.rate || 1; q('spv').textContent = (+(G.rate || 1)).toFixed(1) + '×'; q('vo').value = G.vol == null ? 1 : G.vol; q('vov').textContent = Math.round((G.vol == null ? 1 : G.vol) * 100) + '%';
-      q('pg').textContent = P.pg + ' ' + (LS.cur || '') + (LS.q && LS.q.total ? ' / ' + LS.q.total : ''); pn.querySelector('[data-a="pp"]').textContent = LS.paused ? '▶' : '⏸'; fillVoices();
+      q('pg').textContent = P.pg + ' ' + (LS.cur || '') + (LS.q && LS.q.total ? ' / ' + LS.q.total : '') + (LS.q && LS.q.loading && LS.on && !LS.paused ? '  …' : ''); pn.querySelector('[data-a="pp"]').innerHTML = LS.paused ? IC.pl : IC.pa; if (!mini) fillVoices();
     }
     function lrestart(n) { if (!LS.on) return; LS.paused = false; var tok = ++LS.tok; try { window.speechSynthesis.cancel(); } catch (e) {} LS.cur = n; lpanel(); setTimeout(function () { if (LS.on && tok === LS.tok) lpage(n, tok); }, 120); }
     function lstart() { if (LS.on) { lstop(); return; } if (!window.speechSynthesis) return; LS.on = true; LS.paused = false; var tok = ++LS.tok; lsay(true); LS.cur = (window.__pcur && window.__pcur()) || 1; lpanel(); lpage(LS.cur, tok); }
     var plt = 0; function plLater(f) { clearTimeout(plt); plt = setTimeout(f, 450); }
     pn.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('button[data-a]') : null; if (!b) return; var a = b.getAttribute('data-a'), n = LS.cur || 1;
-      if (a === 'x') lstop(); else if (a === 'pv') lrestart(Math.max(1, n - 1)); else if (a === 'nx') lrestart(Math.min((LS.q && LS.q.total) || 1e6, n + 1));
+      if (a === 'x') lstop(); else if (a === 'mn') { mini = !mini; try { localStorage.setItem('li-pl-mini', mini ? '1' : '0'); } catch (x) {} lpanel(); } else if (a === 'pv') lrestart(Math.max(1, n - 1)); else if (a === 'nx') lrestart(Math.min((LS.q && LS.q.total) || 1e6, n + 1));
       else if (a === 'pp') { if (LS.paused) lrestart(n); else { LS.paused = true; LS.tok++; try { window.speechSynthesis.cancel(); } catch (x) {} lpanel(); } }
     });
     q('sp').addEventListener('input', function () { gset('rate', +this.value); q('spv').textContent = (+this.value).toFixed(1) + '×'; plLater(function () { if (LS.on && !LS.paused) lrestart(LS.cur || 1); }); });
     q('vo').addEventListener('input', function () { gset('vol', +this.value); q('vov').textContent = Math.round(this.value * 100) + '%'; plLater(function () { if (LS.on && !LS.paused) lrestart(LS.cur || 1); }); });
     q('vc').addEventListener('change', function () { gset('voice', this.value); if (LS.on && !LS.paused) lrestart(LS.cur || 1); });
     try { window.speechSynthesis.addEventListener('voiceschanged', function () { if (LS.on) fillVoices(); }); } catch (e) {}
-    lb.addEventListener('click', function (e) { e.stopPropagation(); lstart(); });
+    lb.addEventListener('click', function (e) { e.stopPropagation(); if (LS.on && mini) { mini = false; try { localStorage.setItem('li-pl-mini', '0'); } catch (x) {} lpanel(); return; } lstart(); });
     window.__liPdfListen = lstart;
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'plisten') lstart(); });
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });

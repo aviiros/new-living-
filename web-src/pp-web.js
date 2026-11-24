@@ -75,7 +75,7 @@
     if (reader) return Promise.resolve();
     var base = (window.__ppBase || 'ort/');
     return (window.ort ? Promise.resolve() : loadScript(base + 'ort.wasm.min.js')).then(function () {
-      ort = window.ort; ort.env.wasm.wasmPaths = new URL(base, document.baseURI).href; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
+      ort = window.ort; ort.env.wasm.wasmPaths = new URL(base, document.baseURI).href; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = true; /* inference in a worker: the page never freezes */
       return import(new URL('pp-core.mjs', document.baseURI).href);
     }).then(function (m) {
       core = m;
@@ -83,7 +83,7 @@
       return Promise.all(Object.keys(F).map(ensure)).then(function () {
         reader = core.makeReader({
           Tensor: ort.Tensor,
-          session: function (k) { return sessions[k] || (sessions[k] = ort.InferenceSession.create(buffers[k], { executionProviders: ['wasm'], graphOptimizationLevel: 'all' })); },
+          session: function (k) { return sessions[k] || (sessions[k] = ort.InferenceSession.create(buffers[k], { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }).catch(function (e) { if (!ort.env.wasm.proxy) throw e; ort.env.wasm.proxy = false; return ort.InferenceSession.create(buffers[k], { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }); })); },
           chars: function (k) { return charsC[k] || (charsC[k] = core.charsOf(confs[k])); },
           conf: function (k) { return confs[k].PostProcess || {}; }
         });

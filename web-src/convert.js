@@ -383,6 +383,10 @@
   // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
   function ocrRun(count, getCanvas, onP, cx) {
     var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0, useAI = false;
+    // Android: a live notification keeps the app working while the screen is off or another app is open
+    var onP0 = onP, kaT = 0, N0 = window.LiNative, kaOn = false;
+    onP = function (p, l) { try { if (N0 && N0.keepAlive && Date.now() - kaT > 1500) { kaT = Date.now(); kaOn = true; N0.keepAlive(true, TT('جارٍ تحويل الكتاب', 'Converting the book') + ' · ' + (p || 0) + '%', String(l || '').replace(/ · .*$/, ''), p || 0); } } catch (e) {} if (onP0) onP0(p, l); };
+    var kaOff = function () { if (kaOn && N0 && N0.keepAlive) { kaOn = false; try { N0.keepAlive(false, '', '', 0); } catch (e) {} } };
     var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left')) : ''; };
     var label = function (i) { return TT('جارٍ قراءة النص من الصفحة ' + i + ' من ' + count, 'Reading text from page ' + i + ' of ' + count) + eta(); };
     var ensureWorker = function () { return worker ? Promise.resolve() : makeWorker(langs).then(function (w) { worker = w; }); };
@@ -399,7 +403,10 @@
     // pages already read are kept, so a stopped or interrupted conversion of the same file continues where it stopped
     var rkey = cx && cx.key ? 'li-ocrp:' + cx.key : '', saved = {};
     if (rkey) { try { saved = JSON.parse(localStorage.getItem(rkey) || '{}') || {}; } catch (e) { saved = {}; } }
-    var keep = function (i) { if (!rkey || !all.length) return; try { saved[i] = all[all.length - 1]; localStorage.setItem(rkey, JSON.stringify(saved)); } catch (e) { /* storage full: continue without saving */ } };
+    var lastKeep = 0, dirty = false;
+    var flushKeep = function () { if (!rkey || !dirty) return; dirty = false; lastKeep = Date.now(); try { localStorage.setItem(rkey, JSON.stringify(saved)); } catch (e) { /* storage full: continue without saving */ } };
+    // written at most every few seconds: rewriting the whole saved set after every page makes long books slower and slower (and freezes the screen)
+    var keep = function (i) { if (!rkey || !all.length) return; saved[i] = all[all.length - 1]; dirty = true; if (Date.now() - lastKeep > 5000) flushKeep(); };
     var step = function (i) {
       if (i > count) return Promise.resolve();
       if (cx && cx.stop) return Promise.reject(new Error('cancel'));
@@ -422,7 +429,7 @@
           useAI = false; return getCanvas(i).then(function (cv2) { return tessPage(i, cv2); });
       };
     };
-    var fin = function () { var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} if (webAvail()) try { window.liPP.stop(); } catch (e) {} return p; };
+    var fin = function () { flushKeep(); kaOff(); var p = worker ? worker.terminate().catch(function () {}) : Promise.resolve(); if (aiAvail()) try { window.liDesk.ocrStop(); } catch (e) {} if (webAvail()) try { window.liPP.stop(); } catch (e) {} return p; };
     return aiGate(onP).then(function (ok) { useAI = ok; return ok && window.liArFix ? window.liArFix.load().then(function () { return step(1); }) : step(1); }).then(fin, function (e) { try { fin(); } catch (x) {} throw e; }).then(function () { return ocrBuild(all); }).then(function (r) { if (rkey) { try { localStorage.removeItem(rkey); } catch (e) {} } return r; });
   }
   var TT = function (a, e) { try { if (typeof window.T === 'function') return window.T(a, e); } catch (x) {} return EN() ? e : a; };

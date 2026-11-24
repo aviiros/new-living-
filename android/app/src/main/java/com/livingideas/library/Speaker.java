@@ -30,7 +30,7 @@ public final class Speaker {
   public interface Sink { void events(String jsonArray); }
   public interface Listener { void changed(); void finished(); }
 
-  static final class Item { String id, text, lang, voice, g; float rate = 1f, pitch = 1f; boolean b; }
+  static final class Item { String id, text, lang, voice, g; float rate = 1f, pitch = 1f, vol = 1f; boolean b; }
 
   private final Handler main = new Handler(Looper.getMainLooper());
   private Context ctx;
@@ -119,6 +119,7 @@ public final class Speaker {
         JSONObject o = a.getJSONObject(i); Item it = new Item();
         it.id = o.optString("id"); it.text = o.optString("t"); it.lang = o.optString("l"); it.voice = o.optString("v");
         it.rate = (float) Math.max(0.3, Math.min(3.0, o.optDouble("r", 1))); it.pitch = (float) Math.max(0.3, Math.min(2.0, o.optDouble("p", 1)));
+        it.vol = (float) Math.max(0.0, Math.min(1.0, o.optDouble("vo", 1)));
         it.g = o.has("g") ? o.optString("g") : it.id; it.b = o.optInt("b", 0) == 1;
         items.add(it);
       }
@@ -158,7 +159,8 @@ public final class Speaker {
         if (end < text.length()) { int sp = text.lastIndexOf(' ', end); if (sp > off + 500) end = sp; }
         boolean last = end >= text.length();
         // uid: generation | item | piece | last | offset
-        tts.speak(text.substring(off, end), TextToSpeech.QUEUE_ADD, null, gen + "|" + k + "|" + i + "|" + (last ? 1 : 0) + "|" + off);
+        android.os.Bundle vp = new android.os.Bundle(); vp.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.vol);
+        tts.speak(text.substring(off, end), TextToSpeech.QUEUE_ADD, vp, gen + "|" + k + "|" + i + "|" + (last ? 1 : 0) + "|" + off);
         off = end; i++;
         if (last) break;
       } while (true);
