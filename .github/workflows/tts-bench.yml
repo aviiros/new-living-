@@ -1,0 +1,19 @@
+name: TTS voice benchmark
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/tts-bench/**', '.github/workflows/tts-bench.yml']
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install sherpa-onnx numpy
+      - run: python scripts/tts-bench/bench.py out
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: tts-bench, path: out }
