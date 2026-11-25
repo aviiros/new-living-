@@ -404,9 +404,11 @@ function bgPill(){
   el.classList.add('on');$('#bgx').onclick=function(){bgStop(false)};
 }
 setInterval(function(){kaUpdate(true)},5000);
-var plOn=false,spkOn=false;function pf(){return $('#frame')}
+var plOn=false,spkOn=false,blkOn=false,blkInfo={done:0,total:0};function pf(){return $('#frame')}
 window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook)return;var f1=$('#frame'),f2=$('#pframe');var ok=(f1&&e.source===f1.contentWindow)||(f2&&e.source===f2.contentWindow);if(!ok)return;
   if(d.type==='speak-state'||d.type==='plisten-state'){try{window.liDesk&&liDesk.awake&&liDesk.awake(!!d.on)}catch(x){}}
+  if(d.type==='bulk-state'){blkOn=!!d.on;blkInfo={done:d.done||0,total:d.total||0};try{window.liDesk&&liDesk.awake&&liDesk.awake(blkOn)}catch(x){}kaUpdate(true);return}
+  if(d.type==='save-pdf'&&d.buf&&window.api.addFile){try{var pf0=new File([d.buf],String(d.name||'Translated').replace(/[\\/:*?"<>|]+/g,' ')+'.pdf',{type:'application/pdf'});window.api.addFile(pf0).then(function(s){if(s)setState(s)})}catch(x){}return}
   if(d.type==='speak-state'){spkOn=!!d.on;if(!spkOn)mpPaused=false;miniIcon();miniShow();kaUpdate(true)}
   else if(d.type==='plisten-state'){plOn=!!d.on;kaUpdate(true);var r=$('#rlisten');if(r)r.classList.toggle('on',plOn)}});
 
@@ -435,6 +437,7 @@ function kaUpdate(force){
   var job=null,st=null,b=null;
   if(bgCur){job=bgCur;st=bgCur.st;b=bookById(bgCur.id)}
   else if(cur&&trSt[cur.id]&&trSt[cur.id].tgt&&trSt[cur.id].done<trSt[cur.id].total){job={tgt:trSt[cur.id].tgt};st=trSt[cur.id];b=cur}
+  if(!job&&blkOn&&!spkOn){try{var bp=blkInfo.total?Math.round(100*blkInfo.done/blkInfo.total):0;N.keepAlive(true,T('جارٍ ترجمة الكتاب','Translating the book')+' · '+bp+'%',cur?dt(cur):'',bp)}catch(e){}return}
   if(!job&&plOn&&!spkOn){try{N.keepAlive(true,T('جارٍ القراءة بصوت عالٍ','Reading aloud'),cur?dt(cur):'',0)}catch(e){}return}
   if(!job&&spkOn){try{N.ttsMeta&&N.ttsMeta(cur?dt(cur):'','')}catch(e){}try{N.keepAlive(false,'','',0)}catch(e){}return}
   if(!job){try{N.keepAlive(false,'','',0)}catch(e){}return}

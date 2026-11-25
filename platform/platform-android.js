@@ -306,12 +306,12 @@
   var TRS = (function () {
     var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', id: 'Indonesia' };
     var TX = {
-      ar: { hq: 'الترجمة بنموذج الذكاء (متقدم: أبطأ، ويحتاج تنزيل النموذج مرة واحدة)', toh: 'تحويل إلى كتاب HTML', on: 'دقة أعلى عبر الإنترنت (يرسل النص إلى Google)', tr: 'ترجمة', sh: 'حفظ الترجمة كملف HTML', sp: 'حفظ الترجمة كملف PDF', wait: 'الترجمة لم تكتمل بعد، انتظر قليلاً', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
-      en: { hq: 'Translate with the AI model (advanced: slower, needs a one-time model download)', toh: 'Convert to HTML book', on: 'Higher accuracy online (sends text to Google)', tr: 'Translate', sh: 'Save translation as HTML', sp: 'Save translation as PDF', wait: 'Translation is not finished yet', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
-      fr: { hq: 'Traduire avec le modèle d’IA (avancé : plus lent, téléchargement unique du modèle)', toh: 'Convertir en livre HTML', on: 'Précision accrue en ligne (envoie le texte à Google)', tr: 'Traduire', sh: 'Enregistrer la traduction en HTML', sp: 'Enregistrer la traduction en PDF', wait: 'La traduction n’est pas terminée', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
-      es: { hq: 'Traducir con el modelo de IA (avanzado: más lento, requiere descargar el modelo una vez)', toh: 'Convertir en libro HTML', on: 'Mayor precisión en línea (envía el texto a Google)', tr: 'Traducir', sh: 'Guardar la traducción como HTML', sp: 'Guardar la traducción como PDF', wait: 'La traducción aún no ha terminado', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
-      it: { hq: 'Traduci con il modello di IA (avanzato: più lento, richiede il download del modello una volta)', toh: 'Converti in libro HTML', on: 'Maggiore precisione online (invia il testo a Google)', tr: 'Traduci', sh: 'Salva la traduzione come HTML', sp: 'Salva la traduzione come PDF', wait: 'La traduzione non è ancora terminata', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
-      id: { hq: 'Terjemahkan dengan model AI (lanjutan: lebih lambat, perlu unduh model sekali)', toh: 'Ubah ke buku HTML', on: 'Akurasi lebih tinggi online (mengirim teks ke Google)', tr: 'Terjemahkan', sh: 'Simpan terjemahan sebagai HTML', sp: 'Simpan terjemahan sebagai PDF', wait: 'Terjemahan belum selesai', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
+      ar: { bulk: 'ترجمة الكتاب كاملاً', bulkp: 'جارٍ ترجمة الكتاب', pdfx: 'حفظ الترجمة كملف PDF جديد', pdfp: 'جارٍ إنشاء الملف', pdfok: 'أُضيف الملف المترجم إلى مكتبتك', pdfno: 'تعذّر إنشاء الملف', hq: 'الترجمة بنموذج الذكاء (متقدم: أبطأ، ويحتاج تنزيل النموذج مرة واحدة)', toh: 'تحويل إلى كتاب HTML', on: 'دقة أعلى عبر الإنترنت (يرسل النص إلى Google)', tr: 'ترجمة', sh: 'حفظ الترجمة كملف HTML', sp: 'حفظ الترجمة كملف PDF', wait: 'الترجمة لم تكتمل بعد، انتظر قليلاً', orig: 'الأصل', prep: 'تجهيز اللغة (مرة واحدة)…', work: 'جارٍ الترجمة', mt: 'ترجمة آلية', fail: 'تعذرت الترجمة. اتصل بالإنترنت مرة واحدة لتحميل اللغة.', scan: 'هذا الملف صور ممسوحة بلا نص، فلا يمكن ترجمته', hl: 'التظليل متاح على النص الأصلي فقط' },
+      en: { bulk: 'Translate the whole book', bulkp: 'Translating the book', pdfx: 'Save translation as a new PDF', pdfp: 'Building the PDF', pdfok: 'Translated PDF added to your library', pdfno: 'Could not build the PDF', hq: 'Translate with the AI model (advanced: slower, needs a one-time model download)', toh: 'Convert to HTML book', on: 'Higher accuracy online (sends text to Google)', tr: 'Translate', sh: 'Save translation as HTML', sp: 'Save translation as PDF', wait: 'Translation is not finished yet', orig: 'Original', prep: 'Preparing language (one time)…', work: 'Translating', mt: 'Machine translation', fail: 'Translation failed. Connect to the internet once to download the language.', scan: 'This PDF is scanned images with no text, so it can’t be translated', hl: 'Highlighting works on the original text only' },
+      fr: { bulk: 'Traduire tout le livre', bulkp: 'Traduction du livre', pdfx: 'Enregistrer la traduction en nouveau PDF', pdfp: 'Création du PDF', pdfok: 'PDF traduit ajouté à votre bibliothèque', pdfno: 'Impossible de créer le PDF', hq: 'Traduire avec le modèle d’IA (avancé : plus lent, téléchargement unique du modèle)', toh: 'Convertir en livre HTML', on: 'Précision accrue en ligne (envoie le texte à Google)', tr: 'Traduire', sh: 'Enregistrer la traduction en HTML', sp: 'Enregistrer la traduction en PDF', wait: 'La traduction n’est pas terminée', orig: 'Original', prep: 'Préparation de la langue (une fois)…', work: 'Traduction', mt: 'Traduction automatique', fail: 'Échec. Connectez-vous une fois à Internet pour télécharger la langue.', scan: 'Ce PDF est fait d’images sans texte : traduction impossible', hl: 'Le surlignage ne fonctionne que sur le texte original' },
+      es: { bulk: 'Traducir todo el libro', bulkp: 'Traduciendo el libro', pdfx: 'Guardar la traducción como PDF nuevo', pdfp: 'Creando el PDF', pdfok: 'PDF traducido añadido a tu biblioteca', pdfno: 'No se pudo crear el PDF', hq: 'Traducir con el modelo de IA (avanzado: más lento, requiere descargar el modelo una vez)', toh: 'Convertir en libro HTML', on: 'Mayor precisión en línea (envía el texto a Google)', tr: 'Traducir', sh: 'Guardar la traducción como HTML', sp: 'Guardar la traducción como PDF', wait: 'La traducción aún no ha terminado', orig: 'Original', prep: 'Preparando el idioma (una vez)…', work: 'Traduciendo', mt: 'Traducción automática', fail: 'Falló. Conéctate a Internet una vez para descargar el idioma.', scan: 'Este PDF son imágenes escaneadas sin texto; no se puede traducir', hl: 'El subrayado solo funciona en el texto original' },
+      it: { bulk: 'Traduci tutto il libro', bulkp: 'Traduzione del libro', pdfx: 'Salva la traduzione come nuovo PDF', pdfp: 'Creazione del PDF', pdfok: 'PDF tradotto aggiunto alla libreria', pdfno: 'Impossibile creare il PDF', hq: 'Traduci con il modello di IA (avanzato: più lento, richiede il download del modello una volta)', toh: 'Converti in libro HTML', on: 'Maggiore precisione online (invia il testo a Google)', tr: 'Traduci', sh: 'Salva la traduzione come HTML', sp: 'Salva la traduzione come PDF', wait: 'La traduzione non è ancora terminata', orig: 'Originale', prep: 'Preparazione della lingua (una volta)…', work: 'Traduzione', mt: 'Traduzione automatica', fail: 'Non riuscita. Connettiti a Internet una volta per scaricare la lingua.', scan: 'Questo PDF è fatto di immagini senza testo: non si può tradurre', hl: 'L’evidenziazione funziona solo sul testo originale' },
+      id: { bulk: 'Terjemahkan seluruh buku', bulkp: 'Menerjemahkan buku', pdfx: 'Simpan terjemahan sebagai PDF baru', pdfp: 'Membuat PDF', pdfok: 'PDF terjemahan ditambahkan ke pustaka', pdfno: 'Gagal membuat PDF', hq: 'Terjemahkan dengan model AI (lanjutan: lebih lambat, perlu unduh model sekali)', toh: 'Ubah ke buku HTML', on: 'Akurasi lebih tinggi online (mengirim teks ke Google)', tr: 'Terjemahkan', sh: 'Simpan terjemahan sebagai HTML', sp: 'Simpan terjemahan sebagai PDF', wait: 'Terjemahan belum selesai', orig: 'Asli', prep: 'Menyiapkan bahasa (sekali saja)…', work: 'Menerjemahkan', mt: 'Terjemahan mesin', fail: 'Gagal. Sambungkan internet sekali untuk mengunduh bahasa.', scan: 'PDF ini berupa gambar pindaian tanpa teks, sehingga tidak bisa diterjemahkan', hl: 'Penyorotan hanya berfungsi pada teks asli' }
     };
     return { NAMES: NAMES, TX: TX };
   })();
@@ -503,7 +503,7 @@
       ordered.forEach(function (u) { u.left = u.chunks.length; u.chunks.forEach(function (c, i) { jobs.push({ u: u, i: i }); }); });
       lazy = !BG && !!(N.slow && N.slow()); budget = lazy ? 24 : 1e9;
       queue = jobs; state.total = jobs.length; state.done = 0; window.__LI_TR = true; try { localStorage.setItem(key, tgt); } catch (e) {}
-      btn.style.background = 'rgba(29,43,51,.88)'; btn.textContent = '0%'; if (!auto) say(L('work') + '…', 0);
+      btn.classList.remove('on'); btn.textContent = '0%'; if (!auto) say(L('work') + '…', 0);
       document.documentElement.setAttribute('data-li-lang', tgt);
       if (!jobs.length) { progress(); reveal(); return; }
       // Finished work is read back from the saved copy in one go, so reopening a translated book shows it at once instead of translating again.
@@ -1003,9 +1003,98 @@
     var sc0 = document.getElementById('sc'); if (sc0) sc0.addEventListener('scroll', later, { passive: true });
     new MutationObserver(function (ms) { if (!tgt) return; for (var i = 0; i < ms.length; i++) { var m = ms[i]; if ([].some.call(m.addedNodes, function (x) { return x.nodeType === 1 && x.tagName === 'CANVAS'; })) { later(); break; } } }).observe(document.getElementById('pages') || document.body, { childList: true, subtree: true });
     function start(t) { revert(true); tgt = t; run++; SRC = null; store = {}; noText = 0; asked = {}; btn.classList.add('on'); say(L('work') + '…', 0); try { localStorage.setItem('li-pdf-tr:' + (window.__LI && window.__LI.id), t); } catch (e) {} refresh(); }
-    function revert(quiet) { run++; pend = {}; tgt = null; store = {}; busy = 0; label(); [].forEach.call(document.querySelectorAll('.tro'), function (x) { x.remove(); }); btn.style.background = 'rgba(29,43,51,.88)'; tip.style.display = 'none'; try { localStorage.removeItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {} if (!quiet) say(L('orig'), 1500); }
+    function revert(quiet) { bulkStop(true); run++; pend = {}; tgt = null; store = {}; busy = 0; label(); [].forEach.call(document.querySelectorAll('.tro'), function (x) { x.remove(); }); btn.classList.remove('on'); tip.style.display = 'none'; try { localStorage.removeItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {} if (!quiet) say(L('orig'), 1500); }
+    // ---- whole-book translation: runs in the background page by page (3 at a time), keeps the app alive, resumes when the book is opened again
+    var B = null, bseq = 0;
+    function bkey() { return 'li-pdf-bulk:' + (window.__LI && window.__LI.id); }
+    function bnote(on) { try { parent.postMessage({ liBook: 1, type: 'bulk-state', on: !!on, done: B ? B.done : 0, total: B ? B.total : 0 }, '*'); } catch (e) {} }
+    function ensureP(n) {
+      return new Promise(function (res) {
+        ensure(n); var t = setInterval(function () { var s = store[n]; if (!tgt || !s || s.done) { clearInterval(t); res(!!(s && s.done && s.blocks && s.blocks.length)); } }, 250);
+      });
+    }
+    function bulkStart() {
+      if (!tgt || (B && B.on)) return;
+      getDoc().then(function (dd) {
+        var cur = (window.__pcur && window.__pcur()) || 1, order = [], i;
+        for (i = cur; i <= dd.numPages; i++) order.push(i); for (i = 1; i < cur; i++) order.push(i);
+        B = { on: true, total: dd.numPages, done: 0, i: 0, fly: 0, order: order, run: run, id: ++bseq };
+        try { localStorage.setItem(bkey(), '1'); } catch (e) {} bnote(true); bkick(B);
+      });
+    }
+    function bkick(b) {
+      if (!b.on || b.run !== run || b !== B) return;
+      while (b.fly < 3 && b.i < b.order.length) {
+        var n = b.order[b.i++]; b.fly++;
+        ensureP(n).then(function () { b.fly--; b.done++; if (b.on && b === B) { say(L('bulkp') + ' · ' + b.done + ' / ' + b.total, b.done >= b.total ? 2500 : 0); if (b.done % 5 === 0) bnote(true); bkick(b); } });
+      }
+      if (b.done >= b.total) { b.on = false; B = null; bnote(false); window.__liBulkDone = (window.__liBulkDone || 0) + 1; }
+    }
+    function bulkStop(keepFlag) { if (B) { B.on = false; B = null; bnote(false); } if (!keepFlag) { try { localStorage.removeItem(bkey()); } catch (e) {} } }
+    // ---- save the translation as a new PDF (original pages with the translated text drawn over them) and add it to the library
+    function wrapDraw(ctx, text, x, y, w, lh, rtl) {
+      var words = text.split(/\s+/), lines = [], cur = '';
+      words.forEach(function (wd) { var t = cur ? cur + ' ' + wd : wd; if (cur && ctx.measureText(t).width > w) { lines.push(cur); cur = wd; } else cur = t; });
+      if (cur) lines.push(cur); return lines;
+    }
+    function drawPage(ctx, cv, d, sc) {
+      d.blocks.forEach(function (b) {
+        if (!b.tr) return; var pad = b.fs * 0.15, L0 = (b.l - pad) * sc, T0 = (b.t - pad * 0.6) * sc, W0 = (b.r - b.l + pad * 2) * sc, H0 = (b.b - b.t + pad * 1.2) * sc, bg = '#fff', fg = '#111';
+        try { var px = ctx.getImageData(Math.max(0, Math.floor(L0) - 1), Math.max(0, Math.floor(T0) - 1), 1, 1).data; if (px[3]) { bg = 'rgb(' + px[0] + ',' + px[1] + ',' + px[2] + ')'; fg = (px[0] * 299 + px[1] * 587 + px[2] * 114) / 1000 > 140 ? '#111' : '#f5f5f5'; } } catch (e) {}
+        var nxt = d.blocks.reduce(function (m, o) { return (o !== b && o.t >= b.b - 1 && Math.min(o.r, b.r) - Math.max(o.l, b.l) > 0 && o.t < m) ? o.t : m; }, d.h), maxH = Math.max(H0, (nxt - (b.t - pad * 0.6) - b.fs * 0.3) * sc);
+        ctx.fillStyle = bg; ctx.fillRect(L0, T0, W0, H0);
+        var rtl = tgt === 'ar', fs = b.fs * sc * 0.97, lines, g = 0;
+        ctx.direction = rtl ? 'rtl' : 'ltr'; ctx.textAlign = rtl ? 'right' : 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = fg;
+        do { ctx.font = fs + 'px "Segoe UI",Tahoma,Arial,sans-serif'; lines = wrapDraw(ctx, b.tr, 0, 0, W0, fs * 1.25, rtl); if (lines.length * fs * 1.25 <= maxH || fs < b.fs * sc * 0.5) break; fs *= 0.93; } while (g++ < 30);
+        if (lines.length * fs * 1.25 > H0) { ctx.fillStyle = bg; ctx.fillRect(L0, T0, W0, lines.length * fs * 1.25); ctx.fillStyle = fg; }
+        lines.forEach(function (ln, i) { ctx.fillText(ln, rtl ? L0 + W0 : L0, T0 + i * fs * 1.25); });
+      });
+    }
+    function buildPdf(pgs) {
+      var parts = [], off = 0, xref = [], enc = new TextEncoder();
+      function w(x) { var b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); off += b.length; }
+      function obj(n, body) { xref[n] = off; w(n + ' 0 obj\n' + body + '\nendobj\n'); }
+      w('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'); var kids = [];
+      pgs.forEach(function (p, i) { kids.push((5 + 3 * i) + ' 0 R'); });
+      obj(1, '<< /Type /Catalog /Pages 2 0 R >>'); obj(2, '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + pgs.length + ' >>');
+      pgs.forEach(function (p, i) {
+        var im = 3 + 3 * i, ct = 4 + 3 * i, pg = 5 + 3 * i, c = 'q ' + p.pw + ' 0 0 ' + p.ph + ' 0 0 cm /Im0 Do Q';
+        xref[im] = off; w(im + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.jpg.length + ' >>\nstream\n'); w(p.jpg); w('\nendstream\nendobj\n');
+        obj(ct, '<< /Length ' + c.length + ' >>\nstream\n' + c + '\nendstream');
+        obj(pg, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + p.pw + ' ' + p.ph + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + ct + ' 0 R >>');
+      });
+      var n = 3 + 3 * pgs.length, x0 = off, tb = 'xref\n0 ' + n + '\n0000000000 65535 f \n'; for (var k = 1; k < n; k++) tb += ('0000000000' + xref[k]).slice(-10) + ' 00000 n \n';
+      w(tb + 'trailer\n<< /Size ' + n + ' /Root 1 0 R >>\nstartxref\n' + x0 + '\n%%EOF'); var out = new Uint8Array(off), o = 0; parts.forEach(function (b) { out.set(b, o); o += b.length; }); return out;
+    }
+    var exporting = false;
+    function exportPdf() {
+      if (!tgt || exporting) return; exporting = true; var myRun = run, pgs = [], dd0;
+      function fail(e) { exporting = false; say(L('pdfno') + (e && e.message ? ' [' + String(e.message).slice(0, 60) + ']' : ''), 8000); }
+      getDoc().then(function (dd) {
+        dd0 = dd; var n = 1;
+        function next() {
+          if (myRun !== run) { exporting = false; return; }
+          if (n > dd0.numPages) return done();
+          say(L('pdfp') + ' · ' + n + ' / ' + dd0.numPages, 0);
+          return ensureP(n).then(function () { return dd0.getPage(n); }).then(function (pg) {
+            var vp1 = pg.getViewport({ scale: 1 }), sc = Math.min(1.6, 1500 / vp1.width), vp = pg.getViewport({ scale: sc }), cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+            var ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+            return pg.render({ canvasContext: ctx, viewport: vp }).promise.then(function () { var d = store[n]; if (d && d.done) drawPage(ctx, cv, d, sc); return new Promise(function (r) { cv.toBlob(r, 'image/jpeg', 0.74); }); }).then(function (bl) { return bl.arrayBuffer(); }).then(function (ab) {
+              pgs.push({ jpg: new Uint8Array(ab), w: cv.width, h: cv.height, pw: Math.round(vp1.width * 100) / 100, ph: Math.round(vp1.height * 100) / 100 }); cv.width = cv.height = 0; n++;
+              return new Promise(function (r) { setTimeout(r, 0); }).then(next);
+            });
+          });
+        }
+        return next();
+      }).catch(fail);
+      function done() {
+        var bytes = buildPdf(pgs), nm = (window.__LI && (window.__LI.title || window.__LI.name)) || document.title || 'Book';
+        try { parent.postMessage({ liBook: 1, type: 'save-pdf', name: String(nm).replace(/\.pdf$/i, '') + ' (' + NAMES[tgt] + ')', buf: bytes.buffer }, '*', [bytes.buffer]); exporting = false; say(L('pdfok'), 6000); } catch (e) { fail(e); }
+      }
+    }
+    window.__liBulk = { start: bulkStart, stop: bulkStop, state: function () { return B; } }; window.__liExportPdf = exportPdf;
     function sample() { return getDoc().then(function (dd) { return dd.getPage(Math.min(dd.numPages, 2)); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) { return tc.items.map(function (i) { return i.str; }).join(' ').slice(0, 3000); }).catch(function () { return ''; }); }
-    function showMenu() { menu.innerHTML = ''; var items = []; if (tgt) items.push(['', L('orig')]); Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); }); if (N.setOnline) items.push(['@online', (N.online && N.online() ? '✓ ' : '') + L('on')]); if (N.setHQ) items.push(['@hq', (N.hq && N.hq() ? '✓ ' : '') + L('hq')]); items.push(['@html', L('toh')]); items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0] === '@hq') { try { N.setHQ(!N.hq()); } catch (x) {} } else if (it[0] === '@html') { parent.postMessage({ liBook: 1, type: 'pdf-to-html', tr: tgt || '' }, '*'); } else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); }); menu.style.display = 'block'; }
+    function showMenu() { menu.innerHTML = ''; var items = []; if (tgt) items.push(['', L('orig')]); Object.keys(NAMES).forEach(function (k) { if (k !== SRC) items.push([k, NAMES[k]]); }); if (N.setOnline) items.push(['@online', (N.online && N.online() ? '✓ ' : '') + L('on')]); if (N.setHQ) items.push(['@hq', (N.hq && N.hq() ? '✓ ' : '') + L('hq')]); items.push(['@html', L('toh')]); if (tgt) { items.push(['@bulk', (B && B.on ? '✓ ' : '') + L('bulk')]); items.push(['@pdf', L('pdfx')]); } items.forEach(function (it) { var b = document.createElement('button'); b.type = 'button'; b.textContent = it[1]; b.style.cssText = 'display:block;width:100%;text-align:start;border:0;background:' + (it[0] === tgt ? '#e8dec3' : 'none') + ';padding:9px 12px;border-radius:9px;font:600 14px system-ui,sans-serif;color:#1d2b33'; b.onclick = function (ev) { ev.stopPropagation(); menu.style.display = 'none'; if (it[0] === '@online') { try { N.setOnline(!N.online()); } catch (x) {} } else if (it[0] === '@hq') { try { N.setHQ(!N.hq()); } catch (x) {} } else if (it[0] === '@html') { parent.postMessage({ liBook: 1, type: 'pdf-to-html', tr: tgt || '' }, '*'); } else if (it[0] === '@bulk') { if (B && B.on) bulkStop(); else bulkStart(); } else if (it[0] === '@pdf') { exportPdf(); } else if (it[0]) start(it[0]); else revert(); }; menu.appendChild(b); }); menu.style.display = 'block'; }
     var lp = 0, longp = false;
     btn.addEventListener('touchstart', function () { longp = false; lp = setTimeout(function () { longp = true; sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); }, 550); }, { passive: true });
     btn.addEventListener('touchend', function () { clearTimeout(lp); }, { passive: true });
@@ -1163,7 +1252,7 @@
     window.addEventListener('message', function (e) { var d = e.data; if (d && d.liCmd === 'trmenu') sample().then(function (s) { SRC = SRC || detect(s); showMenu(); }); });
     document.addEventListener('click', function (e) { if (!ui.contains(e.target)) menu.style.display = 'none'; }, true);
     var saved = null; try { saved = localStorage.getItem('li-pdf-tr:' + (window.__LI && window.__LI.id)); } catch (e) {}
-    if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) start(saved); }); }, 1500);
+    if (saved && NAMES[saved]) setTimeout(function () { sample().then(function (s) { SRC = detect(s); if (SRC !== saved) { start(saved); var bf = null; try { bf = localStorage.getItem(bkey()); } catch (e) {} if (bf) setTimeout(bulkStart, 1500); } }); }, 1500);
     window.__liPdfTr = { start: start, revert: revert, store: function () { return store; } };
   }
   function GEST() {
@@ -1233,6 +1322,7 @@
     scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: M('مسح ضوئي ', 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
     add: A(function () { return pick('.jpg,.jpeg,.png,.webp,.bmp,image/*,.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
     addPaths: A(function () { return lib; }),
+    addFile: A(function (file) { return addMany([file]); }),
     addTranslated: A(function (srcId, tgt, html, tname) {
       var src = find(srcId); if (!src || !html || html.length < 200) return { err: 1 };
       var ex = lib.books.filter(function (x) { return x.trOf === srcId && x.trLang === tgt; })[0], id = ex ? ex.id : 'b' + rid(6), title = String(src.title || '').replace(/\s*\([^()]*\)\s*$/, '') + ' (' + tname + ')';
