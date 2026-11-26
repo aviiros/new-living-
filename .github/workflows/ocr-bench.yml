@@ -41,17 +41,17 @@ jobs:
       - run: cp windows/pp-core.mjs bench/pp-core.mjs && cp scripts/ocr-bench/bench_pp.mjs bench/ && cd bench && npm i --no-audit --no-fund onnxruntime-node pngjs yaml
       - name: A-current (as shipped), lang=ar and lang=auto, all image variants
         run: |
-          cd bench; mkdir -p ../results
-          taskset -c 0,1 node bench_pp.mjs ../data/variants/manifest.json ../results/pp_current_ar.json ../models ar raw,deskew,deskew_clahe,deskew_up2,deskew_denoise,deskew_down,cropcols
-          taskset -c 0,1 node bench_pp.mjs ../data/variants/manifest.json ../results/pp_current_auto.json ../models auto raw
+          mkdir -p results
+          taskset -c 0,1 node bench/bench_pp.mjs data/variants/manifest.json results/pp_current_ar.json models ar raw,deskew,deskew_clahe,deskew_up2,deskew_denoise,deskew_down,cropcols
+          taskset -c 0,1 node bench/bench_pp.mjs data/variants/manifest.json results/pp_current_auto.json models auto raw
       - name: A-fixed (detector long side 1600 / 2000 / 2400)
         run: |
           cd bench
           for L in 1600 2000 2400; do
             sed "s/detSize(img.w, img.h)/detSize(img.w, img.h, $L)/" pp-core.mjs > pp-core-$L.mjs
             sed "s#./pp-core.mjs#./pp-core-$L.mjs#" bench_pp.mjs > bench_pp_$L.mjs
-            taskset -c 0,1 node bench_pp_$L.mjs ../data/variants/manifest.json ../results/pp_det$L.json ../models ar deskew,deskew_up2,cropcols
-          done
+            done
+          cd ..; for L in 1600 2000 2400; do taskset -c 0,1 node bench/bench_pp_$L.mjs data/variants/manifest.json results/pp_det$L.json models ar deskew,deskew_up2,cropcols; done
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: res-pp, path: results }
@@ -59,24 +59,29 @@ jobs:
     needs: pages
     runs-on: ubuntu-latest
     timeout-minutes: 170
+    strategy:
+      fail-fast: false
+      matrix: { ver: ['0.22.0', '0.24.0'] }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: data, path: data }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: pip install surya-ocr
+      - run: pip install surya-ocr==${{ matrix.ver }} 2>&1 | tail -3
       - run: bash scripts/ocr-bench/run_surya.sh data/variants/raw surya_out
         continue-on-error: true
-      - run: mkdir -p results && python scripts/ocr-bench/surya_parse.py surya_out results/surya.json
+      - run: mkdir -p results && python scripts/ocr-bench/surya_parse.py surya_out results/surya_${{ matrix.ver }}.json ${{ matrix.ver }}
         continue-on-error: true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: res-surya
+          name: res-surya-${{ matrix.ver }}
           path: |
             results
-            surya_out/*.txt
+            surya_out/log_*.txt
+            surya_out/time_*.txt
+            surya_out/version.txt
   absir:
     runs-on: ubuntu-latest
     steps:
