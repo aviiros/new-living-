@@ -1,8 +1,6 @@
 name: OCR benchmark
 on:
   workflow_dispatch:
-  push:
-    paths: ['scripts/ocr-bench/**', '.github/workflows/ocr-bench.yml']
 jobs:
   pages:
     runs-on: ubuntu-latest
