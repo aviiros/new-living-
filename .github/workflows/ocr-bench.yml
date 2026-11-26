@@ -62,7 +62,7 @@ jobs:
     timeout-minutes: 170
     strategy:
       fail-fast: false
-      matrix: { ver: ['0.22.0', '0.24.0'] }
+      matrix: { ver: ['0.22.0'] }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -80,7 +80,7 @@ jobs:
           echo "LLAMA_CPP_BINARY=$(realpath $(find . -name llama-server | head -1))" >> $GITHUB_ENV
       - run: bash scripts/ocr-bench/run_surya.sh data/variants/raw surya_out
         continue-on-error: true
-      - run: mkdir -p results && python scripts/ocr-bench/surya_parse.py surya_out results/surya_${{ matrix.ver }}.json ${{ matrix.ver }}
+      - run: mkdir -p results && ls -la surya_out | head -30 && python scripts/ocr-bench/surya_parse.py surya_out results/surya_${{ matrix.ver }}.json ${{ matrix.ver }}
         continue-on-error: true
       - uses: actions/upload-artifact@v4
         if: always()

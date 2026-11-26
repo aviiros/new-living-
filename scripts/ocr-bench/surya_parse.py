@@ -17,3 +17,6 @@ for tf in sorted(glob.glob(d + '/time_*.txt')):
     mem, cpu = max(mem, t['rssMB']), cpu + t['cpu']
 ver_txt = open(d + '/version.txt').read().split('\n')
 json.dump({'raw': res, '_meta': dict(engine='surya', pip=ver, version=ver_txt[1] if len(ver_txt) > 1 else '', model_load_sec=base['wall'], load_rssMB=base.get('rssMB'), maxRssMB=mem, pages=len(res))}, open(outf, 'w'), ensure_ascii=False)
+
+for k,v in res.items(): print(k, v.get('sec'), v.get('lines'), v.get('error'), repr(v['text'][:150]))
+print(open(outf).read()[-400:])
