@@ -69,6 +69,13 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: pip install surya-ocr==${{ matrix.ver }} 2>&1 | tail -3
+      - name: llama.cpp server (CPU build)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          mkdir -p llama && cd llama
+          U=$(gh api repos/ggml-org/llama.cpp/releases/latest --jq '.assets[]|select(.name|test("bin-ubuntu-x64\\.(zip|tar\\.gz)$"))|.browser_download_url' | head -1); echo $U
+          curl -sL "$U" -o pkg; (unzip -q pkg || tar xzf pkg); find . -name llama-server | head
+          echo "LLAMA_CPP_BINARY=$(realpath $(find . -name llama-server | head -1))" >> $GITHUB_ENV
       - run: bash scripts/ocr-bench/run_surya.sh data/variants/raw surya_out
         continue-on-error: true
       - run: mkdir -p results && python scripts/ocr-bench/surya_parse.py surya_out results/surya_${{ matrix.ver }}.json ${{ matrix.ver }}
@@ -83,17 +90,28 @@ jobs:
             surya_out/time_*.txt
             surya_out/version.txt
   absir:
+    needs: pages
     runs-on: ubuntu-latest
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: data, path: data }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: pip install huggingface_hub
-      - run: python scripts/ocr-bench/absir_explore.py | tee absir_explore.txt
+      - run: pip install huggingface_hub && python scripts/ocr-bench/absir_explore.py > absir_explore.txt; head -c 1500 absir_explore.txt
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install transformers pillow timm einops accelerate sentencepiece safetensors
+      - name: Absir mini on raw pages, then on deskewed pages (2 cores)
+        run: |
+          mkdir -p results; lscpu | grep "Model name"
+          /usr/bin/time -v -o absir_time.txt taskset -c 0,1 python scripts/ocr-bench/run_absir.py data/variants/raw results/absir_mini.json 2>&1 | tail -40
+          cat absir_time.txt | grep -E "Maximum resident|Elapsed|User time|System time"
+        continue-on-error: true
       - uses: actions/upload-artifact@v4
-        with: { name: absir-explore, path: absir_explore.txt }
+        if: always()
+        with: { name: res-absir, path: results }
   report:
-    needs: [pp, surya]
+    needs: [pp, surya, absir]
     if: always()
     runs-on: ubuntu-latest
     steps:
