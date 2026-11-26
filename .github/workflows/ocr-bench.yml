@@ -72,7 +72,7 @@ jobs:
         run: |
           mkdir -p llama && cd llama
           gh api repos/ggml-org/llama.cpp/releases/latest --jq '.tag_name, (.assets[].name)' | grep -i -E "^b[0-9]|ubuntu|linux" || true
-          U=$(gh api repos/ggml-org/llama.cpp/releases/latest --jq '.assets[]|select(.name|test("^llama-.*-bin-ubuntu-x64[.]tar[.]gz$"))|.browser_download_url'); echo "URL=$U"
+          U=$(gh api repos/ggml-org/llama.cpp/releases?per_page=1 --jq '.[0].assets[]|select(.name|test("^llama-.*-bin-ubuntu-x64[.]tar[.]gz$"))|.browser_download_url'); echo "URL=$U"
           curl -sL "$U" -o pkg; file pkg; (unzip -q pkg || tar xzf pkg); find . -name "llama-server" | head
           echo "LLAMA_CPP_BINARY=$(realpath $(find . -name llama-server | head -1))" >> $GITHUB_ENV
       - run: bash scripts/ocr-bench/run_surya.sh data/variants/raw surya_out
