@@ -1,0 +1,109 @@
+name: OCR benchmark
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/ocr-bench/**', '.github/workflows/ocr-bench.yml']
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: sudo apt-get update -q && sudo apt-get install -y -q fonts-hosny-amiri fonts-noto-core fontconfig
+      - run: pip install pillow numpy opencv-python-headless
+      - run: python scripts/ocr-bench/make_pages.py data/pages && python scripts/ocr-bench/prep.py data/pages/raw data/variants
+      - uses: actions/upload-artifact@v4
+        with: { name: data, path: data }
+  pp:
+    needs: pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: data, path: data }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install huggingface_hub
+      - name: models (same files the app downloads)
+        run: |
+          mkdir -p models bench && python - <<'PY'
+          from huggingface_hub import hf_hub_download
+          import shutil
+          m = [('PP-OCRv6_small_det_onnx','ppocrv6-small-det'),('PP-OCRv6_small_rec_onnx','ppocrv6-small-rec'),('PP-OCRv5_mobile_det_onnx','ppocrv5-mobile-det'),('arabic_PP-OCRv5_mobile_rec_onnx','ppocrv5-arabic-rec')]
+          for r,n in m:
+              for f,e in [('inference.onnx','onnx'),('inference.yml','yml')]:
+                  shutil.copy(hf_hub_download('PaddlePaddle/'+r, f), f'models/{n}.{e}')
+          PY
+      - run: cp windows/pp-core.mjs bench/pp-core.mjs && cp scripts/ocr-bench/bench_pp.mjs bench/ && cd bench && npm i --no-audit --no-fund onnxruntime-node pngjs yaml
+      - name: A-current (as shipped), lang=ar and lang=auto, all image variants
+        run: |
+          cd bench; mkdir -p ../results
+          taskset -c 0,1 node bench_pp.mjs ../data/variants/manifest.json ../results/pp_current_ar.json ../models ar raw,deskew,deskew_clahe,deskew_up2,deskew_denoise,deskew_down,cropcols
+          taskset -c 0,1 node bench_pp.mjs ../data/variants/manifest.json ../results/pp_current_auto.json ../models auto raw
+      - name: A-fixed (detector long side 1600 / 2000 / 2400)
+        run: |
+          cd bench
+          for L in 1600 2000 2400; do
+            sed "s/detSize(img.w, img.h)/detSize(img.w, img.h, $L)/" pp-core.mjs > pp-core-$L.mjs
+            sed "s#./pp-core.mjs#./pp-core-$L.mjs#" bench_pp.mjs > bench_pp_$L.mjs
+            taskset -c 0,1 node bench_pp_$L.mjs ../data/variants/manifest.json ../results/pp_det$L.json ../models ar deskew,deskew_up2,cropcols
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: res-pp, path: results }
+  surya:
+    needs: pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: data, path: data }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install surya-ocr
+      - run: bash scripts/ocr-bench/run_surya.sh data/variants/raw surya_out
+        continue-on-error: true
+      - run: mkdir -p results && python scripts/ocr-bench/surya_parse.py surya_out results/surya.json
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: res-surya
+          path: |
+            results
+            surya_out/*.txt
+  absir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install huggingface_hub
+      - run: python scripts/ocr-bench/absir_explore.py | tee absir_explore.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: absir-explore, path: absir_explore.txt }
+  report:
+    needs: [pp, surya]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/download-artifact@v4
+        with: { name: data, path: data }
+      - uses: actions/download-artifact@v4
+        with: { pattern: res-*, path: res, merge-multiple: true }
+      - run: pip install rapidfuzz
+      - run: python scripts/ocr-bench/metrics.py data/pages res report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: |
+            report.md
+            report.json
