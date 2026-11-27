@@ -40,5 +40,6 @@ const tag = '<script src="lib/jszip.min.js"></script>\n<script src="formats.js">
 if (!html.includes('<script src="i18n.js"></script>')) { console.error('library.html layout changed: cannot inject platform scripts'); process.exit(1); }
 html = html.replace('<script src="i18n.js"></script>', tag + '<script src="i18n.js"></script>');
 fs.writeFileSync(path.join(out, 'index.html'), html);
+if (!desktop) fs.rmSync(path.join(out, 'seed'), { recursive: true, force: true }); // Android starts with an empty library: no bundled books
 fs.rmSync(path.join(out, 'library.html'));
 console.log('www ready:', fs.readdirSync(out).join(', '));

@@ -1287,11 +1287,14 @@
     return { src: 'about:blank' };
   }
   // ---------- seeds ----------
+  // The app no longer ships any books. Books that an older version added by itself are removed once, but only if untouched
+  // (never opened, no notes/highlights/marks, not renamed, not finished); anything you used or changed stays.
+  var OLD_SEED = ['شبكة المعتقد', 'مشكلات الفلسفة', 'ماذا يعني كل هذا؟', 'حكمة الحياة', 'The Web of Belief', 'The Problems of Philosophy', 'What Does It All Mean?', 'The Wisdom of Life'];
   function seeds() {
-    return fetch('seed/manifest.json').then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }).then(function (list) {
-      var chain = Promise.resolve(); list.forEach(function (s) { chain = chain.then(function () { if (lib.seeded.indexOf(s.file) >= 0) return; lib.seeded.push(s.file); return fetch('seed/' + s.file).then(function (r) { return r.blob(); }).then(function (bl) { return importFile(new File([bl], s.file, { type: 'text/html' })); }).then(function (r) { if (r && r.book) ['title', 'author', 'series', 'titleEn', 'authorEn'].forEach(function (k) { if (s[k] != null) r.book[k] = s[k]; }); }).catch(function () {}); }); });
-      return chain.then(function () { return save(true); });
-    });
+    if (lib.seedPurged) return Promise.resolve();
+    var untouched = function (b) { return !b.progress && !b.finished && !b.want && !b.readSec && !b.listenSec && !(b.annots && b.annots.length) && !(b.ext && Object.keys(b.ext).length) && !b.trOf && !(b.collections && b.collections.length) && !b.rating; };
+    var gone = lib.books.filter(function (b) { return lib.seeded && lib.seeded.length && (OLD_SEED.indexOf(b.title) >= 0 || OLD_SEED.indexOf(b.titleEn) >= 0) && untouched(b); });
+    return Promise.all(gone.map(function (b) { var i = lib.books.indexOf(b); if (i >= 0) lib.books.splice(i, 1); if (coverURL[b.id]) { try { URL.revokeObjectURL(coverURL[b.id].u); } catch (e) {} delete coverURL[b.id]; } return fDelPrefix(b.id + '/'); })).then(function () { lib.seedPurged = true; lib.seeded = []; return save(true); });
   }
   // Daily quote notifications: the next 7 days are scheduled, and refreshed every time the app opens or goes to the background.
   function syncQuotes(ask) {
