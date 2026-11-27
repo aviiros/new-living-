@@ -8,7 +8,7 @@ const fail = [], ck = (n, c) => { console.log(c ? 'ok  ' : 'FAIL', n); if (!c) f
 (async () => {
   const br = await chromium.launch(), pg = await br.newPage({ viewport: { width: 420, height: 900 } }), errs = [];
   pg.on('pageerror', e => errs.push(String(e))); pg.on('dialog', d => { global.__dlg = d.message(); d.dismiss() });
-  await pg.addInitScript(() => { window.__calls = []; window.LiNative = { speakBatch() {}, ttsCmd() {}, translate() {}, keepAlive() {}, online() { return false }, setOnline() { window.__calls.push('setOnline') },
+  await pg.addInitScript(() => { window.__calls = []; window.LiNative = { speakBatch() {}, ttsCmd() {}, translate() {}, keepAlive() {}, audioSession(t, p, a, b) { window.__calls.push('aus:' + p) }, online() { return false }, setOnline() { window.__calls.push('setOnline') },
     packs() { window.__calls.push('packs'); setTimeout(() => window.__liPacks(['ar', 'en']), 30) }, packGet(l) { window.__calls.push('get:' + l); setTimeout(() => window.__liPackEv(l, 'ok', ''), 30) }, packDel(l) { window.__calls.push('del:' + l); setTimeout(() => window.__liPackEv(l, 'del', ''), 30) },
     sleepTimer(m) { window.__calls.push('sleep:' + m); window.__sl = m ? Date.now() + m * 60000 : 0 }, sleepLeft() { return window.__sl ? Math.round((window.__sl - Date.now()) / 1000) : 0 } } });
   await pg.goto(`http://127.0.0.1:${srv.address().port}/index.html`); await pg.waitForTimeout(2500);
@@ -37,6 +37,9 @@ const fail = [], ck = (n, c) => { console.log(c ? 'ok  ' : 'FAIL', n); if (!c) f
   await pg.click('[data-qr="0"]'); q = await pg.evaluate(() => JSON.parse(localStorage.getItem('li-aq'))); ck('queue remove', q.join() === 'a3,a2');
   ck('play-queue button present', !!(await pg.$('#aqGo'))); ck('sidebar audiobook player entry', !!(await pg.$('#aqBtn')));
   await pg.screenshot({ path: '/tmp/lt/audio.png' }); await pg.click('#no');
+  // audiobook session bridge exists and a remote command reaches without throwing (no frame open -> ignored)
+  ck('audiobook remote-command hook defined', await pg.evaluate(() => { try { window.__liAudioCmd('toggle', 0); return typeof window.__liAudioCmd === 'function' } catch (e) { return false } }));
+  ck('pdf-to-html listener accepts frame or pframe', (await require('fs').promises.readFile(__dirname + '/../web-src/library.html', 'utf8')).includes("['frame','pframe']"));
   ck('no page errors', errs.length === 0); if (errs.length) console.log(errs.join('\n'));
   await br.close(); srv.close(); if (fail.length) { console.log('FAILED:', fail.join(' | ')); process.exit(1) } console.log('all library checks passed');
 })();

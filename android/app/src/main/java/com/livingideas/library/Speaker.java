@@ -71,15 +71,17 @@ public final class Speaker {
       tts = new TextToSpeech(ctx, new TextToSpeech.OnInitListener() {
         @Override public void onInit(final int status) {
           main.post(new Runnable() { public void run() {
-            if (status != TextToSpeech.SUCCESS) { failed = true; failAll(); return; }
+            if (status != TextToSpeech.SUCCESS) { failed = true; diag("TextToSpeech init FAILED status=" + status + ": no speech engine is available on this device (install or enable one in Android settings)", true); failAll(); return; }
             ready = true;
+            try { diag("TextToSpeech ready, engine=" + tts.getDefaultEngine(), false); } catch (Exception ignored) {}
             try {
               if (Build.VERSION.SDK_INT >= 21) tts.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
             } catch (Exception ignored) {}
             tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
               @Override public void onStart(final String uid) { main.post(new Runnable() { public void run() { onStartU(uid); } }); }
               @Override public void onDone(final String uid) { main.post(new Runnable() { public void run() { onDoneU(uid); } }); }
-              @Override public void onError(final String uid) { main.post(new Runnable() { public void run() { onErrorU(uid); } }); }
+              @Override public void onError(final String uid) { main.post(new Runnable() { public void run() { diag("utterance error (no code) " + uid, true); onErrorU(uid); } }); }
+              @Override public void onError(final String uid, final int code) { main.post(new Runnable() { public void run() { diag("utterance error code=" + code + " (" + errName(code) + ") " + uid, true); onErrorU(uid); } }); }
               @Override public void onStop(String uid, boolean interrupted) {}
               @Override public void onRangeStart(final String uid, final int start, final int end, int frame) { main.post(new Runnable() { public void run() { onRangeU(uid, start, end); } }); }
             });
@@ -89,6 +91,12 @@ public final class Speaker {
         }
       });
     } catch (Exception e) { failed = true; }
+  }
+
+  // Diagnostics: Logcat (tag LiTts) and the page (Translation language packs > Diagnostics); serious ones also show a message.
+  private void diag(String m, boolean err) {
+    if (err) android.util.Log.e("LiTts", m); else android.util.Log.d("LiTts", m);
+    emit("", (err ? "diagerr:" : "diag:") + m, 0, 0);
   }
 
   private void failAll() {
@@ -148,9 +156,15 @@ public final class Speaker {
       boolean set = false;
       if (it.voice != null && it.voice.length() > 0 && Build.VERSION.SDK_INT >= 21) {
         Set<Voice> vs = tts.getVoices();
-        if (vs != null) for (Voice v : vs) if (it.voice.equals(v.getName())) { tts.setVoice(v); set = true; break; }
+        if (vs != null) for (Voice v : vs) if (it.voice.equals(v.getName())) { int r = tts.setVoice(v); set = r == TextToSpeech.SUCCESS; if (!set) diag("setVoice(" + it.voice + ") failed code=" + r, true); break; }
+        if (!set) diag("voice '" + it.voice + "' not found on this device, using the language voice", false);
       }
-      if (!set) tts.setLanguage(Locale.forLanguageTag(it.lang != null && it.lang.length() > 0 ? it.lang : "ar"));
+      if (!set) {
+        String tag = it.lang != null && it.lang.length() > 0 ? it.lang : "ar";
+        int r = tts.setLanguage(Locale.forLanguageTag(tag));
+        if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) { diag("setLanguage(" + tag + ") => " + (r == TextToSpeech.LANG_MISSING_DATA ? "MISSING_DATA" : "NOT_SUPPORTED") + ": this device has no voice for '" + tag + "'. Install it in Settings > Text-to-speech.", true); emit(it.id, "error", 0, 0); return; }
+        if (k == cur) diag("setLanguage(" + tag + ") ok code=" + r, false);
+      }
       tts.setSpeechRate(it.rate); tts.setPitch(it.pitch);
       String text = it.text == null ? "" : it.text;
       int max = 3500, off = 0, i = 0;
@@ -160,12 +174,15 @@ public final class Speaker {
         boolean last = end >= text.length();
         // uid: generation | item | piece | last | offset
         android.os.Bundle vp = new android.os.Bundle(); vp.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.vol);
-        tts.speak(text.substring(off, end), TextToSpeech.QUEUE_ADD, vp, gen + "|" + k + "|" + i + "|" + (last ? 1 : 0) + "|" + off);
+        int sr = tts.speak(text.substring(off, end), TextToSpeech.QUEUE_ADD, vp, gen + "|" + k + "|" + i + "|" + (last ? 1 : 0) + "|" + off);
+        if (sr != TextToSpeech.SUCCESS) { diag("tts.speak returned ERROR for item " + k, true); emit(it.id, "error", 0, 0); return; }
         off = end; i++;
         if (last) break;
       } while (true);
-    } catch (Exception e) { emit(it.id, "error", 0, 0); }
+    } catch (Exception e) { diag("speak exception: " + e, true); emit(it.id, "error", 0, 0); }
   }
+
+  private static String errName(int c) { switch (c) { case -4: return "ERROR_NOT_INSTALLED_YET"; case -5: return "ERROR_NETWORK_TIMEOUT"; case -6: return "ERROR_NETWORK"; case -7: return "ERROR_SYNTHESIS"; case -8: return "ERROR_SERVICE"; case -9: return "ERROR_OUTPUT"; case -10: return "ERROR_INVALID_REQUEST"; default: return "ERROR"; } }
 
   private int[] parse(String uid) {
     try {
@@ -178,12 +195,13 @@ public final class Speaker {
 
   private void onStartU(String uid) {
     int[] p = parse(uid); if (p == null || p[0] >= items.size()) return;
-    speaking = p[0];
+    speaking = p[0]; android.util.Log.d("LiTts", "onStart item " + p[0]);
     if (p[1] == 0) emit(items.get(p[0]).id, "start", 0, 0);
     changed();
   }
 
   private void onDoneU(String uid) {
+    android.util.Log.d("LiTts", "onDone " + uid);
     int[] p = parse(uid); if (p == null || p[0] >= items.size() || p[2] != 1) return;
     Item it = items.get(p[0]);
     emit(it.id, "end", 0, 0);
@@ -305,8 +323,8 @@ public final class Speaker {
     try {
       Intent it = new Intent(ctx, ReaderAudioService.class);
       if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(it); else ctx.startService(it);
-      serviceUp = true;
-    } catch (Exception ignored) {}
+      serviceUp = true; diag("audio service started", false);
+    } catch (Exception e) { diag("audio service start FAILED: " + e, true); }
   }
 
   private void stopService() {

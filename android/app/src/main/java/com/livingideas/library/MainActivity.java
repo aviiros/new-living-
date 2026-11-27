@@ -140,7 +140,11 @@ public class MainActivity extends BridgeActivity {
     } finally { c.disconnect(); }
   }
 
+  // Diagnostics: every step goes to Logcat (tag LiTr) and, for the key steps, to the page (Translation language packs > Diagnostics).
+  private void dbg(String m, boolean toPage) { android.util.Log.d("LiTr", m); if (toPage) trEmit("", "dbg", m); }
+
   private void doTranslate(final String id, final String text, final String src, final String tgt) {
+    dbg("java recv id=" + id + " chars=" + text.length() + " " + src + ">" + tgt + " mode=" + (online() ? "online(user choice)" : "on-device ML Kit"), false);
     if (!online()) { doTranslateOffline(id, text, src, tgt); return; }
     net.execute(new Runnable() { public void run() {
       try { trEmit(id, "ok", onlineTranslate(text, src, tgt)); }
@@ -152,6 +156,7 @@ public class MainActivity extends BridgeActivity {
     final String key = src + ">" + tgt;
     try {
       final String s = TranslateLanguage.fromLanguageTag(src), t = TranslateLanguage.fromLanguageTag(tgt);
+      dbg("codes src=" + src + "->" + s + " tgt=" + tgt + "->" + t + " pack-state=" + modelState.get(key), true);
       if (s == null || t == null) { trEmit(id, "err", "language " + src + ">" + tgt); return; }
       Translator tr = translators.get(key);
       if (tr == null) {
@@ -161,8 +166,8 @@ public class MainActivity extends BridgeActivity {
       final Translator trf = tr;
       final Job run = new Job(id) { public void run() {
         trf.translate(text)
-          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { trEmit(id, "ok", r); } })
-          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { trEmit(id, "err", why(e)); } });
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { android.util.Log.d("LiTr", "ok id=" + id + " in=" + text.length() + " out=" + r.length()); trEmit(id, "ok", r); } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { dbg("translate FAILED id=" + id + " " + why(e), true); trEmit(id, "err", why(e)); } });
       } };
       Integer st = modelState.get(key);
       if (st != null && st == 2) { run.run(); return; }
@@ -171,15 +176,17 @@ public class MainActivity extends BridgeActivity {
       w.add(run);
       if (st == null) {
         modelState.put(key, 1);
+        dbg("pack download starting " + key, true);
         trEmit("", "prep", "");
         trf.downloadModelIfNeeded(new DownloadConditions.Builder().build())
           .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) {
-            modelState.put(key, 2); trEmit("", "ready", "");
+            modelState.put(key, 2); dbg("pack ready " + key, true); trEmit("", "ready", "");
             ArrayList<Job> ws = jobWaiters.remove(key); if (ws != null) for (Job r : ws) r.run();
           } })
           .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) {
             modelState.remove(key); translators.remove(key);
             String m = why(e);
+            dbg("pack download FAILED " + key + ": " + m, true);
             trEmit("", "nomodel", m);
             ArrayList<Job> ws = jobWaiters.remove(key); if (ws != null) for (Job r : ws) trEmit(r.id, "err", m);
           } });
@@ -272,6 +279,19 @@ public class MainActivity extends BridgeActivity {
             java.util.Iterator<String> it = translators.keySet().iterator(); while (it.hasNext()) { String k = it.next(); if (k.startsWith(lang + ">") || k.endsWith(">" + lang)) { it.remove(); modelState.remove(k); } }
             js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'del','')"); } })
           .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
+      }
+      @JavascriptInterface public void audioSession(final String title, final boolean playing, final int pos, final int dur) {
+        runOnUiThread(new Runnable() { public void run() {
+          try {
+            AudioSessionService.title = title == null ? "" : title; AudioSessionService.playing = playing; AudioSessionService.pos = pos; AudioSessionService.dur = dur;
+            AudioSessionService.cmd = new AudioSessionService.Cmd() { public void run(final String c, final double v) { runOnUiThread(new Runnable() { public void run() { js("window.__liAudioCmd&&window.__liAudioCmd(" + org.json.JSONObject.quote(c) + "," + v + ")"); } }); } };
+            AudioSessionService svc = AudioSessionService.inst;
+            if (svc != null) { svc.refresh(); return; }
+            android.util.Log.i("LiAudio", "starting audiobook session service");
+            android.content.Intent it = new android.content.Intent(MainActivity.this, AudioSessionService.class);
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(it); else startService(it);
+          } catch (Exception e) { android.util.Log.e("LiAudio", "audioSession FAILED: " + e); }
+        } });
       }
       @JavascriptInterface public void keepAlive(boolean on, String title, String text, int pct) {
         try {

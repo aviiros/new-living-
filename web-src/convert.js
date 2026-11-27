@@ -309,21 +309,34 @@
   function aiAvail() { var D = window.liDesk; return !!(D && D.ocrPage && D.ocrStatus); }
   // Android: the same PaddleOCR models run inside the page (pp-web.js, ONNX Runtime Web)
   function webAvail() { return !window.liDesk && !!(window.liPP && window.WebAssembly); }
-  function webGate(onP) {
-    try { if (localStorage.getItem('li-ai-ocr2') === '0') return Promise.resolve(false); } catch (e) {}
+  function whyMsg(e) { var m = e && (e.message || e.name) ? String(e.message || e.name) : String(e || ''); return m.replace(/\s+/g, ' ').slice(0, 160); }
+  // The slower built-in reader (Tesseract) is used only when the person says so explicitly; it is never a silent substitute.
+  function askFallback(reasonAr, reasonEn) {
+    var ask = window.__liAsk ? window.__liAsk(TT('القارئ الأدق غير متاح', 'The accurate reader is not available'), TT('قارئ الصفحات الأدق (PaddleOCR) لن يُستخدم: ' + reasonAr + '. هل تريد المتابعة بالقارئ الاحتياطي؟ هو أبطأ كثيرًا وأقل دقة.', 'The accurate page reader (PaddleOCR) will not be used: ' + reasonEn + '. Continue with the backup reader? It is much slower and less accurate.')) : Promise.resolve(false);
+    return ask.then(function (yes) { if (!yes) { var e = new Error('cancel'); e.liAsked = true; throw e; } return false; });
+  }
+  function webGate(onP, noAsk) {
+    var off = false; try { off = localStorage.getItem('li-ai-ocr2') === '0'; } catch (e) {}
+    window.liOcrWhy = '';
+    if (off) { window.liOcrWhy = TT('قراءة النص بالنموذج الدقيق مغلقة في الإعدادات', 'Accurate text reading is switched off in Settings'); return noAsk ? Promise.resolve(false) : askFallback('أُوقفت من الإعدادات', 'it is switched off in Settings'); }
     return window.liPP.have().then(function (h) {
       if (h) return window.liPP.prep().then(function () { return true; });
-      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق للنص', 'More accurate text reading'), TT('لقراءة الصفحات الممسوحة بدقة أعلى يلزم تنزيل نموذج صغير (نحو 44 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages more accurately needs a one-time download of a small model (about 44 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق للنص', 'More accurate text reading'), TT('لقراءة الصفحات الممسوحة بدقة أعلى يلزم تنزيل نموذج صغير (نحو 44 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟', 'To read scanned pages accurately a small model (about 44 MB) must be downloaded once, then it works offline. Download it now?')) : Promise.resolve(false);
       return ask.then(function (yes) {
-        if (!yes) return false;
+        if (!yes) { window.liOcrWhy = TT('لم يُنزَّل نموذج القراءة', 'The reading model was not downloaded'); return noAsk ? false : askFallback('لم تنزّل النموذج', 'the model was not downloaded'); }
         if (onP) onP(1, TT('جارٍ تنزيل نموذج القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
         return window.liPP.prep(function (pc) { if (onP) onP(1, TT('جارٍ تنزيل نموذج القراءة (مرة واحدة) ', 'Downloading the reading model (one time) ') + pc + '%'); }).then(function () { return true; });
       });
-    }).catch(function () { return false; });
+    }).catch(function (e) {
+      if (e && e.liAsked) throw e;
+      var m = TT('تعذّر تشغيل محرك قراءة الصفحات (PaddleOCR): ', 'Could not start the page-reading engine (PaddleOCR): ') + whyMsg(e);
+      window.liOcrWhy = m; try { console.error('[li-ocr] ' + m); } catch (x) {}
+      var er = new Error(m); er.liOcrEngine = true; throw er;
+    });
   }
   function scaleCv(cv, maxSide) { var sc = Math.min(1, maxSide / Math.max(cv.width, cv.height)); if (sc >= 1) return cv; var c = document.createElement('canvas'); c.width = Math.round(cv.width * sc); c.height = Math.round(cv.height * sc); var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0, c.width, c.height); return c; }
-  function aiGate(onP) {
-    if (webAvail()) return webGate(onP);
+  function aiGate(onP, noAsk) {
+    if (webAvail()) return webGate(onP, noAsk);
     if (!aiAvail()) return Promise.resolve(false);
     // 'li-ai-ocr2': the person's own switch (default on). The older key 'li-ai-ocr' is ignored: it may have been set to off by an early "no" to a big download.
     try { if (localStorage.getItem('li-ai-ocr2') === '0') return Promise.resolve(false); } catch (e) {}
@@ -345,7 +358,7 @@
   // Uses the same local reader and the same page clean-up as the conversion. Returns null when no reader is available.
   var linesGate = null;
   window.liOcrLines = function (cv) {
-    if (!linesGate) linesGate = aiGate(null).catch(function () { return false; });
+    if (!linesGate) linesGate = aiGate(null, true).catch(function (e) { window.liOcrWhy = whyMsg(e); return false; });
     return linesGate.then(function (ok) {
       if (!ok) return null;
       var load = window.liArFix ? window.liArFix.load() : Promise.resolve();
@@ -357,7 +370,7 @@
           return { script: r.script, rows: r.rows.map(function (x) { var b = x.b, t = window.liArFix && r.script === 'arabic' ? window.liArFix.fix(x.t) : x.t; return { t: t, x: b[0] / r.w, y: b[1] / r.h, w: (b[2] - b[0]) / r.w, h: (b[3] - b[1]) / r.h }; }) };
         });
       });
-    }).catch(function () { return null; });
+    }).catch(function (e) { window.liOcrWhy = whyMsg(e); try { console.error('[li-ocr] ' + window.liOcrWhy); } catch (x) {} return null; });
   };
   // The model answers in Markdown (# headings, paragraphs, sometimes an HTML table) -> paragraphs [{t, big}]
   function mdParas(md) {
@@ -387,7 +400,7 @@
     var onP0 = onP, kaT = 0, N0 = window.LiNative, kaOn = false;
     onP = function (p, l) { try { if (N0 && N0.keepAlive && Date.now() - kaT > 1500) { kaT = Date.now(); kaOn = true; N0.keepAlive(true, TT('جارٍ تحويل الكتاب', 'Converting the book') + ' · ' + (p || 0) + '%', String(l || '').replace(/ · .*$/, ''), p || 0); } } catch (e) {} if (onP0) onP0(p, l); };
     var kaOff = function () { if (kaOn && N0 && N0.keepAlive) { kaOn = false; try { N0.keepAlive(false, '', '', 0); } catch (e) {} } };
-    var eta = function () { if (!done) return ''; var per = (Date.now() - t0) / done, left = Math.max(0, Math.round(per * (count - done) / 60000)); return left ? (' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left')) : ''; };
+    var durs = [], pend = count, eta = function () { var d = durs.length > 3 ? durs.slice(1) : durs; if (d.length < 2 || pend <= 0) return ''; d = d.slice(-6).slice().sort(function (a, b) { return a - b; }); var med = d[Math.floor(d.length / 2)], left = Math.max(1, Math.round(med * pend / 60000)); return ' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left'); };
     var label = function (i) { return TT('جارٍ قراءة النص من الصفحة ' + i + ' من ' + count, 'Reading text from page ' + i + ' of ' + count) + eta(); };
     var ensureWorker = function () { return worker ? Promise.resolve() : makeWorker(langs).then(function (w) { worker = w; }); };
     var tessPage = function (i, cv) {
@@ -410,22 +423,26 @@
     var step = function (i) {
       if (i > count) return Promise.resolve();
       if (cx && cx.stop) return Promise.reject(new Error('cancel'));
-      if (saved[i]) { all.push(saved[i]); done++; return step(i + 1); }
+      if (saved[i]) { all.push(saved[i]); done++; pend = Math.max(0, pend - 1); return step(i + 1); }
+      var tPage = Date.now(), pendLeft = 0; for (var q = i; q <= count; q++) if (!saved[q]) pendLeft++; pend = pendLeft;
       if (onP) onP(Math.round((i - 1) / count * 95), label(i));
       return getCanvas(i).then(function (cv) {
         if (!useAI) return tessPage(i, cv);
         if (webAvail()) {
           var c2 = scaleCv(enhanceCanvas(cv), 1700);
-          return window.liPP.page(c2, 'auto').then(function (md) { if (c2 !== cv) c2.width = c2.height = 1; cv.width = cv.height = 1; return { kind: 'ok', text: md }; }, function () { return { kind: 'err' }; }).then(handleAi(i));
+          var once = function () { return window.liPP.page(c2, 'auto'); };
+          return once().catch(function () { return once(); }).then(function (md) { if (c2 !== cv) c2.width = c2.height = 1; cv.width = cv.height = 1; return { kind: 'ok', text: md }; }, function (e) { return { kind: 'err', why: whyMsg(e) }; }).then(handleAi(i));
         }
         var png = canvasPng(enhanceCanvas(cv), 2400); cv.width = cv.height = 1;
         return window.liDesk.ocrPage(png).then(handleAi(i));
-      }).then(function () { keep(i); return step(i + 1); });
+      }).then(function () { durs.push(Date.now() - tPage); keep(i); return step(i + 1); });
     };
     var handleAi = function (i) {
       return function (r) {
           if (r && r.kind === 'ok' && r.text) { var pp = mdParas(r.text); if (window.liArFix) pp.forEach(function (x) { x.t = window.liArFix.fix(x.t); }); all.push(pp); done++; return; }
-          // The AI reader failed on this page: continue with the built-in reader (redraw the page for it)
+          // PaddleOCR failed on this page (after one retry): stop and say why. The pages already read are saved, so it can be resumed.
+          // No silent switch to the slower reader.
+          if (webAvail()) { var m = TT('فشلت قراءة الصفحة ' + i + ' بمحرك PaddleOCR', 'PaddleOCR failed on page ' + i) + (r && r.why ? ': ' + r.why : '') + TT('. التقدم محفوظ، أعد المحاولة لتكمل من حيث توقفت.', '. Progress is saved; try again to resume.'); try { console.error('[li-ocr] ' + m); } catch (x) {} var er = new Error(m); er.liOcrEngine = true; throw er; }
           useAI = false; return getCanvas(i).then(function (cv2) { return tessPage(i, cv2); });
       };
     };

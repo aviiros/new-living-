@@ -225,7 +225,7 @@ function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0
 function dt(b){return LANG!=='ar'&&b.titleEn?b.titleEn:b.title}
 function da(b){return LANG!=='ar'&&b.authorEn?b.authorEn:(b.author||'')}
 function isFin(b){return b.finished||b.progress>=98}
-function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){t.classList.remove('on')},2600)}
+window.liToast=function(m){toast(m)};function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){t.classList.remove('on')},2600)}
 function setState(s){S=s;applyTheme();render()}function keep(s){S=s;if(!$('#reader').classList.contains('on'))render()}
 function applyTheme(){var t=S.settings.theme,dark=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-t',dark?'dark':'light');$('#themeBtn').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>'+({system:'المظهر: تلقائي',light:'المظهر: فاتح',dark:'المظهر: داكن'}[t])}
 function fmtMin(m){m=Math.round(m);var en=LANG!=='ar';if(m<1)return en?T('','under a minute'):'أقل من دقيقة';var h=m/60|0,r=m%60;return (h?AR(h)+(en?' h ':' س '):'')+(r?AR(r)+(en?' min':' د'):'')}
@@ -390,7 +390,7 @@ function pdfToHtmlDlg(tr){var b=cur;if(!b||!window.api.convertPdf)return;
   var go=function(t){window.api.convertPdf(b.id,t||'').then(function(s){if(s&&s.books)setState(s)})};
   if(tr){go(tr);return}
   (window.__liImportOpts?window.__liImportOpts(dt(b),'docx'):Promise.resolve({tr:''})).then(function(o){if(o&&!o.skip)go(o.tr)})}
-window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook||d.type!=='pdf-to-html')return;try{if(e.source!==$('#pframe').contentWindow)return}catch(x){return}pdfToHtmlDlg(String(d.tr||''))});
+window.addEventListener('message',function(e){var d=e.data;if(!d||!d.liBook||d.type!=='pdf-to-html')return;var okSrc=false;['frame','pframe'].forEach(function(n){var f=$('#'+n);try{if(f&&f.contentWindow===e.source)okSrc=true}catch(x){}});if(!okSrc)return;pdfToHtmlDlg(String(d.tr||''))});
 
 /* ---------- background translation: keeps going when you leave the book, open another one, or switch apps ---------- */
 var trSt={},bgq=[],bgCur=null,bgWatch=0,kaLast=0;
@@ -432,6 +432,8 @@ window.__liTtsB=function(a){try{for(var i=0;i<a.length;i++){var ev=a[i],t=ev[1];
   if(t==='paused'){mpPaused=true;miniIcon()}else if(t==='resumed'){mpPaused=false;miniIcon()}
   else if(t==='stopped'){['frame','pframe'].forEach(function(n){var f=$('#'+n);try{f&&f.contentWindow.postMessage({liCmd:'spkstop'},'*')}catch(x){}});spkOn=false;plOn=false;mpPaused=false;miniIcon();miniShow();var r=$('#rlisten');if(r)r.classList.remove('on')}
   window.__liTts&&window.__liTts(ev[0],t,ev[2],ev[3])}}catch(e){}};
+function audSess(playing,pos,dur){var N=window.LiNative;if(!N||!N.audioSession||!cur)return;try{N.audioSession(dt(cur),!!playing,Math.round(pos||0),Math.round(dur||0))}catch(e){}}
+window.__liAudioCmd=function(c,v){var f=$('#frame')||$('#pframe');try{f.contentWindow.postMessage({liCmd:'acmd',c:c,v:v},'*')}catch(e){}};
 function kaUpdate(force){
   var N=window.LiNative;if(!N||!N.keepAlive)return;
   try{if(N.kaStopped&&N.kaStopped()){if(spkOn){['frame','pframe'].forEach(function(n){var f=$('#'+n);try{f&&f.contentWindow.postMessage({liCmd:'spkstop'},'*')}catch(x){}});spkOn=false;plOn=false}if(bgCur)bgStop(false);else if(cur&&trSt[cur.id]&&trSt[cur.id].done<trSt[cur.id].total&&!spkOn){post({liCmd:'trstop'});delete trSt[cur.id]}}}catch(e){}var n=Date.now();if(!force&&n-kaLast<1500)return;kaLast=n;
@@ -439,7 +441,7 @@ function kaUpdate(force){
   if(bgCur){job=bgCur;st=bgCur.st;b=bookById(bgCur.id)}
   else if(cur&&trSt[cur.id]&&trSt[cur.id].tgt&&trSt[cur.id].done<trSt[cur.id].total){job={tgt:trSt[cur.id].tgt};st=trSt[cur.id];b=cur}
   if(!job&&blkOn&&!spkOn){try{var bp=blkInfo.total?Math.round(100*blkInfo.done/blkInfo.total):0;N.keepAlive(true,T('جارٍ ترجمة الكتاب','Translating the book')+' · '+bp+'%',cur?dt(cur):'',bp)}catch(e){}return}
-  if(!job&&audOn&&!spkOn&&!plOn){try{N.keepAlive(true,T('جارٍ تشغيل كتاب صوتي','Playing an audiobook'),cur?dt(cur):'',0)}catch(e){}return}
+  if(!job&&audOn&&!spkOn&&!plOn)return;
   if(!job&&plOn&&!spkOn){try{N.keepAlive(true,T('جارٍ القراءة بصوت عالٍ','Reading aloud'),cur?dt(cur):'',0)}catch(e){}return}
   if(!job&&spkOn){try{N.ttsMeta&&N.ttsMeta(cur?dt(cur):'','')}catch(e){}try{N.keepAlive(false,'','',0)}catch(e){}return}
   if(!job){try{N.keepAlive(false,'','',0)}catch(e){}return}
@@ -517,7 +519,7 @@ window.addEventListener('message',function(e){
   else if(d.type==='progress'&&!b.tpl){var p=Math.max(0,Math.min(100,d.pct|0));if(p>=98)showEnd();if(p!==b.progress){b.progress=p;var fin=p>=98&&!b.finishedAt;window.api.update(b.id,{progress:p,lastRead:Date.now()+0,finishedAt:fin?Date.now():b.finishedAt})}}
   else if(d.type==='ext'){if(d.ext&&d.ext.progress>=98)showEnd();window.api.ext(b.id,d.ext).then(function(s){S=s;cur=S.books.filter(function(x){return x.id===b.id})[0]||cur;if($('#panel').classList.contains('on'))panelList()})}
   else if(d.type==='annots'){window.api.annots(b.id,d.annots).then(function(s){S=s;cur=S.books.filter(function(x){return x.id===b.id})[0]||cur;if($('#panel').classList.contains('on'))panelList()})}
-  else if(d.type==='audio'){var a={pos:d.pos,dur:d.dur,bm:d.bm,rate:(b.audio&&b.audio.rate)||1};b.audio=a;var pr=d.dur>0?Math.round(d.pos/d.dur*100):0;b.progress=pr;window.api.update(b.id,{audio:a,progress:pr,lastRead:Date.now()})}
+  else if(d.type==='astate'){audOn=!!d.playing;clearTimeout(audT);if(cur&&cur.format==='audio')audSess(d.playing,d.pos,d.dur);kaUpdate(true)}else if(d.type==='audio'){if(audOn&&cur&&cur.format==='audio')audSess(true,d.pos,d.dur);var a={pos:d.pos,dur:d.dur,bm:d.bm,rate:(b.audio&&b.audio.rate)||1};b.audio=a;var pr=d.dur>0?Math.round(d.pos/d.dur*100):0;b.progress=pr;window.api.update(b.id,{audio:a,progress:pr,lastRead:Date.now()})}
   else if(d.type==='audio-end'){setFin(b,true);if(!window.__aqNext||!window.__aqNext(b.id))showEnd()}
   else if(d.type==='pdf'){var pr2=d.total>1?Math.round((d.page-1)/(d.total-1)*100):0;b.pdf={page:d.page,total:d.total};b.progress=pr2;if(d.page>=d.total&&d.total>1)showEnd();window.api.update(b.id,{pdf:b.pdf,progress:pr2,lastRead:Date.now()})}
   else if(d.type==='back')closeBook();else if(d.type==='fs')window.api.fullscreen();else if(d.type==='findkey')toggleFind();else if(d.type==='open-url'){if(window.api.openUrl)window.api.openUrl(d.url)}else if(d.type==='bm-toast')toast(d.removed?'أُزيلت الإشارة':'أُضيفت إشارة مرجعية')});
@@ -592,19 +594,20 @@ function featLab(){var b=$('#featBtn');if(!b){b=document.createElement('button')
 /* translation language packs (Android, Google ML Kit): list / download / delete, honest states */
 (function(){
 var NAMES={ar:'العربية',en:'English',fr:'Français',es:'Español',it:'Italiano',id:'Indonesia'},ORDER=['ar','en','id','fr','es','it'];
-var TXT={ar:['حزم لغات الترجمة','تُحمَّل الحزمة مرة واحدة ثم تعمل الترجمة دون إنترنت. الإنجليزية أساسية لأن الترجمة بين اللغات الأخرى تمر عبرها.','محمّلة','غير محمّلة','تنزيل','حذف','جارٍ التنزيل…','فشل: ','أساسية','تعذّر قراءة الحزم'],
-en:['Translation language packs','Each pack downloads once, then translation works offline. English is essential because other pairs go through it.','Downloaded','Not downloaded','Download','Delete','Downloading…','Failed: ','Essential','Could not read the packs'],
-fr:['Packs de langues de traduction','Chaque pack se télécharge une fois, puis la traduction fonctionne hors ligne. L’anglais est indispensable : les autres paires passent par lui.','Téléchargé','Non téléchargé','Télécharger','Supprimer','Téléchargement…','Échec : ','Essentiel','Lecture des packs impossible'],
-es:['Paquetes de idiomas de traducción','Cada paquete se descarga una vez y luego la traducción funciona sin conexión. El inglés es esencial porque los demás pares pasan por él.','Descargado','No descargado','Descargar','Eliminar','Descargando…','Error: ','Esencial','No se pudieron leer los paquetes'],
-it:['Pacchetti lingua di traduzione','Ogni pacchetto si scarica una volta, poi la traduzione funziona offline. L’inglese è essenziale perché le altre coppie passano da esso.','Scaricato','Non scaricato','Scarica','Elimina','Download…','Errore: ','Essenziale','Impossibile leggere i pacchetti'],
-id:['Paket bahasa terjemahan','Setiap paket diunduh sekali, lalu terjemahan berjalan tanpa internet. Bahasa Inggris wajib karena pasangan lain melewatinya.','Terunduh','Belum diunduh','Unduh','Hapus','Mengunduh…','Gagal: ','Wajib','Paket tidak dapat dibaca']};
+var TXT={ar:['حزم لغات الترجمة','تُحمَّل الحزمة مرة واحدة ثم تعمل الترجمة دون إنترنت. الإنجليزية أساسية لأن الترجمة بين اللغات الأخرى تمر عبرها.','محمّلة','غير محمّلة','تنزيل','حذف','جارٍ التنزيل…','فشل: ','أساسية','تعذّر قراءة الحزم','تشخيص الترجمة'],
+en:['Translation language packs','Each pack downloads once, then translation works offline. English is essential because other pairs go through it.','Downloaded','Not downloaded','Download','Delete','Downloading…','Failed: ','Essential','Could not read the packs','Translation diagnostics'],
+fr:['Packs de langues de traduction','Chaque pack se télécharge une fois, puis la traduction fonctionne hors ligne. L’anglais est indispensable : les autres paires passent par lui.','Téléchargé','Non téléchargé','Télécharger','Supprimer','Téléchargement…','Échec : ','Essentiel','Lecture des packs impossible','Diagnostic de traduction'],
+es:['Paquetes de idiomas de traducción','Cada paquete se descarga una vez y luego la traducción funciona sin conexión. El inglés es esencial porque los demás pares pasan por él.','Descargado','No descargado','Descargar','Eliminar','Descargando…','Error: ','Esencial','No se pudieron leer los paquetes','Diagnóstico de traducción'],
+it:['Pacchetti lingua di traduzione','Ogni pacchetto si scarica una volta, poi la traduzione funziona offline. L’inglese è essenziale perché le altre coppie passano da esso.','Scaricato','Non scaricato','Scarica','Elimina','Download…','Errore: ','Essenziale','Impossibile leggere i pacchetti','Diagnostica traduzione'],
+id:['Paket bahasa terjemahan','Setiap paket diunduh sekali, lalu terjemahan berjalan tanpa internet. Bahasa Inggris wajib karena pasangan lain melewatinya.','Terunduh','Belum diunduh','Unduh','Hapus','Mengunduh…','Gagal: ','Wajib','Paket tidak dapat dibaca','Diagnostik terjemahan']};
 var have=null,busy={},err={};
 function tx(){return TXT[LANG]||TXT.en}
 function draw(){var t=tx(),N=window.LiNative;
   var rows=ORDER.map(function(k){var on=have&&have.indexOf(k)>=0,b=busy[k],st=b?t[6]:(have===null?'…':(on?t[2]:t[3])),btn='';
     if(!b&&have!==null){if(!on)btn='<button class="btn" data-pg="'+k+'">'+t[4]+'</button>';else if(k!=='en')btn='<button class="btn" data-pd="'+k+'">'+t[5]+'</button>';else btn='<span style="color:var(--mute);font-size:12px">'+t[8]+'</span>'}
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line,#0001)"><div style="flex:1"><b>'+NAMES[k]+'</b><div style="font-size:12px;color:var(--mute)">'+st+(err[k]?' — '+t[7]+esc(err[k]):'')+'</div></div>'+btn+'</div>'}).join('');
-  modal('<h3>'+t[0]+'</h3><p style="font-size:13px;color:var(--mute)">'+t[1]+'</p>'+rows);
+  modal('<h3>'+t[0]+'</h3><p style="font-size:13px;color:var(--mute)">'+t[1]+'</p>'+rows+'<div class="acts"><button class="btn" id="pkDiag">'+t[10]+'</button></div>');
+  $('#pkDiag').onclick=function(){var L=(window.liTrLog||[]).slice(-40).join('\n')||'—';modal('<h3>'+t[10]+'</h3><pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:55vh;overflow:auto;user-select:text">'+esc(L)+'</pre><div class="acts"><button class="btn" id="no">'+T('رجوع','Back')+'</button></div>');$('#no').onclick=function(){window.liPacksDlg()}};
   var q=document.querySelectorAll('#box [data-pg]');for(var i=0;i<q.length;i++)q[i].onclick=function(){var k=this.getAttribute('data-pg');busy[k]=1;err[k]='';draw();N.packGet(k)};
   q=document.querySelectorAll('#box [data-pd]');for(i=0;i<q.length;i++)q[i].onclick=function(){var k=this.getAttribute('data-pd');busy[k]=1;err[k]='';draw();N.packDel(k)}}
 window.__liPacks=function(a){have=a;draw()};
