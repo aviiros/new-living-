@@ -28,6 +28,15 @@ const fail = [], ck = (n, c) => { console.log(c ? 'ok  ' : 'FAIL', n); if (!c) f
   await pg.click('[data-pg="id"]'); await pg.waitForTimeout(400); const t4 = await pg.evaluate(() => ({ calls: window.__calls, has: !!document.querySelector('[data-pd="id"]') })); ck('pack download then delete button', t4.calls.includes('get:id') && t4.has);
   await pg.click('[data-pd="id"]'); await pg.waitForTimeout(400); ck('pack delete', (await pg.evaluate(() => window.__calls)).includes('del:id') && !!(await pg.$('[data-pg="id"]'))); ck('English pack cannot be deleted', !(await pg.$('[data-pd="en"]')));
   await pg.screenshot({ path: '/tmp/lt/packs.png' });
+  // audiobook player: queue management
+  await pg.evaluate(async () => { const l = await window.api.state(); ['a1', 'a2', 'a3'].forEach((id, i) => l.books.push({ id, format: 'audio', title: 'Audio ' + (i + 1), audio: { pos: 60, dur: 3600 }, added: Date.now() })); });
+  await pg.evaluate(() => liAudioDlg()); await pg.waitForTimeout(200);
+  await pg.click('[data-qa="a1"]'); await pg.click('[data-qa="a2"]'); await pg.click('[data-qa="a3"]');
+  let q = await pg.evaluate(() => JSON.parse(localStorage.getItem('li-aq'))); ck('queue holds three audiobooks in order', q.join() === 'a1,a2,a3');
+  await pg.click('[data-qu="2"]'); q = await pg.evaluate(() => JSON.parse(localStorage.getItem('li-aq'))); ck('queue reorder up', q.join() === 'a1,a3,a2');
+  await pg.click('[data-qr="0"]'); q = await pg.evaluate(() => JSON.parse(localStorage.getItem('li-aq'))); ck('queue remove', q.join() === 'a3,a2');
+  ck('play-queue button present', !!(await pg.$('#aqGo'))); ck('sidebar audiobook player entry', !!(await pg.$('#aqBtn')));
+  await pg.screenshot({ path: '/tmp/lt/audio.png' }); await pg.click('#no');
   ck('no page errors', errs.length === 0); if (errs.length) console.log(errs.join('\n'));
   await br.close(); srv.close(); if (fail.length) { console.log('FAILED:', fail.join(' | ')); process.exit(1) } console.log('all library checks passed');
 })();
