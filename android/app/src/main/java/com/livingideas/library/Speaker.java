@@ -252,6 +252,18 @@ public final class Speaker {
   }
 
   /** silent: the page itself cancelled (nothing to report back). Otherwise the user stopped it from the notification / player. */
+  // Sleep timer for read-aloud: stops safely when the time is up (the service keeps the process alive while speaking).
+  private final android.os.Handler sleepH = new android.os.Handler(android.os.Looper.getMainLooper());
+  private Runnable sleepR; private long sleepAt = 0;
+  public void sleepTimer(int minutes) {
+    if (sleepR != null) sleepH.removeCallbacks(sleepR); sleepR = null; sleepAt = 0;
+    if (minutes <= 0) return;
+    sleepAt = System.currentTimeMillis() + minutes * 60000L;
+    sleepR = new Runnable() { public void run() { sleepAt = 0; sleepR = null; stop(false); } };
+    sleepH.postDelayed(sleepR, minutes * 60000L);
+  }
+  public int sleepLeft() { return sleepAt == 0 ? 0 : (int) Math.max(0, (sleepAt - System.currentTimeMillis()) / 1000); }
+
   public void stop(boolean silent) {
     clearQueue(); paused = false;
     if (!silent) { emit("", "stopped", 0, 0); shutdown(true); } else { finishedQueue(); changed(); }

@@ -519,7 +519,11 @@ window.addEventListener('message',function(e){
   else if(d.type==='audio-end'){setFin(b,true);showEnd()}
   else if(d.type==='pdf'){var pr2=d.total>1?Math.round((d.page-1)/(d.total-1)*100):0;b.pdf={page:d.page,total:d.total};b.progress=pr2;if(d.page>=d.total&&d.total>1)showEnd();window.api.update(b.id,{pdf:b.pdf,progress:pr2,lastRead:Date.now()})}
   else if(d.type==='back')closeBook();else if(d.type==='fs')window.api.fullscreen();else if(d.type==='findkey')toggleFind();else if(d.type==='open-url'){if(window.api.openUrl)window.api.openUrl(d.url)}else if(d.type==='bm-toast')toast(d.removed?'أُزيلت الإشارة':'أُضيفت إشارة مرجعية')});
-setInterval(function(){if(!cur||!$('#reader').classList.contains('on'))return;var active=document.hasFocus()&&Date.now()-lastAct<60000;if(active)secAcc++;if(secAcc>=15){var n=secAcc,id=cur.id;secAcc=0;window.api.tick(n,id).then(function(s){S.goals=s.goals;var bb=s.books.filter(function(x){return x.id===id})[0],c=S.books.filter(function(x){return x.id===id})[0];if(bb&&c)c.readSec=bb.readSec})}},1000);
+var lisAcc=0,lisLast=0;
+setInterval(function(){var now=Date.now(),lis=!!(window.LiNative&&cur&&(spkOn||plOn));
+  if(lis){var dl=lisLast?Math.min(120,Math.round((now-lisLast)/1000)):1;lisAcc+=Math.max(0,dl);lisLast=now}else{lisLast=0}
+  if(lisAcc>=15||(!lis&&lisAcc>0)){var m=lisAcc,i2=cur?cur.id:'';lisAcc=0;if(i2)window.api.tick(m,i2,'listen').then(function(s){S.listenDays=s.listenDays;S.sessions=s.sessions;var bb=s.books.filter(function(x){return x.id===i2})[0],c=S.books.filter(function(x){return x.id===i2})[0];if(bb&&c)c.listenSec=bb.listenSec})}
+  if(!cur||!$('#reader').classList.contains('on'))return;var active=!lis&&document.hasFocus()&&now-lastAct<60000;if(active)secAcc++;if(secAcc>=15){var n=secAcc,id=cur.id;secAcc=0;window.api.tick(n,id,'read').then(function(s){S.goals=s.goals;S.sessions=s.sessions;var bb=s.books.filter(function(x){return x.id===id})[0],c=S.books.filter(function(x){return x.id===id})[0];if(bb&&c)c.readSec=bb.readSec})}},1000);
 $('#hot').addEventListener('mouseenter',function(){if(!fixBar)$('#reader').classList.add('bar')});$('#rbar').addEventListener('mouseenter',function(){hoverBar=true});$('#rbar').addEventListener('mouseleave',function(){hoverBar=false;if(!fixBar)setTimeout(function(){if(!hoverBar)$('#reader').classList.remove('bar')},600)});
 // panel / find / appearance
 function togglePanel(){var p=$('#panel');if(p.classList.contains('on'))closePanel();else{$('#pop').classList.remove('on');p.classList.add('on');panelList()}}
@@ -584,6 +588,47 @@ function draw(){var t=tx(),N=window.LiNative;
 window.__liPacks=function(a){have=a;draw()};
 window.__liPackEv=function(k,kind,m){busy[k]=0;if(kind==='err')err[k]=m;else if(have){var i=have.indexOf(k);if(kind==='ok'&&i<0)have.push(k);if(kind==='del'&&i>=0)have.splice(i,1)}draw()};
 window.liPacksDlg=function(){var N=window.LiNative;if(!N||!N.packs){toast(tx()[9]);return}have=null;draw();try{N.packs()}catch(e){toast(tx()[9])}};
+})();
+
+/* reading statistics + timers (reading and listening are recorded separately) */
+(function(){
+var TX={
+ar:{st:'إحصائيات القراءة',tm:'المؤقتات',rd:'قراءة',ls:'استماع',tot:'الإجمالي',today:'اليوم',week:'آخر 7 أيام',goal:'الهدف اليومي',books:'الأكثر وقتًا',ses:'آخر الجلسات',min:'د',none:'لا بيانات بعد — تُسجَّل القراءة والاستماع تلقائيًا',rt:'مؤقت جلسة القراءة',rtd:'ينبّهك بإشعار عند انتهاء المدة، ولا يغلق الكتاب.',start:'ابدأ',cancel:'إلغاء',left:'المتبقي',sl:'مؤقت النوم للقراءة الصوتية',sld:'يوقف الصوت بأمان عند انتهاء المدة ويعمل والتطبيق في الخلفية.',off:'إيقاف',noSl:'مؤقت النوم متاح في تطبيق أندرويد',done:'انتهت جلسة القراءة',day:'ي'},
+en:{st:'Reading statistics',tm:'Timers',rd:'Reading',ls:'Listening',tot:'Total',today:'Today',week:'Last 7 days',goal:'Daily goal',books:'Most time',ses:'Recent sessions',min:'min',none:'No data yet — reading and listening are recorded automatically',rt:'Reading session timer',rtd:'Notifies you when time is up; never closes the book.',start:'Start',cancel:'Cancel',left:'Left',sl:'Sleep timer for read-aloud',sld:'Stops the voice safely when time is up, even in the background.',off:'Off',noSl:'The sleep timer is available in the Android app',done:'Reading session finished',day:'d'},
+fr:{st:'Statistiques de lecture',tm:'Minuteurs',rd:'Lecture',ls:'Écoute',tot:'Total',today:'Aujourd’hui',week:'7 derniers jours',goal:'Objectif quotidien',books:'Le plus de temps',ses:'Dernières séances',min:'min',none:'Pas encore de données — lecture et écoute sont enregistrées automatiquement',rt:'Minuteur de séance de lecture',rtd:'Vous prévient à la fin ; ne ferme jamais le livre.',start:'Démarrer',cancel:'Annuler',left:'Restant',sl:'Minuteur de veille pour la lecture à voix haute',sld:'Arrête la voix en douceur à la fin, même en arrière-plan.',off:'Arrêt',noSl:'Le minuteur de veille est disponible dans l’app Android',done:'Séance de lecture terminée',day:'j'},
+es:{st:'Estadísticas de lectura',tm:'Temporizadores',rd:'Lectura',ls:'Escucha',tot:'Total',today:'Hoy',week:'Últimos 7 días',goal:'Meta diaria',books:'Más tiempo',ses:'Últimas sesiones',min:'min',none:'Aún no hay datos: la lectura y la escucha se registran solas',rt:'Temporizador de lectura',rtd:'Te avisa al terminar; nunca cierra el libro.',start:'Iniciar',cancel:'Cancelar',left:'Restante',sl:'Temporizador de sueño para lectura en voz alta',sld:'Detiene la voz con seguridad al terminar, incluso en segundo plano.',off:'Apagar',noSl:'El temporizador de sueño está en la app de Android',done:'Sesión de lectura terminada',day:'d'},
+it:{st:'Statistiche di lettura',tm:'Timer',rd:'Lettura',ls:'Ascolto',tot:'Totale',today:'Oggi',week:'Ultimi 7 giorni',goal:'Obiettivo giornaliero',books:'Più tempo',ses:'Ultime sessioni',min:'min',none:'Ancora nessun dato: lettura e ascolto si registrano da soli',rt:'Timer sessione di lettura',rtd:'Ti avvisa alla fine; non chiude mai il libro.',start:'Avvia',cancel:'Annulla',left:'Rimasto',sl:'Timer di spegnimento per la lettura ad alta voce',sld:'Ferma la voce in sicurezza alla fine, anche in background.',off:'Spento',noSl:'Il timer di spegnimento è nell’app Android',done:'Sessione di lettura finita',day:'g'},
+id:{st:'Statistik membaca',tm:'Pengatur waktu',rd:'Membaca',ls:'Mendengarkan',tot:'Total',today:'Hari ini',week:'7 hari terakhir',goal:'Target harian',books:'Paling lama',ses:'Sesi terakhir',min:'mnt',none:'Belum ada data — membaca dan mendengarkan dicatat otomatis',rt:'Timer sesi membaca',rtd:'Memberi tahu saat waktu habis; tidak menutup buku.',start:'Mulai',cancel:'Batal',left:'Sisa',sl:'Timer tidur untuk bacaan suara',sld:'Menghentikan suara dengan aman saat waktu habis, juga di latar belakang.',off:'Mati',noSl:'Timer tidur tersedia di aplikasi Android',done:'Sesi membaca selesai',day:'h'}};
+function X(){return TX[LANG]||TX.en}
+function mm(sec){return Math.round((sec||0)/60)}
+function dk(i){return dayKey(i)}
+function statsDraw(){var t=X(),g=S.goals||{days:{}},ld=S.listenDays||{},rd=g.days||{},h='',mx=1,days=[];
+  for(var i=6;i>=0;i--){var k=dk(i),r=rd[k]||0,l=ld[k]||0;days.push({k:k,r:r,l:l});mx=Math.max(mx,r+l)}
+  var tr=0,tl=0;days.forEach(function(d){tr+=d.r;tl+=d.l});var td=days[6],need=(g.daily||5)*60,p=Math.min(100,Math.round(td.r/need*100));
+  h+='<h3>'+t.st+'</h3><div class="sh">'+t.today.toUpperCase()+'</div><div style="display:flex;gap:18px"><div><b style="font-size:22px">'+AR(mm(td.r))+'</b> '+t.min+'<div style="font-size:12px;color:var(--mute)">'+t.rd+'</div></div><div><b style="font-size:22px">'+AR(mm(td.l))+'</b> '+t.min+'<div style="font-size:12px;color:var(--mute)">'+t.ls+'</div></div><div><b style="font-size:22px">'+AR(mm(td.r+td.l))+'</b> '+t.min+'<div style="font-size:12px;color:var(--mute)">'+t.tot+'</div></div></div>'
+   +'<div style="margin:10px 0 2px;font-size:12px;color:var(--mute)">'+t.goal+': '+AR(g.daily||5)+' '+t.min+' ('+AR(p)+'%)</div><div style="height:8px;border-radius:6px;background:var(--line)"><div style="height:8px;border-radius:6px;background:var(--acc,#c3714c);width:'+p+'%"></div></div>'
+   +'<div class="sh">'+t.week.toUpperCase()+'</div><div style="display:flex;align-items:flex-end;gap:6px;height:84px">'+days.map(function(d){var hr=Math.round(d.r/mx*70),hl=Math.round(d.l/mx*70);return '<div style="flex:1;text-align:center;font-size:10px;color:var(--mute)"><div style="display:flex;flex-direction:column;justify-content:flex-end;height:70px"><div title="'+t.ls+'" style="background:#6a8f7a;height:'+hl+'px"></div><div title="'+t.rd+'" style="background:#c3714c;height:'+hr+'px"></div></div>'+d.k.slice(8)+'</div>'}).join('')+'</div>'
+   +'<div style="font-size:12px;color:var(--mute);margin-top:6px"><span style="color:#c3714c">■</span> '+t.rd+' '+AR(mm(tr))+' '+t.min+' &nbsp; <span style="color:#6a8f7a">■</span> '+t.ls+' '+AR(mm(tl))+' '+t.min+' &nbsp; '+t.tot+' '+AR(mm(tr+tl))+' '+t.min+'</div>';
+  var bk=S.books.filter(function(b){return (b.readSec||0)+(b.listenSec||0)>=30}).sort(function(a,b){return (b.readSec||0)+(b.listenSec||0)-(a.readSec||0)-(a.listenSec||0)}).slice(0,8);
+  if(bk.length)h+='<div class="sh">'+t.books.toUpperCase()+'</div>'+bk.map(function(b){return '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><span style="flex:1" dir="auto">'+esc(b.title)+'</span><span style="font-size:12px;color:var(--mute)">'+t.rd+' '+AR(mm(b.readSec))+' · '+t.ls+' '+AR(mm(b.listenSec))+' '+t.min+'</span></div>'}).join('');
+  var ss=(S.sessions||[]).slice(-10).reverse();
+  if(ss.length)h+='<div class="sh">'+t.ses.toUpperCase()+'</div>'+ss.map(function(x){var d=new Date(x.start),hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);return '<div style="display:flex;gap:8px;padding:5px 0;font-size:13px"><span style="color:var(--mute)">'+x.d.slice(5)+' '+hm+'</span><span style="flex:1" dir="auto">'+esc(x.t||'')+'</span><span>'+(x.k==='listen'?t.ls:t.rd)+' '+AR(Math.max(1,mm(x.s)))+' '+t.min+'</span></div>'}).join('');
+  else if(!bk.length)h+='<p style="color:var(--mute)">'+t.none+'</p>';
+  modal('<div id="sheet">'+h+'<div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');$('#no').onclick=closeModal}
+window.liStatsDlg=function(){try{window.api.state().then(function(s){S=s;statsDraw()})}catch(e){statsDraw()}};
+var tmI=0;
+window.liTimersDlg=function(){var t=X(),N=window.LiNative,TM=window.liTimers;clearInterval(tmI);
+  var chips=function(id,arr,unit){return '<div class="chips" id="'+id+'">'+arr.map(function(m){return '<button class="chip" data-m="'+m+'">'+(m?AR(m)+' '+unit:t.off)+'</button>'}).join('')+'</div>'};
+  modal('<div id="sheet"><h3>'+t.tm+'</h3><div class="sh">'+t.rt.toUpperCase()+'</div><p style="font-size:13px;color:var(--mute)">'+t.rtd+'</p>'+chips('rtc',[15,30,45,60],t.min)+'<div id="rtl" style="margin:8px 0;font-weight:700"></div><div class="sh">'+t.sl.toUpperCase()+'</div><p style="font-size:13px;color:var(--mute)">'+(N&&N.sleepTimer?t.sld:t.noSl)+'</p>'+(N&&N.sleepTimer?chips('slc',[10,15,30,45,60,0],t.min):'')+'<div id="sll" style="margin:8px 0;font-weight:700"></div><div class="acts"><button class="btn" id="no">'+T('إغلاق','Close')+'</button></div></div>');
+  function fm(sec){sec=Math.max(0,sec|0);return Math.floor(sec/60)+':'+('0'+sec%60).slice(-2)}
+  function upd(){var rl=$('#rtl'),sl=$('#sll');if(!rl){clearInterval(tmI);return}var e=TM?TM.readEnd():0,left=e?Math.round((e-Date.now())/1000):0;
+    if(e&&left<=0){TM.readStop();toast(t.done);left=0;e=0}
+    rl.innerHTML=e?t.left+': '+fm(left)+' <button class="btn" id="rtx">'+t.cancel+'</button>':'';var x=$('#rtx');if(x)x.onclick=function(){TM.readStop();upd()};
+    var sv=N&&N.sleepLeft?N.sleepLeft():0;sl.innerHTML=sv?t.left+': '+fm(sv)+' <button class="btn" id="slx">'+t.cancel+'</button>':'';var y=$('#slx');if(y)y.onclick=function(){N.sleepTimer(0);upd()}}
+  $('#rtc').onclick=function(e){var b=e.target.closest('[data-m]');if(!b||!TM)return;TM.readStart(+b.dataset.m);upd()};
+  var sc=$('#slc');if(sc)sc.onclick=function(e){var b=e.target.closest('[data-m]');if(!b)return;N.sleepTimer(+b.dataset.m);upd()};
+  $('#no').onclick=function(){clearInterval(tmI);closeModal()};upd();tmI=setInterval(upd,1000)};
+setInterval(function(){try{var e=window.liTimers&&window.liTimers.readEnd();if(e&&Date.now()>=e){window.liTimers.readStop();toast(X().done)}}catch(x){}},5000);
 })();
 function moreMenu(){var r=$('#moreBtn').getBoundingClientRect();menu(r.right,r.top-8,[{t:'نسخة احتياطية للمكتبة…',f:function(){window.api.backup()}},{t:'استعادة نسخة احتياطية…',f:function(){window.api.restore().then(setState)}},'-',{t:'تصدير كل الملاحظات (Markdown)',f:function(){window.api.exportAllNotes()}},{t:'أهداف القراءة…',f:goalDlg},{t:'إظهار الكتب المخفية',ck:!!S.settings.showHidden,f:function(){window.api.settings({showHidden:!S.settings.showHidden}).then(setState)}},'-',{t:'اختصارات لوحة المفاتيح (F1)',f:kbDlg},{t:'عن Living Ideas',f:aboutDlg}]);var m=$('#menu');m.style.top=Math.max(6,r.top-m.offsetHeight-8)+'px';m.style.left='12px'}
 // ---------- v3: identity, Today's Thought, dock, settings, splash ----------
@@ -764,6 +809,8 @@ function settingsDlg(){window.__aiOpen=false;var s=S.settings,th=s.theme||'syste
    +'<div class="sh">'+T('اللغة','LANGUAGE')+'</div><div class="chips">'+LANGS.map(function(x){return ch('lang',x[0],LANG,x[1])}).join('')+'</div>'
    +'<div class="sh">'+T('شاشة البداية','SPLASH SCREEN')+'</div><div class="chips">'+ch('splash','always',sp,T('كل مرة','Every launch'))+ch('splash','once',sp,T('مرة واحدة','Once'))+ch('splash','off',sp,T('إيقاف','Off'))+'</div>'
    +'<div class="sh">'+T('القراءة','READING')+'</div>'
+   +'<button class="srow" data-sa="stats">'+T('إحصائيات القراءة والاستماع','Reading and listening statistics')+'</button>'
+   +'<button class="srow" data-sa="timers">'+T('المؤقتات (جلسة القراءة والنوم)','Timers (reading session and sleep)')+'</button>'
    +(window.LiNative&&window.LiNative.packs?'<button class="srow" data-sa="packs">'+T('حزم لغات الترجمة (تنزيل وحذف)','Translation language packs (download / delete)')+'</button>':'')
    +'<button class="srow" data-sa="goals">'+T('أهداف القراءة والتذكير بالاقتباس','Reading goals and quote reminders')+'<small>›</small></button>'
    +'<button class="srow" data-sa="saved">'+T('الأفكار المحفوظة','Saved thoughts')+'<small>'+AR(savedList().length)+'</small></button>'
@@ -780,7 +827,7 @@ function settingsDlg(){window.__aiOpen=false;var s=S.settings,th=s.theme||'syste
     if(k==='theme'){window.api.settings({theme:v}).then(function(x){setState(x);settingsDlg()})}
     else if(k==='lang'){closeModal();setLang(v,true)}
     else if(k==='splash'){window.api.settings({splash:v}).then(function(x){setState(x);settingsDlg()})}
-    else if(k==='packs'){closeModal();window.liPacksDlg()}else if(k==='goals'){closeModal();goalDlg()}else if(k==='saved'){closeModal();savedDlg()}
+    else if(k==='stats'){closeModal();window.liStatsDlg()}else if(k==='timers'){closeModal();window.liTimersDlg()}else if(k==='packs'){closeModal();window.liPacksDlg()}else if(k==='goals'){closeModal();goalDlg()}else if(k==='saved'){closeModal();savedDlg()}
     else if(k==='hidden'){window.api.settings({showHidden:!S.settings.showHidden}).then(function(x){setState(x);settingsDlg()})}
     else if(k==='backup'){closeModal();window.api.backup()}else if(k==='restore'){closeModal();window.api.restore().then(setState)}
     else if(k==='ai'){aiDlg()}

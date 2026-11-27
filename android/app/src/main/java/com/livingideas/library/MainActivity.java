@@ -249,6 +249,8 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
       }
       // Keeps the app alive (with a live progress notification) while a translation runs in the background.
+      @JavascriptInterface public void sleepTimer(final int minutes) { runOnUiThread(new Runnable() { public void run() { Speaker.I.sleepTimer(minutes); } }); }
+      @JavascriptInterface public int sleepLeft() { return Speaker.I.sleepLeft(); }
       @JavascriptInterface public void packs() {
         RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel.class)
           .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Set<TranslateRemoteModel>>() { public void onSuccess(Set<TranslateRemoteModel> set) {

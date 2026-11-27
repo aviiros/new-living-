@@ -206,11 +206,25 @@
     if (!g.enabled || !g.remind) return; var p = String(g.remindAt || '20:00').split(':');
     LN.requestPermissions().then(function () { return LN.schedule({ notifications: [{ id: 7001, title: M('وقت القراءة', 'Reading time'), body: M('كتابك ينتظرك — هدف اليوم ' + g.daily + ' دقيقة.', 'Your book is waiting — today’s goal is ' + g.daily + ' min.'), schedule: { on: { hour: +p[0] || 20, minute: +p[1] || 0 }, allowWhileIdle: true } }] }); }).catch(function () {});
   }
-  function tickGoals(sec, bid) {
-    var g = lib.goals; if (!g.enabled || !(sec > 0 && sec <= 120)) return lib; var d = today(); g.days[d] = (g.days[d] || 0) + sec; var b = find(bid); if (b) b.readSec = (b.readSec || 0) + sec;
-    if (g.days[d] >= g.daily * 60 && g.notified !== d) { g.notified = d; notify(M('أحسنت! 🎉', 'Well done! 🎉'), M('أنجزتَ هدف القراءة اليومي (' + g.daily + ' دقيقة).', 'You reached your daily reading goal (' + g.daily + ' min).')); }
+  // Reading and listening are recorded separately and automatically (no manual counter, goals on or off).
+  function tickGoals(sec, bid, kind) {
+    if (!(sec > 0 && sec <= 120)) return lib; kind = kind === 'listen' ? 'listen' : 'read';
+    var g = lib.goals, d = today(), b = find(bid), now = Date.now();
+    if (kind === 'read') { g.days[d] = (g.days[d] || 0) + sec; if (b) b.readSec = (b.readSec || 0) + sec; }
+    else { lib.listenDays = lib.listenDays || {}; lib.listenDays[d] = (lib.listenDays[d] || 0) + sec; if (b) b.listenSec = (b.listenSec || 0) + sec; }
+    var ss = lib.sessions = lib.sessions || [], last = ss[ss.length - 1];
+    if (last && last.b === bid && last.k === kind && now - last.end < 180000) { last.end = now; last.s += sec; }
+    else { ss.push({ b: bid, t: b ? b.title : '', k: kind, d: d, start: now - sec * 1000, end: now, s: sec }); if (ss.length > 400) ss.splice(0, ss.length - 400); }
+    if (kind === 'read' && g.enabled && g.days[d] >= g.daily * 60 && g.notified !== d) { g.notified = d; notify(M('أحسنت! 🎉', 'Well done! 🎉'), M('أنجزتَ هدف القراءة اليومي (' + g.daily + ' دقيقة).', 'You reached your daily reading goal (' + g.daily + ' min).')); }
     save(); return lib;
   }
+  // Reading-session timer: a local notification fires at the end even if the app is closed; the book is never closed by it.
+  window.liTimers = {
+    readStart: function (min) { var end = Date.now() + min * 60000; try { localStorage.setItem('li-rtimer', String(end)); } catch (e) {}
+      if (NATIVE() && PL.LocalNotifications) PL.LocalNotifications.requestPermissions().then(function () { return PL.LocalNotifications.schedule({ notifications: [{ id: 7002, title: M('انتهت جلسة القراءة', 'Reading session finished'), body: M('أحسنتَ! مرّت ' + min + ' دقيقة من القراءة.', 'Well done! ' + min + ' minutes of reading.'), schedule: { at: new Date(end), allowWhileIdle: true } }] }); }).catch(function () {}); return end; },
+    readStop: function () { try { localStorage.removeItem('li-rtimer'); } catch (e) {} if (NATIVE() && PL.LocalNotifications) PL.LocalNotifications.cancel({ notifications: [{ id: 7002 }] }).catch(function () {}); },
+    readEnd: function () { try { var v = +localStorage.getItem('li-rtimer'); return v > 0 ? v : 0; } catch (e) { return 0; } }
+  };
   // ---------- notes ----------
   function notesOf(b) {
     var rows = [], e = b.ext || {};
@@ -1339,7 +1353,7 @@
     annots: A(function (id, a) { var b = find(id); if (b && Array.isArray(a)) { b.annots = a.slice(0, 5000); save(); } return lib; }),
     tick: A(tickGoals),
     goals: A(function (g) { ['enabled', 'daily', 'yearly', 'remind', 'remindAt'].forEach(function (k) { if (k in g) lib.goals[k] = g[k]; }); lib.goals.daily = Math.max(1, Math.min(600, Math.round(lib.goals.daily) || 5)); lib.goals.yearly = Math.max(1, Math.min(999, Math.round(lib.goals.yearly) || 12)); save(); syncReminder(); return lib; }),
-    clearGoals: A(function () { lib.goals.days = {}; lib.goals.notified = ''; lib.books.forEach(function (b) { b.readSec = 0; }); save(); return lib; }),
+    clearGoals: A(function () { lib.goals.days = {}; lib.goals.notified = ''; lib.listenDays = {}; lib.sessions = []; lib.books.forEach(function (b) { b.readSec = 0; b.listenSec = 0; }); save(); return lib; }),
     setCover: A(function (id) { var b = find(id); if (!b) return lib; return pick('image/*', false).then(function (f) { if (!f[0]) return lib; var ext = (extOf(f[0].name) || 'png').replace('jpeg', 'jpg'), p = b.cover ? fDelPrefix(id + '/cover.') : Promise.resolve(); return p.then(function () { return fSet(id + '/cover.' + ext, f[0]); }).then(function () { b.cover = 'cover.' + ext; b.coverV = Date.now(); setCoverURL(b, f[0]); save(true); return lib; }); }); }),
     exportBook: A(function (id) { var b = find(id); if (!b) return; if (b.orig === 'CBZ') return fKeys(id + '/p/').then(function (ks) { var z = new JSZip(); return Promise.all(ks.map(function (k) { return fGet(k).then(function (bl) { z.file(k.slice(id.length + 3), bl); }); })).then(function () { return z.generateAsync({ type: 'blob' }); }); }).then(function (bl) { return saveBlob(b.title.replace(/[\\/:*?\"<>|]/g, '') + '.cbz', bl); }); return fGet(id + '/' + b.file).then(function (bl) { return saveBlob(b.title.replace(/[\\/:*?"<>|]/g, '') + (b.format === 'epub' ? '.html' : '.' + extOf(b.file)), bl); }); }),
     exportNotes: A(function (id) { var b = find(id); if (!b) return; if (!notesOf(b).length) return toast(M('لا ملاحظات لهذا الكتاب', 'This book has no notes')); return saveBlob(M('ملاحظات - ', 'Notes - ') + b.title.replace(/[\\/:*?"<>|]/g, '') + '.md', new Blob(['\ufeff' + md(b)], { type: 'text/markdown' })).then(function () { toast(M('تم تصدير الملاحظات', 'Notes exported')); }); }),
