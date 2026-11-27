@@ -15,6 +15,8 @@ import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
 
 import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.common.model.RemoteModelManager;
+import com.google.mlkit.nl.translate.TranslateRemoteModel;
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
@@ -116,8 +118,8 @@ public class MainActivity extends BridgeActivity {
   private boolean online() { try { return getSharedPreferences("li", Context.MODE_PRIVATE).getBoolean("online", false); } catch (Exception e) { return false; } }
   private final java.util.concurrent.ExecutorService net = java.util.concurrent.Executors.newFixedThreadPool(3);
 
-  // Better meaning than the small on-device model: whole paragraphs go to the online translator;
-  // if there is no internet (or it fails) the on-device model below is used automatically.
+  // Optional, chosen by the user (off by default): whole paragraphs go to the online translator.
+  // If it fails the error is reported; the app never switches silently between online and on-device.
   private static String onlineTranslate(String text, String src, String tgt) throws Exception {
     java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://translate.googleapis.com/translate_a/single?client=gtx&sl=" + src + "&tl=" + tgt + "&dt=t&ie=UTF-8&oe=UTF-8").openConnection();
     try {
@@ -142,7 +144,7 @@ public class MainActivity extends BridgeActivity {
     if (!online()) { doTranslateOffline(id, text, src, tgt); return; }
     net.execute(new Runnable() { public void run() {
       try { trEmit(id, "ok", onlineTranslate(text, src, tgt)); }
-      catch (Exception e) { runOnUiThread(new Runnable() { public void run() { doTranslateOffline(id, text, src, tgt); } }); }
+      catch (Exception e) { trEmit(id, "err", "online: " + why(e)); }   // no silent switch to the other mode: the user chose online
     } });
   }
 
@@ -247,6 +249,28 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(new Runnable() { public void run() { doTranslate(id, text, src, tgt); } });
       }
       // Keeps the app alive (with a live progress notification) while a translation runs in the background.
+      @JavascriptInterface public void packs() {
+        RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel.class)
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Set<TranslateRemoteModel>>() { public void onSuccess(Set<TranslateRemoteModel> set) {
+            JSONArray a = new JSONArray(); for (TranslateRemoteModel m : set) a.put(m.getLanguage());
+            js("window.__liPacks&&window.__liPacks(" + a.toString() + ")");
+          } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPacks&&window.__liPacks(null)"); } });
+      }
+      @JavascriptInterface public void packGet(final String lang) {
+        TranslateRemoteModel m = new TranslateRemoteModel.Builder(lang).build();
+        RemoteModelManager.getInstance().download(m, new DownloadConditions.Builder().build())
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'ok','')"); } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
+      }
+      @JavascriptInterface public void packDel(final String lang) {
+        TranslateRemoteModel m = new TranslateRemoteModel.Builder(lang).build();
+        RemoteModelManager.getInstance().deleteDownloadedModel(m)
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) {
+            java.util.Iterator<String> it = translators.keySet().iterator(); while (it.hasNext()) { String k = it.next(); if (k.startsWith(lang + ">") || k.endsWith(">" + lang)) { it.remove(); modelState.remove(k); } }
+            js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'del','')"); } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
+      }
       @JavascriptInterface public void keepAlive(boolean on, String title, String text, int pct) {
         try {
           android.content.Intent it = new android.content.Intent(MainActivity.this, KeepAliveService.class);

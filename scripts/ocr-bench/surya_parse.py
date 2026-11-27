@@ -11,8 +11,16 @@ for tf in sorted(glob.glob(d + '/time_*.txt')):
     if pid == 'blank': continue
     t = tm(tf); fs = glob.glob(f'{d}/res_{pid}/**/results.json', recursive=True)
     if t['exit'] != 0 or not fs: res[pid] = dict(text='', sec=t['wall'], error='exit %d' % t['exit'], lines=0); continue
-    R = json.load(open(fs[0])); k = next(iter(R)); pg = R[k][0] if isinstance(R[k], list) else R[k]
-    lines = pg.get('text_lines', [])
+    R = json.load(open(fs[0])); print('STRUCT', pid, json.dumps(R, ensure_ascii=False)[:500])
+    def walk(o, acc):
+        if isinstance(o, dict):
+            if isinstance(o.get('text'), str): acc.append(dict(text=o['text']))
+            else:
+                for v in o.values(): walk(v, acc)
+        elif isinstance(o, list):
+            for v in o: walk(v, acc)
+        return acc
+    lines = walk(R, [])
     res[re.sub(r'_\d+$', '', pid)] = dict(text=re.sub(r'<[^>]+>', '', '\n'.join(l.get('text', '') for l in lines)), sec=max(0.1, t['wall'] - base['wall']), sec_with_load=t['wall'], lines=len(lines))
     mem, cpu = max(mem, t['rssMB']), cpu + t['cpu']
 ver_txt = open(d + '/version.txt').read().split('\n')
