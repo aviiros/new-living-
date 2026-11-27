@@ -6,6 +6,15 @@
   var PL = new Proxy({}, { get: function (t, k) { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[k]) || undefined; } });
   var NATIVE = function () { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); };
   document.documentElement.dataset.platform = 'android';
+  // The Capacitor page can start loading before MainActivity registers the LiNative bridge (it only reaches pages loaded later).
+  // If it is missing on a real device, reload ONCE (flag in sessionStorage, so no reload loop; nothing is lost: nothing has run yet).
+  (function () {
+    try {
+      if (window.top !== window || !NATIVE() || window.LiNative) { window.__liBridge = !!window.LiNative; if (window.LiNative) sessionStorage.removeItem('li-bridge-reload'); return; }
+      if (sessionStorage.getItem('li-bridge-reload') !== '1') { sessionStorage.setItem('li-bridge-reload', '1'); console.warn('LiNative missing at start: reloading once'); location.reload(); return; }
+      window.__liBridge = false; console.error('LiNative still missing after one reload');
+    } catch (e) {}
+  })();
   var DEF_SET = { theme: 'system', sort: 'recent', view: 'grid', size: 140 };
   var DEF_GOALS = { enabled: true, daily: 5, yearly: 12, days: {}, notified: '', remind: false, remindAt: '20:00', remindedOn: '' };
   var lib = { books: [], collections: [], settings: Object.assign({}, DEF_SET), goals: JSON.parse(JSON.stringify(DEF_GOALS)), seeded: [] };
@@ -163,9 +172,9 @@
         cxp = { stop: false }; busy(M('جارٍ تحويل الملف…', 'Converting the file…'), 0);
         var run = function (ocr) { return F.pdfToHtml(buf, file.name, prog, { ocr: ocr, cancel: cxp }); };
         return tick().then(function () { return run(false); }).catch(function (e) {
-          if (!(e && e.message === 'scanned')) throw e;
+          if (!(e && (e.message === 'scanned' || e.message === 'mixed'))) throw e;
           unbusy();
-          var ask = window.__liAsk ? window.__liAsk(M('الملف مصوّر (صور بلا نص)', 'Scanned file (images without text)'), M('سنقرأ النص من الصفحات بتقنية التعرف على النص (OCR) ثم نحوّله إلى كتاب يمكن ترجمته. تُزال العلامات المائية الفاتحة تلقائياً. قد يستغرق وقتاً (' + (e.pages || '') + ' صفحة)، ويعمل بدون إنترنت.', 'We will read the text from the pages with text recognition (OCR) and turn it into a book that can be translated. Light watermarks are removed automatically. This can take a while (' + (e.pages || '') + ' pages) and works offline.'), M('تحويل إلى نص', 'Convert to text'), M('فتحه كما هو', 'Open as it is')) : Promise.resolve(false);
+          var ask = window.__liAsk ? window.__liAsk((e.message === 'mixed' ? M('الملف مختلط: ' + e.blank + ' صفحة مصوّرة', 'Mixed file: ' + e.blank + ' scanned pages') : M('الملف مصوّر (صور بلا نص)', 'Scanned file (images without text)')), M('سنقرأ النص من الصفحات بتقنية التعرف على النص (OCR) ثم نحوّله إلى كتاب يمكن ترجمته. تُزال العلامات المائية الفاتحة تلقائياً. قد يستغرق وقتاً (' + (e.pages || '') + ' صفحة)، ويعمل بدون إنترنت.', 'We will read the text from the pages with text recognition (OCR) and turn it into a book that can be translated. Light watermarks are removed automatically. This can take a while (' + (e.pages || '') + ' pages) and works offline.'), M('تحويل إلى نص', 'Convert to text'), M('فتحه كما هو', 'Open as it is')) : Promise.resolve(false);
           return ask.then(function (yes) { if (!yes) { var x = new Error('keep'); throw x; } cxp = { stop: false }; busy(M('جارٍ تجهيز قراءة النص…', 'Preparing text recognition…'), 0); return tick().then(function () { return run(true); }); });
         }).then(function (r) { setTr(o); return fin(r, 'PDF'); }).then(function (x) { unbusy(); return x; }, function (e) {
           unbusy(); var m = e && e.message;
@@ -181,7 +190,10 @@
       if (F && ext === 'fb2') return F.fb2ToHtml(buf).then(function (r) { return fin(r, 'FB2'); }).catch(bad);
       if (F && ext === 'cbz') return F.cbzImport(buf, id, fSet, file.name).then(function (r) { return fin(r, 'CBZ'); }).catch(function (e) { return fDelPrefix(id + '/').then(function () { return bad(e); }); });
       if (F && /^(mobi|azw3?|prc)$/.test(ext)) return F.mobiToHtml(new Blob([buf])).then(function (r) { return fin(r, ext === 'mobi' || ext === 'prc' ? 'MOBI' : 'AZW3'); }).catch(bad);
-      var name = 'audio.' + ext; Object.assign(b, { format: 'audio', file: name, audio: { pos: 0, dur: 0, bm: [] } }); return fSet(id + '/' + name, new Blob([buf], { type: file.type || 'audio/mpeg' })).then(function () { return finish(null); });
+      var name = 'audio.' + ext; Object.assign(b, { format: 'audio', file: name, audio: { pos: 0, dur: 0, bm: [] } }); var AMIME = { mp3: 'audio/mpeg', m4b: 'audio/mp4', m4a: 'audio/mp4', aac: 'audio/aac', mp4: 'audio/mp4', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg; codecs=opus', flac: 'audio/flac', wav: 'audio/wav', weba: 'audio/webm', webm: 'audio/webm' };
+      var mime = (file.type && /^audio\//.test(file.type)) ? file.type : (AMIME[ext] || 'application/octet-stream');
+      try { var cp = document.createElement('audio').canPlayType(mime); if (!cp) { fDelPrefix(id + '/'); return Promise.resolve({ err: M('صيغة الصوت هذه (' + ext + ') غير مدعومة على هذا الجهاز: ', 'This audio format (' + ext + ') is not supported on this device: ') + file.name }); } } catch (e) {}
+      return fSet(id + '/' + name, new Blob([buf], { type: mime })).then(function () { return finish(null); });
     }); }).catch(function () { return { err: M('تعذر استيراد الملف: ', 'Could not import the file: ') + file.name }; });
   }
   function addMany(files, opts) {
@@ -316,7 +328,11 @@
         parent.postMessage({ liBook: 1, type: 'toc', items: out }, '*');
       } else if (d.liCmd === 'jump') { var el = document.getElementById(d.id); if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (x) { el.scrollIntoView(); } } }
     });
-    try { N.init(); } catch (e) {}
+    // N was never defined in this scope (ReferenceError swallowed): get the bridge explicitly and log any failure.
+    try {
+      var NB = window.LiNative || (parent && parent.LiNative);
+      if (NB && NB.init) NB.init(); else console.warn('LiNative missing in SHIMX: TTS not initialised');
+    } catch (e) { console.error('SHIMX N.init failed: ' + e); }
   }
 
   var TRS = (function () {
@@ -466,7 +482,7 @@
       u.nodes.forEach(function (n) { if (n !== u.main) n.nodeValue = ''; });
       u.main.nodeValue = lead + tr + trail; align(u.b);
     }
-    function progress() { var p = state.total ? Math.min(state.done >= state.total ? 100 : 99, Math.floor(state.done / state.total * 100)) : 100; btn.textContent = state.done >= state.total ? 'A文' : p + '%'; if (state.done >= state.total) { btn.style.background = 'rgba(93,101,64,.95)'; if (state.quiet) { state.quiet = false; reveal(); } else say(state.bad ? L('mt') + ' · ' + NAMES[state.tgt] + ' · ' + state.bad + ' ⚠' : L('mt') + ' · ' + NAMES[state.tgt], 3500); } }
+    function progress() { var p = state.total ? Math.min(state.done >= state.total ? 100 : 99, Math.floor(state.done / state.total * 100)) : 100; btn.textContent = state.done >= state.total ? 'A文' : p + '%'; if (state.done >= state.total) { btn.style.background = 'rgba(93,101,64,.95)'; if (state.quiet) { state.quiet = false; reveal(); } else say(state.bad ? L('tfail') + ': ' + state.bad + ' ⚠ / ' + (state.total - state.bad) + ' ✓ · ' + NAMES[state.tgt] : L('mt') + ' · ' + NAMES[state.tgt], state.bad ? 9000 : 3500); } }
     function finishChunk(job, text, ok) {
       var u = job.u; u.res[job.i] = text; if (!ok) state.bad++; u.left--; state.done++;
       if (u.left === 0) applyUnit(u);
@@ -906,7 +922,12 @@
     var T = window.__TRS, U = window.__TRU, NAMES = T.NAMES, UI = (window.__LI && window.__LI.ui) || 'ar', L = function (k) { return (T.TX[UI] || T.TX.en)[k]; };
     var doc = null, own = null; try { var og = lib.getDocument; lib.getDocument = function () { var t = og.apply(lib, arguments); try { t.promise.then(function (d) { doc = d; }); } catch (e) {} return t; }; } catch (e) {}
     // pdf.js may not allow patching its exports; then open the file a second time ourselves.
-    function getDoc() { if (doc) return Promise.resolve(doc); if (!own) { var I = window.__LI || {}; own = lib.getDocument({ url: I.url, cMapUrl: I.base + 'cmaps/', cMapPacked: true, standardFontDataUrl: I.base + 'standard_fonts/' }).promise.then(function (d) { doc = d; return d; }); } return own; }
+    function getDoc() { if (doc) return Promise.resolve(doc); if (window.__pdoc) { doc = window.__pdoc; return Promise.resolve(doc); }
+      // the viewer publishes the document it opened as window.__pdoc: wait for it (up to 6 s) instead of opening the file a second time
+      if (!own && !getDoc.w) { getDoc.w = new Promise(function (res) { var n = 0, t = setInterval(function () { if (window.__pdoc || ++n > 60) { clearInterval(t); res(window.__pdoc || null); } }, 100); }); }
+      if (!own && getDoc.w) return getDoc.w.then(function (d) { if (d) { doc = d; return d; } return getDoc.own2(); });
+      return getDoc.own2(); }
+    getDoc.own2 = function () { if (doc) return Promise.resolve(doc); if (!own) { var I = window.__LI || {}; own = lib.getDocument({ url: I.url, cMapUrl: I.base + 'cmaps/', cMapPacked: true, standardFontDataUrl: I.base + 'standard_fonts/' }).promise.then(function (d) { doc = d; return d; }); } return own; };
     var SRC = null, tgt = null, run = 0, store = {}, pend = {}, seq = 0, busy = 0, noText = 0, asked = {};
     var db = null, dbq = [];
     try { var rq = indexedDB.open('li-pdftr', 1); rq.onupgradeneeded = function () { rq.result.createObjectStore('c'); }; rq.onsuccess = function () { db = rq.result; dbq.forEach(function (f) { f(); }); dbq = []; }; rq.onerror = function () { db = false; dbq.forEach(function (f) { f(); }); dbq = []; }; } catch (e) { db = false; }

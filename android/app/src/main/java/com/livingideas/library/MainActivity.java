@@ -43,6 +43,7 @@ public class MainActivity extends BridgeActivity {
   private WebView web;
   // ---- offline translation (Google ML Kit, models download once, then work without internet)
   private final HashMap<String, Translator> translators = new HashMap<>();
+  private final java.util.concurrent.atomic.AtomicInteger inflight = new java.util.concurrent.atomic.AtomicInteger(0);
   private final HashMap<String, Integer> modelState = new HashMap<>(); // 1 = downloading, 2 = ready
 
   private void trEmit(String id, String kind, String text) {
@@ -165,9 +166,10 @@ public class MainActivity extends BridgeActivity {
       }
       final Translator trf = tr;
       final Job run = new Job(id) { public void run() {
+        inflight.incrementAndGet();
         trf.translate(text)
-          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { android.util.Log.d("LiTr", "ok id=" + id + " in=" + text.length() + " out=" + r.length()); trEmit(id, "ok", r); } })
-          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { dbg("translate FAILED id=" + id + " " + why(e), true); trEmit(id, "err", why(e)); } });
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() { public void onSuccess(String r) { inflight.decrementAndGet(); android.util.Log.d("LiTr", "ok id=" + id + " in=" + text.length() + " out=" + r.length()); trEmit(id, "ok", r); } })
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { inflight.decrementAndGet(); dbg("translate FAILED id=" + id + " " + why(e), true); trEmit(id, "err", why(e)); } });
       } };
       Integer st = modelState.get(key);
       if (st != null && st == 2) { run.run(); return; }
@@ -202,12 +204,30 @@ public class MainActivity extends BridgeActivity {
 
   private static String q(String s) { return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"; }
 
+  private boolean bridgeDone = false;
+
+  // Capacitor 6 builds the Bridge and starts loading the page inside BridgeActivity.onCreate (before onStart), and
+  // addJavascriptInterface only reaches pages loaded afterwards. So the interface is registered right after super.onCreate;
+  // the page itself reloads once if it still finds no LiNative (see platform-android.js), and onStart is only a safety net.
+  @Override
+  public void onCreate(android.os.Bundle b) {
+    super.onCreate(b);
+    installBridge("onCreate");
+  }
+
   @Override
   public void onStart() {
     super.onStart();
-    if (getBridge() == null || getBridge().getWebView() == null) return;
-    web = getBridge().getWebView();
+    installBridge("onStart");
     Speaker.I.attach(sinkRef);
+  }
+
+  private void installBridge(String from) {
+    if (bridgeDone) return;
+    if (getBridge() == null || getBridge().getWebView() == null) { android.util.Log.w("LiBridge", "no bridge/webview in " + from); return; }
+    bridgeDone = true;
+    android.util.Log.i("LiBridge", "registering LiNative from " + from);
+    web = getBridge().getWebView();
     // Keep the layout stable: the system font scale must not blow text out of fixed boxes.
     try { web.getSettings().setTextZoom(100); } catch (Exception ignored) {}
     // The page's rendering process must keep a high priority while the app is in the background, otherwise Android removes it
@@ -273,12 +293,17 @@ public class MainActivity extends BridgeActivity {
           .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
       }
       @JavascriptInterface public void packDel(final String lang) {
-        TranslateRemoteModel m = new TranslateRemoteModel.Builder(lang).build();
-        RemoteModelManager.getInstance().deleteDownloadedModel(m)
-          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) {
-            java.util.Iterator<String> it = translators.keySet().iterator(); while (it.hasNext()) { String k = it.next(); if (k.startsWith(lang + ">") || k.endsWith(">" + lang)) { it.remove(); modelState.remove(k); } }
-            js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'del','')"); } })
-          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
+        runOnUiThread(new Runnable() { public void run() {
+          if (inflight.get() > 0) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote("translation in progress, try again after it finishes") + ")"); return; }
+          // close the translators that use this pack BEFORE deleting it, and clear their state
+          java.util.Iterator<java.util.Map.Entry<String, Translator>> it = translators.entrySet().iterator();
+          while (it.hasNext()) { java.util.Map.Entry<String, Translator> en = it.next(); String k = en.getKey(); if (k.startsWith(lang + ">") || k.endsWith(">" + lang)) { try { en.getValue().close(); } catch (Exception ignored) {} it.remove(); modelState.remove(k); jobWaiters.remove(k); } }
+          dbg("pack delete " + lang + " (translators closed)", true);
+          TranslateRemoteModel m = new TranslateRemoteModel.Builder(lang).build();
+          RemoteModelManager.getInstance().deleteDownloadedModel(m)
+            .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() { public void onSuccess(Void v) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'del','')"); } })
+            .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() { public void onFailure(Exception e) { js("window.__liPackEv&&window.__liPackEv(" + JSONObject.quote(lang) + ",'err'," + JSONObject.quote(why(e)) + ")"); } });
+        } });
       }
       @JavascriptInterface public void audioSession(final String title, final boolean playing, final int pos, final int dur) {
         runOnUiThread(new Runnable() { public void run() {

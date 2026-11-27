@@ -66,12 +66,16 @@ public final class Speaker {
   public void init(Context c) {
     ctx = c.getApplicationContext();
     if (am == null) am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
-    if (tts != null || failed) return;
+    if (failed) { // a failed start can be retried (opening a book / pressing listen calls init again) without leaving duplicate engines
+      try { if (tts != null) tts.shutdown(); } catch (Exception ignored) {}
+      tts = null; ready = false; failed = false; diag("retrying TextToSpeech initialisation", false);
+    }
+    if (tts != null) return;
     try {
       tts = new TextToSpeech(ctx, new TextToSpeech.OnInitListener() {
         @Override public void onInit(final int status) {
           main.post(new Runnable() { public void run() {
-            if (status != TextToSpeech.SUCCESS) { failed = true; diag("TextToSpeech init FAILED status=" + status + ": no speech engine is available on this device (install or enable one in Android settings)", true); failAll(); return; }
+            if (status != TextToSpeech.SUCCESS) { failed = true; try { if (tts != null) tts.shutdown(); } catch (Exception ignored) {} diag("TextToSpeech init FAILED status=" + status + ": no speech engine is available on this device (install or enable one in Android settings)", true); failAll(); return; }
             ready = true;
             try { diag("TextToSpeech ready, engine=" + tts.getDefaultEngine(), false); } catch (Exception ignored) {}
             try {
@@ -90,7 +94,7 @@ public final class Speaker {
           } });
         }
       });
-    } catch (Exception e) { failed = true; }
+    } catch (Exception e) { failed = true; tts = null; diag("TextToSpeech constructor threw: " + e, true); }
   }
 
   // Diagnostics: Logcat (tag LiTts) and the page (Translation language packs > Diagnostics); serious ones also show a message.

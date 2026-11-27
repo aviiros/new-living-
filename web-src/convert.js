@@ -462,6 +462,18 @@
       });
     }, onP, cx);
   }
+  // OCR only the listed page numbers of a mixed PDF (resume key includes the list, so a resumed run matches).
+  function ocrPdfPages(doc, name, list, onP, cx) {
+    cx = cx || {}; cx.key = 'pdfm|' + String(name || '') + '|' + doc.numPages + '|' + list.length + ':' + list[0] + '-' + list[list.length - 1];
+    return ocrRun(list.length, function (i) {
+      return doc.getPage(list[i - 1]).then(function (pg) {
+        var v1 = pg.getViewport({ scale: 1 }), sc = Math.min(3, 2300 / Math.max(v1.width, v1.height)), vp = pg.getViewport({ scale: sc }), cv = document.createElement('canvas');
+        cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+        var c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+        return pg.render({ canvasContext: c, viewport: vp }).promise.then(function () { pg.cleanup(); return cv; });
+      });
+    }, onP, cx);
+  }
   // Photos / images (camera or gallery) -> book
   function imagesToHtml(files, name, onP, cx) {
     var list = [].slice.call(files); cx = cx || {}; cx.key = 'img|' + list.map(function (f) { return (f.name || '') + ':' + (f.size || 0); }).join(',').slice(0, 300);
@@ -489,8 +501,8 @@
           return doc.getPage(i).then(function (pg) {
             var vp = pg.getViewport({ scale: 1 });
             return pg.getTextContent().then(function (tc) {
-              var segs = pageLines(tc.items, vp.width, vp.height); segs.forEach(function (s) { chars += s.chars; });
-              pages.push({ i: i, w: vp.width, h: vp.height, segs: segs }); if (onProgress && !opts.ocr) onProgress(Math.round(i / n * 90));
+              var segs = pageLines(tc.items, vp.width, vp.height), pc = 0; segs.forEach(function (s) { pc += s.chars; }); chars += pc;
+              pages.push({ i: i, w: vp.width, h: vp.height, segs: segs, chars: pc }); if (onProgress && !opts.ocr) onProgress(Math.round(i / n * 90));
               pg.cleanup(); return step(i + 1);
             });
           });
@@ -507,15 +519,30 @@
               });
             });
           }
+          // Mixed document: each page is classified on its own. Pages with a real text layer are read directly; only pages without one go to OCR.
+          var blank = pages.filter(function (p) { return p.chars < 15; }).map(function (p) { return p.i; });
+          var withText = pages.filter(function (p) { return p.chars >= 15; });
+          var mixedOcr = (blank.length && opts.ocr && withText.length) ? function (built0, r) {
+            return ocrPdfPages(doc, name, blank, onProgress, opts.cancel).then(function (ob) {
+              var items = built0.items.concat(ob.items.map(function (it) { it.page = blank[it.page - 1]; return it; }));
+              items = items.map(function (it, ix) { return { it: it, ix: ix }; }).sort(function (a, b) { return (a.it.page - b.it.page) || (a.ix - b.ix); }).map(function (x) { return x.it; });
+              return { items: items, text: items.map(function (o) { return o.txt; }).join('\n'), firstHeading: built0.firstHeading, outline: built0.outline };
+            });
+          } : null;
+          if (blank.length && withText.length && !opts.ocr) { var em = new Error('mixed'); em.pages = n; em.blank = blank.length; throw em; }
           return Promise.all([doc.getMetadata().catch(function () { return null; }), outlineStarts(doc)]).then(function (r) {
             meta = (r[0] && r[0].info) || {};
-            var built = buildFromPages(pages, r[1]), rtl = isArabic(built.text.slice(0, 6000));
+            var built = buildFromPages(withText.length === pages.length ? pages : withText, r[1]);
+            return (mixedOcr ? mixedOcr(built, r) : Promise.resolve(built)).then(function (built) { return afterBuilt(built, r); });
+          });
+          function afterBuilt(built, r) {
+            var rtl = isArabic(built.text.slice(0, 6000));
             var title = (meta.Title && /\S/.test(meta.Title) && meta.Title.length < 160 ? meta.Title.trim() : '') || built.firstHeading || String(name || '').replace(/\.[^.]+$/, '');
             var author = (meta.Author || '').trim();
             return coverBlob(doc).then(function (cv) {
-              return { html: finishPdfBook(title, author, rtl, built), title: title, author: author, cover: cv };
+              return { html: finishPdfBook(title, author, rtl, built), title: title, author: author, cover: cv, mixed: blank.length || 0 };
             });
-          });
+          }
         });
       });
     });

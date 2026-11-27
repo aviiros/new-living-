@@ -110,6 +110,16 @@
     };
     var p = chain.then(run, run); chain = p.catch(function () {}); return p;
   }
-  function stop() { sessions = {}; reader = null; buffers = {}; }
-  window.liPP = { have: have, prep: prep, page: page, lines: lines, stop: stop, parseYml: parseYml, _F: F, _Y: Y };
+  // Stop queues behind any page being processed (never tears down a session mid-inference), then releases every ONNX session.
+  var stopCount = 0;
+  function stop() {
+    var run = function () {
+      var ss = sessions; sessions = {}; reader = null; buffers = {}; stopCount++;
+      return Promise.all(Object.keys(ss).map(function (k) {
+        return Promise.resolve(ss[k]).then(function (se) { return se && se.release ? se.release() : null; }).catch(function (e) { try { console.warn('ONNX release ' + k + ': ' + e); } catch (x) {} });
+      }));
+    };
+    var p = chain.then(run, run); chain = p.catch(function () {}); return p;
+  }
+  window.liPP = { have: have, prep: prep, page: page, lines: lines, stop: stop, _stats: function () { return { sessions: Object.keys(sessions).length, stops: stopCount, buffers: Object.keys(buffers).length }; }, parseYml: parseYml, _F: F, _Y: Y };
 })();
