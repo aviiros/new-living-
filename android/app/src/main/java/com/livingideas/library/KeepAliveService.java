@@ -34,7 +34,7 @@ public class KeepAliveService extends Service {
     Intent stopIt = new Intent(this, KeepAliveService.class).setAction("stop");
     PendingIntent sp = PendingIntent.getService(this, 1, stopIt, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT);
     b.addAction(new Notification.Action.Builder(null, "\u0625\u064a\u0642\u0627\u0641 / Stop", sp).build());
-    b.setContentTitle(title).setContentText(text).setSmallIcon(getApplicationInfo().icon).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(pi).setProgress(100, Math.max(0, Math.min(100, pct)), false);
+    b.setContentTitle(title).setContentText(text).setSmallIcon(statIcon()).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(pi).setProgress(100, Math.max(0, Math.min(100, pct)), false);
     if (Build.VERSION.SDK_INT >= 29) startForeground(4711, b.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); else startForeground(4711, b.build());
     if (wl == null) { try { PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE); wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "li:keepalive"); wl.acquire(6 * 60 * 60 * 1000L); } catch (Exception ignored) {} }
     return START_NOT_STICKY;
@@ -47,5 +47,11 @@ public class KeepAliveService extends Service {
     try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception ignored) {}
     wl = null;
     super.onDestroy();
+  }
+
+  /** Monochrome status-bar icon (the launcher icon is adaptive and not valid as a small notification icon). */
+  private int statIcon() {
+    int id = getResources().getIdentifier("ic_stat_audio", "drawable", getPackageName());
+    return id != 0 ? id : android.R.drawable.ic_media_play;
   }
 }

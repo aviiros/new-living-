@@ -22,7 +22,7 @@
     '.li-dock.min{opacity:.0;pointer-events:none;transform:translateX(-50%) translateY(14px)}',
     '.li-dock button,.li-pn button,.li-pn select{font:inherit;color:inherit;border:0;background:transparent;cursor:pointer}',
     '.li-dock>button{width:42px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center}',
-    '.li-dock>button.on{background:#14262e;color:#fbf7ec}.li-dock svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
+    '.li-dock>button.on{background:#14262e;color:#fbf7ec}.li-dock svg,.li-pn svg{margin:0;max-width:none;border-radius:0;display:block}.li-dock svg{width:21px;height:21px;min-width:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
     '.li-handle{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:2147483000;width:64px;height:18px;opacity:.0}',
     '.li-pn{position:fixed;left:50%;bottom:calc(66px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147483001;width:min(94vw,420px);max-height:60vh;overflow:auto;background:#fbf7ec;color:#14262e;border:1px solid #d9cdb0;border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:12px;font:13px "Segoe UI",Tahoma,sans-serif;display:none}',
     '.li-pn.on{display:block}.li-pn h4{margin:10px 0 6px;font-size:12px;opacity:.7;font-weight:600}.li-pn h4:first-child{margin-top:0}',

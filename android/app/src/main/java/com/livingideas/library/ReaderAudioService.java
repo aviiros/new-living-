@@ -68,7 +68,7 @@ public class ReaderAudioService extends Service {
     Notification.MediaStyle st = new Notification.MediaStyle().setShowActionsInCompactView(1, 3, 4);
     if (session != null) st.setMediaSession(session.getSessionToken());
     b.setStyle(st);
-    b.setContentTitle(t).setContentText(s).setSmallIcon(getApplicationInfo().icon).setOngoing(playing).setOnlyAlertOnce(true).setContentIntent(pi).setShowWhen(false);
+    b.setContentTitle(t).setContentText(s).setSmallIcon(statIcon()).setOngoing(playing).setOnlyAlertOnce(true).setContentIntent(pi).setShowWhen(false);
     if (Build.VERSION.SDK_INT >= 21) b.setVisibility(Notification.VISIBILITY_PUBLIC);
     return b.build();
   }
@@ -132,5 +132,11 @@ public class ReaderAudioService extends Service {
     try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception ignored) {}
     try { stopForeground(true); } catch (Exception ignored) {}
     super.onDestroy();
+  }
+
+  /** Monochrome status-bar icon (the launcher icon is adaptive and not valid as a small notification icon). */
+  private int statIcon() {
+    int id = getResources().getIdentifier("ic_stat_audio", "drawable", getPackageName());
+    return id != 0 ? id : android.R.drawable.ic_media_play;
   }
 }

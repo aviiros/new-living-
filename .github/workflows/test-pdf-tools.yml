@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['platform/platform-android.js', 'web-src/library.html', 'scripts/test-library-android.js', 'android/**', 'scripts/test-pdf-scan.js', 'web-src/pdfviewer.html', 'scripts/test-pdf-tools.js', 'scripts/testdata/**', '.github/workflows/test-pdf-tools.yml']
+    paths: ['platform/platform-android.js', 'web-src/library.html', 'scripts/test-library-android.js', 'scripts/test-android-fixes.js', 'scripts/test-android-audio.js', 'web-src/convert.js', 'web-src/dock.js', 'android/**', 'scripts/test-pdf-scan.js', 'web-src/pdfviewer.html', 'scripts/test-pdf-tools.js', 'scripts/testdata/**', '.github/workflows/test-pdf-tools.yml']
 jobs:
   t:
     runs-on: ubuntu-latest
@@ -17,3 +17,5 @@ jobs:
       - run: PDF=test.pdf node scripts/test-pdf-tools.js
       - run: node scripts/test-pdf-scan.js
       - run: node scripts/test-library-android.js
+      - run: node scripts/test-android-fixes.js
+      - run: node scripts/test-android-audio.js

@@ -29,6 +29,13 @@ public class AudioSessionService extends Service {
   private static final int NID = 5002;
   private MediaSession session;
   private PowerManager.WakeLock wl;
+  // Headphones unplugged / Bluetooth lost: pause at once (the audio would otherwise jump to the phone speaker).
+  private final android.content.BroadcastReceiver noisy = new android.content.BroadcastReceiver() {
+    @Override public void onReceive(android.content.Context c, Intent i) {
+      if (android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(i.getAction())) { Log.i("LiAudio", "becoming noisy -> pause"); send("pause", 0); }
+    }
+  };
+  private boolean noisyOn = false;
 
   @Override public IBinder onBind(Intent i) { return null; }
   private boolean ar() { return "ar".equals(Locale.getDefault().getLanguage()); }
@@ -60,7 +67,7 @@ public class AudioSessionService extends Service {
     if (session != null) st.setMediaSession(session.getSessionToken());
     b.setStyle(st);
     b.setContentTitle(title.length() > 0 ? title : "Living Ideas").setContentText(playing ? (ar() ? "جارٍ التشغيل" : "Playing") : (ar() ? "متوقف مؤقتًا" : "Paused"))
-      .setSmallIcon(getApplicationInfo().icon).setOngoing(playing).setOnlyAlertOnce(true).setContentIntent(pi).setShowWhen(false);
+      .setSmallIcon(statIcon()).setOngoing(playing).setOnlyAlertOnce(true).setContentIntent(pi).setShowWhen(false);
     if (Build.VERSION.SDK_INT >= 21) b.setVisibility(Notification.VISIBILITY_PUBLIC);
     return b.build();
   }
@@ -102,6 +109,9 @@ public class AudioSessionService extends Service {
       });
       session.setActive(true);
     } catch (Exception e) { Log.e("LiAudio", "MediaSession FAILED: " + e); }
+    try { registerReceiver(noisy, new android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY)); noisyOn = true; } catch (Exception e) { Log.e("LiAudio", "noisy receiver FAILED: " + e); }
+    // Audio focus (calls, other apps) is requested and released by the WebView's own media stack for the HTML audio element: it pauses on loss and
+    // reports 'pause' to the page, which this service mirrors in the notification. A second request from here would take focus away from the WebView.
     try { PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE); wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "li:audiobook"); wl.acquire(10 * 60 * 60 * 1000L); } catch (Exception ignored) {}
   }
 
@@ -119,8 +129,15 @@ public class AudioSessionService extends Service {
 
   @Override public void onDestroy() {
     inst = null;
+    try { if (noisyOn) unregisterReceiver(noisy); } catch (Exception ignored) {}
     try { if (session != null) { session.setActive(false); session.release(); } } catch (Exception ignored) {}
     try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception ignored) {}
     super.onDestroy();
+  }
+
+  /** Monochrome status-bar icon (the launcher icon is adaptive and not valid as a small notification icon). */
+  private int statIcon() {
+    int id = getResources().getIdentifier("ic_stat_audio", "drawable", getPackageName());
+    return id != 0 ? id : android.R.drawable.ic_media_play;
   }
 }

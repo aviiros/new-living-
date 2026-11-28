@@ -147,8 +147,28 @@
     INFL[key] = 1; var done = function (r) { delete INFL[key]; return r; };
     return importFile0(file, forced).then(done, function (e) { delete INFL[key]; throw e; });
   }
+  var AUDIO_RE = /\.(mp3|m4a|m4b|aac|ogg|oga|opus|wav|flac)$/i;
+  var AUDIO_MIME = { mp3: 'audio/mpeg', m4b: 'audio/mp4', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg; codecs=opus', flac: 'audio/flac', wav: 'audio/wav' };
+  // Audiobooks can be hundreds of MB: the file is never read into memory. Identity = size + 5 sampled 256 KB slices; the file itself is stored as a
+  // Blob (IndexedDB copies it outside the JS heap), re-typed by slice() without reading it.
+  function sampleHash(file) {
+    var n = file.size, K = 262144, parts = [file.slice(0, Math.min(K, n))];
+    if (n > K * 4) { [0.25, 0.5, 0.75].forEach(function (f) { var o = Math.floor(n * f); parts.push(file.slice(o, o + K)); }); parts.push(file.slice(n - K, n)); }
+    return new Blob(parts).arrayBuffer().then(sha1).then(function (h) { return h + ':' + n; });
+  }
+  function importAudio(file) {
+    var ext = extOf(file.name), mime = file.type && /^audio\//.test(file.type) ? file.type : (AUDIO_MIME[ext] || 'audio/mpeg');
+    try { if (!document.createElement('audio').canPlayType(mime)) return Promise.resolve({ err: M('صيغة الصوت هذه (' + ext + ') غير مدعومة على هذا الجهاز: ', 'This audio format (' + ext + ') is not supported on this device: ') + file.name }); } catch (e) {}
+    return sampleHash(file).then(function (hash) {
+      var dup = lib.books.filter(function (b) { return b.hash === hash; })[0]; if (dup) return { dup: dup };
+      var id = 'b' + rid(6), name = 'audio.' + ext;
+      var b = { id: id, hash: hash, format: 'audio', file: name, title: baseName(file.name), author: '', series: '', rating: 0, hidden: false, want: false, cover: null, added: Date.now(), lastRead: 0, progress: 0, finished: false, readSec: 0, collections: [], bytes: file.size, tpl: false, words: 0, ext: ext, annots: [], audio: { pos: 0, dur: 0, bm: [] } };
+      return fSet(id + '/' + name, file.slice(0, file.size, mime)).then(function () { lib.books.push(b); return { book: b }; });
+    }).catch(function (e) { return { err: M('تعذر إضافة الملف الصوتي: ', 'Could not add the audio file: ') + file.name + ' (' + (e && e.message || e) + ')' }; });
+  }
   function importFile0(file, forced) {
     if (!ALLOWED.test(file.name)) return Promise.resolve({ err: M('صيغة غير مدعومة: ', 'Unsupported format: ') + file.name });
+    if (AUDIO_RE.test(file.name)) return importAudio(file);
     return file.arrayBuffer().then(function (buf) { return sha1(buf).then(function (hash) {
       var ext = extOf(file.name), dup = ext === 'pdf' ? null : lib.books.filter(function (b) { return b.hash === hash; })[0]; if (dup) return { dup: dup };
       var id = 'b' + rid(6), base = baseName(file.name);
@@ -627,7 +647,10 @@
       var lp = parent && parent.liOcrLines; if (!lp) return Promise.resolve(null);
       var v1 = p.getViewport({ scale: 1 }), sc2 = Math.min(3, 2000 / Math.max(v1.width, v1.height)), vp = p.getViewport({ scale: sc2 }), cv = document.createElement('canvas'), cx = cv.getContext('2d');
       cv.width = Math.round(vp.width); cv.height = Math.round(vp.height); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
-      return p.render({ canvasContext: cx, viewport: vp }).promise.then(function () { toast(s.ocr + ' ' + n + '…'); return lp(cv); }).then(function (r) { if (!(r && r.rows)) { var w = parent.liOcrWhy; if (w && !window.__liOcrTold) { window.__liOcrTold = 1; toast(w); } } return r && r.rows ? r.rows : null; });
+      return p.render({ canvasContext: cx, viewport: vp }).promise.then(function () {
+        var bl = parent.liBlank ? parent.liBlank(cv) : Promise.resolve(false);
+        return bl.then(function (isB) { if (isB) { cv.width = cv.height = 1; return { rows: [], blank: true }; } toast(s.ocr + ' ' + n + '…'); return lp(cv).then(function (r) { cv.width = cv.height = 1; return r; }); });
+      }).then(function (r) { if (!(r && r.rows)) { var w = parent.liOcrWhy; if (w && !window.__liOcrTold) { window.__liOcrTold = 1; toast(w); } } return r && r.rows ? r.rows : null; });
     }
     function toItems(p, rows) {
       var v = p.getViewport({ scale: 1 }), W = v.width, H = v.height, vw = p.view || [0, 0, W, H];
@@ -636,15 +659,24 @@
         return { str: r.t, dir: /[֐-ࣿ]/.test(r.t) ? 'rtl' : 'ltr', transform: [fs, 0, 0, fs, r.x * W + vw[0], vw[3] - (r.y + r.h * 0.82) * H], width: r.w * W, height: fs, fontName: 'ocr', hasEOL: true };
       });
     }
+    // A page's OCR only starts if the page is still wanted when its turn comes: near the page on screen, explicitly requested (reading aloud),
+    // or while a document-wide job (search) is running. Otherwise the job resolves at once as SKIP (not cached), so nothing piles up while the user moves on.
+    var SKIP = { skip: 1 };
+    function ocrWanted(n) { return Math.abs(n - curPage()) <= 2 || !!(window.__liPrio && window.__liPrio[n]) || !!window.__liOcrWide; }
     function ocrItems(p, n) {
       if (ocrC[n]) return ocrC[n];
       var key = ((window.__LI && window.__LI.id) || '') + ':' + n;
       if (window.__liListening && !(window.__liPrio && window.__liPrio[n])) return idbGet(key).then(function (hit) { return hit && hit.length ? toItems(p, hit) : null; }); // the voice has the reader first
       return ocrC[n] = idbGet(key).then(function (hit) {
-        if (hit) return hit;
-        var job = ocrQ.then(function () { return readRows(p, n); }); ocrQ = job.catch(function () {});
-        return job.then(function (rows) { if (rows && rows.length) idbSet(key, rows); return rows; });
-      }).then(function (rows) { return rows && rows.length ? toItems(p, rows) : null; }).catch(function () { return null; });
+        if (hit) return hit;   // includes [] : pages already found empty or blank are never read again
+        if (!ocrWanted(n)) return SKIP;
+        var job = ocrQ.then(function () { return ocrWanted(n) ? readRows(p, n) : SKIP; }); ocrQ = job.catch(function () {});
+        return job.then(function (rows) { if (rows && rows !== SKIP) idbSet(key, rows); return rows; });   // an empty result [] is cached too
+      }).then(function (rows) {
+        if (rows === SKIP) { delete ocrC[n]; return SKIP; }
+        if (!rows) delete ocrC[n];   // reader unavailable or failed: allowed to try again later
+        return rows && rows.length ? toItems(p, rows) : null;
+      }).catch(function () { delete ocrC[n]; return null; });
     }
     var ocrReady = new Promise(function (ok) { (function installOcr() {
       var d = doc(); if (!d) return setTimeout(installOcr, 300);
@@ -654,7 +686,7 @@
           var self = this;
           return orig.call(self, o).then(function (tc) {
             if (tc.items.some(function (i) { return i.str && i.str.trim(); })) return tc;
-            return ocrItems(self, self.pageNumber).then(function (items) { return items ? { items: items, styles: tc.styles || {} } : tc; });
+            return ocrItems(self, self.pageNumber).then(function (items) { if (items === SKIP) return { items: tc.items, styles: tc.styles || {}, __ocrSkipped: true }; return items ? { items: items, styles: tc.styles || {} } : tc; });
           });
         };
       }).then(ok, ok);
@@ -672,6 +704,7 @@
       if (tcs[n]) return tcs[n];
       return tcs[n] = ocrReady.then(function () { return dim(n); }).then(function (d) {
         return d.page.getTextContent().then(function (tc) {
+          if (tc.__ocrSkipped) setTimeout(function () { delete tcs[n]; }, 0);
           var items = [], i;
           for (i = 0; i < tc.items.length; i++) {
             var it = tc.items[i]; if (!it.str) continue;
@@ -684,7 +717,7 @@
             norm += ' '; map.push([k, it.str.length]);
           });
           var sq = '', sqpos = []; for (i = 0; i < norm.length; i++) if (norm[i] !== ' ') { sq += norm[i]; sqpos.push(i); }
-          return { items: items, norm: norm, map: map, has: norm.trim().length > 0, pw: d.w, sq: sq, sqpos: sqpos, glyph: items.length > 20 && sq.length / items.length < 1.6 };
+          return { skipped: !!tc.__ocrSkipped, items: items, norm: norm, map: map, has: norm.trim().length > 0, pw: d.w, sq: sq, sqpos: sqpos, glyph: items.length > 20 && sq.length / items.length < 1.6 };
         });
       });
     }
@@ -706,6 +739,7 @@
       paintAnnots(el, n);
       text(n).then(function (t) {
         if (!el.contains(tl)) return;
+        if (t.skipped) { try { fl.remove(); hl.remove(); tl.remove(); } catch (x) {} return; }   // OCR was postponed: build again when the page is near
         var W = el.offsetWidth, H = el.offsetHeight, spans = [];
         t.items.forEach(function (it) {
           if (!it.str.trim()) return;
@@ -742,7 +776,7 @@
       return out.sort(function (a, b) { return a.i - b.i; });
     }
     function repaint() { [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('.tl')) { paintAnnots(el, i + 1); paintFind(el, i + 1); } }); }
-    var raf = 0, pass = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('canvas') && !el.querySelector('.tl')) { build(el, i + 1); } }); }); }, mo = new MutationObserver(pass), scT = null;
+    var moT = 0, raf = 0, pass = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; [].forEach.call(document.querySelectorAll('.pg'), function (el, i) { if (el.querySelector('canvas') && !el.querySelector('.tl')) { build(el, i + 1); } }); }); }, mo = new MutationObserver(function () { clearTimeout(moT); moT = setTimeout(pass, 120); }), scT = null;
     sc.addEventListener('scroll', function () { clearTimeout(scT); scT = setTimeout(pass, 300); });
     mo.observe(pagesEl, { childList: true, subtree: true });
     function scaleBase() {}
@@ -750,19 +784,20 @@
     function goPage(n, y) { var el = pageEl(n); if (!el) return; sc.scrollTop = el.offsetTop - sc.offsetTop + (y ? y * el.offsetHeight - sc.clientHeight * 0.3 : -8); }
     // ---- search
     function find(q, back) {
-      var nqv = nq(q || ''); if (!nqv) { Q.n = ''; Q.q = ''; Q.pageNo = 0; Q.k = -1; repaint(); return; }
+      var nqv = nq(q || ''); if (!nqv) { window.__liOcrWide = false; Q.n = ''; Q.q = ''; Q.pageNo = 0; Q.k = -1; repaint(); return; }
       var d = doc(); if (!d) return; var total = d.numPages, fresh = nqv !== Q.n, seen = false, tok = Q.tok = (Q.tok || 0) + 1;
       Q.q = q; Q.n = nqv;
       var start = fresh ? curPage() : (Q.pageNo || curPage()), k0 = fresh ? (back ? Infinity : -1) : Q.k;
+      window.__liOcrWide = true;   // a search is an explicit document-wide request: scanned pages may be read for it
       function step(pn, k, tried) {
-        if (tok !== Q.tok) return;
-        if (tried > total) { toast(seen ? s.none : s.scan); Q.pageNo = 0; Q.k = -1; repaint(); return; }
+        if (tok !== Q.tok) { return; }
+        if (tried > total) { window.__liOcrWide = false; toast(seen ? s.none : s.scan); Q.pageNo = 0; Q.k = -1; repaint(); return; }
         return text(pn).then(function (t) {
           if (t.has) seen = true;
           var ms = matchesIn(t, nqv), pick = back ? (k === Infinity ? ms.length - 1 : k - 1) : k + 1;
           if (pick >= 0 && pick < ms.length) {
             Q.pageNo = pn; Q.k = pick; var r = rectsOf(t, ms[pick].i, ms[pick].e, ms[pick].vis)[0];
-            goPage(pn, r ? r[1] : 0); setTimeout(repaint, 350); setTimeout(repaint, 900); return;
+            window.__liOcrWide = false; goPage(pn, r ? r[1] : 0); setTimeout(repaint, 350); setTimeout(repaint, 900); return;
           }
           var next = pn + (back ? -1 : 1); if (next > total) next = 1; if (next < 1) next = total;
           return step(next, back ? Infinity : -1, tried + 1);
@@ -1203,12 +1238,16 @@
         });
       });
     }
-    function lstop() { LS.on = false; window.__liListening = false; LS.wait = null; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
+    function lstop() { LS.on = false; window.__liListening = false; window.__liPrio = {}; LS.wait = null; LS.paused = false; LS.tok++; try { window.speechSynthesis.cancel(); } catch (e) {} lsay(false); lpanel(); }
     // Pages are queued ahead (on the phone the whole rest of the document), so reading continues by itself while the page is frozen in the background.
     function lpage(n, tok) {
-      var Q = { np: n, out: 0, loading: false, total: 0 }; LS.q = Q;
+      var Q = { np: n, out: 0, loading: false, total: 0, start: n }; LS.q = Q;
+      // Look-ahead is bounded: at most LOOK pages beyond the one being spoken are prepared (text of text pages is instant; a scanned page is read by OCR
+      // only when it is about to be needed). The page being requested is always first; blank pages come back empty and are skipped at once.
+      var LOOK = 3;
       function top() {
         if (!LS.on || tok !== LS.tok || Q.loading) return;
+        if (Q.np - (Q.cur || Q.start) > LOOK) return;
         if (Q.out >= (Q.slow ? 80 : ((window.LiNative || parent.LiNative) ? 1e6 : 400))) return;
         if (Q.total && Q.np > Q.total) { if (Q.out <= 0) lstop(); return; }
         Q.loading = true; var t0 = Date.now(), tm = setInterval(function () { if (!Q.loading || !LS.on || tok !== LS.tok) { clearInterval(tm); return; } LS.wait = { n: Q.np, s: Math.round((Date.now() - t0) / 1000) }; lpanel(); }, 1000);
@@ -1221,7 +1260,7 @@
             var u = new SpeechSynthesisUtterance(c); u.__g = 'p' + pn; u.lang = lg === 'ar' ? 'ar-SA' : lg; u.rate = G.rate || 1; u.volume = (G.vol == null ? 1 : G.vol); LS.lg = lg;
             try { var vs = (window.speechSynthesis.getVoices() || []).filter(function (v) { return (v.lang || '').toLowerCase().indexOf(lg) === 0; }); var pick = vs.filter(function (v) { return v.name === G.voice; })[0] || vs[0]; if (pick) { u.voice = pick; u.lang = pick.lang; } } catch (e) {}
             var fin = false; Q.out++;
-            u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { LS.cur = pn; lpanel(); try { window.__pgo && window.__pgo(pn); } catch (e) {} } };
+            u.onstart = function () { if (k === 0 && LS.on && tok === LS.tok) { LS.cur = Q.cur = pn; lpanel(); try { window.__pgo && window.__pgo(pn); } catch (e) {} top(); } };
             var done = function () { if (fin) return; fin = true; Q.out--; if (!LS.on || tok !== LS.tok) return; top(); };
             u.onend = done; u.onerror = function (ev) { if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return; done(); };
             try { window.speechSynthesis.speak(u); } catch (e) { lstop(); }
@@ -1361,6 +1400,8 @@
     }),
     scan: A(function () { return scanFlow().then(function (f) { return f.length ? addMany(f, { name: M('مسح ضوئي ', 'Scan ') + new Date().toLocaleDateString(), keep: true }) : lib; }); }),
     add: A(function () { return pick('.jpg,.jpeg,.png,.webp,.bmp,image/*,.html,.htm,.epub,.pdf,.docx,.txt,.md,.fb2,.cbz,.mobi,.azw,.azw3,.prc,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac,text/html,application/epub+zip,application/pdf,audio/*,*/*', true).then(function (f) { return f.length ? addMany(f) : lib; }); }),
+    // the audiobook interface's own "Add audiobook" button: Android file picker, audio files only, queued by the page afterwards
+    addAudio: A(function () { return pick('.mp3,.m4a,.m4b,.aac,.ogg,.oga,.opus,.wav,.flac,audio/*', true).then(function (f) { f = f.filter(function (x) { return AUDIO_RE.test(x.name); }); return f.length ? addMany(f) : lib; }); }),
     addPaths: A(function () { return lib; }),
     addFile: A(function (file) { return addMany([file]); }),
     addTranslated: A(function (srcId, tgt, html, tname) {

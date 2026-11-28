@@ -223,6 +223,54 @@
   }
   // Removes light watermarks, stamps and paper texture, keeping only the dark text.
   // Gentle page clean-up for the PaddleOCR reader (it likes grey pages): flatten uneven shading and stretch the contrast. No hard black/white cut.
+  // ---- keeps the screen responsive: heavy pixel loops run in short slices
+  function nextTick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+  function slices(total, fn) { // fn(a, b) over [0,total) in slices of about 12 ms
+    return new Promise(function (res, rej) {
+      var i = 0, step = Math.max(1, Math.round(total / 40));
+      (function run() { var t0 = Date.now(); try { while (i < total && Date.now() - t0 < 12) { var e = Math.min(total, i + step); fn(i, e); i = e; } } catch (x) { rej(x); return; } if (i >= total) res(); else setTimeout(run, 0); })();
+    });
+  }
+  // Is the rendered page really empty? Conservative on purpose: the paper level is the commonest brightness; a pixel counts as ink when it
+  // differs from it by more than 8 levels (faint or small text still does), and the page is blank only when almost no pixel does.
+  function isBlankCanvas(cv) {
+    return new Promise(function (res) {
+      try {
+        var w = cv.width, h = cv.height, ctx = cv.getContext('2d'), hist = new Uint32Array(256), band = 64, bands = Math.ceil(h / band), n = w * h;
+        if (!w || !h) return res(false);
+        var lumAt = function (d, i) { return (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; };
+        slices(bands, function (a, b) { for (var k = a; k < b; k++) { var y0 = k * band, hh = Math.min(band, h - y0), d = ctx.getImageData(0, y0, w, hh).data; for (var i = 0; i < d.length; i += 16) hist[lumAt(d, i)]++; } }).then(function () {
+          var bg = 0, m = 0; for (var v = 0; v < 256; v++) if (hist[v] > m) { m = hist[v]; bg = v; }
+          // paper level = the most common brightness, then the brightest of its near neighbours (smooth shading)
+          var ink = 0, limit = Math.max(40, Math.round(n * 0.00003));
+          return slices(bands, function (a, b) { if (ink > limit) return; for (var k = a; k < b; k++) { var y0 = k * band, hh = Math.min(band, h - y0), d = ctx.getImageData(0, y0, w, hh).data; for (var i = 0; i < d.length; i += 4) { var df = lumAt(d, i) - bg; if (df > 8 || df < -8) ink++; } } }).then(function () { res(ink <= limit); });
+        }).catch(function () { res(false); });
+      } catch (e) { res(false); }
+    });
+  }
+  window.liBlank = isBlankCanvas;
+  // Same clean-up as enhanceCanvas (paper-level flattening + contrast stretch), but in short slices so the page view never freezes.
+  function enhanceAsync(cv) {
+    var w = cv.width, h = cv.height, n = w * h, ctx, lum, out, hh = new Uint32Array(256), band = 64, bands = Math.ceil(h / band);
+    try { ctx = cv.getContext('2d'); lum = new Uint8Array(n); out = new Uint8Array(n); } catch (e) { return Promise.resolve(cv); }
+    var B = Math.max(16, Math.round(Math.max(w, h) / 48)), gw = Math.ceil(w / B), gh = Math.ceil(h / B), g = new Float32Array(gw * gh);
+    return slices(bands, function (a, b) { for (var k = a; k < b; k++) { var y0 = k * band, rows = Math.min(band, h - y0), d = ctx.getImageData(0, y0, w, rows).data, o = y0 * w; for (var i = 0, j = 0; i < d.length; i += 4, j++) lum[o + j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; } })
+    .then(function () {
+      return slices(gh, function (a, b) { for (var y = a; y < b; y++) for (var x = 0; x < gw; x++) {
+        var hist = new Uint32Array(256), cnt = 0, yy, xx; for (yy = y * B; yy < Math.min(h, y * B + B); yy += 2) for (xx = x * B; xx < Math.min(w, x * B + B); xx += 2) { hist[lum[yy * w + xx]]++; cnt++; }
+        var acc = 0, lv = 255, tgt = cnt * 0.15; for (var k = 0; k < 256; k++) { acc += hist[k]; if (acc >= cnt - tgt) { lv = k; break; } } g[y * gw + x] = Math.max(60, lv);
+      } });
+    }).then(function () {
+      return slices(h, function (a, b) { for (var y = a; y < b; y++) { var fy = Math.min(gh - 1, Math.max(0, (y + 0.5) / B - 0.5)), y0 = fy | 0, y1 = Math.min(gh - 1, y0 + 1), ty = fy - y0;
+        for (var x = 0; x < w; x++) { var fx = Math.min(gw - 1, Math.max(0, (x + 0.5) / B - 0.5)), x0 = fx | 0, x1 = Math.min(gw - 1, x0 + 1), tx = fx - x0;
+          var bg = (g[y0 * gw + x0] * (1 - tx) + g[y0 * gw + x1] * tx) * (1 - ty) + (g[y1 * gw + x0] * (1 - tx) + g[y1 * gw + x1] * tx) * ty;
+          var v = Math.min(255, lum[y * w + x] * 255 / bg) | 0; out[y * w + x] = v; hh[v]++; } } });
+    }).then(function () {
+      var lo = 0, hi = 255, a2 = 0, i; for (i = 0; i < 256; i++) { a2 += hh[i]; if (a2 >= n * 0.005) { lo = i; break; } } a2 = 0; for (i = 255; i >= 0; i--) { a2 += hh[i]; if (a2 >= n * 0.30) { hi = i; break; } }
+      if (hi - lo < 40) return cv; var sc = 255 / (hi - lo);
+      return slices(bands, function (a, b) { for (var k = a; k < b; k++) { var y0 = k * band, rows = Math.min(band, h - y0), im = ctx.createImageData(w, rows), d = im.data, o = y0 * w; for (var i2 = 0, j = 0; i2 < d.length; i2 += 4, j++) { var q = Math.max(0, Math.min(255, (out[o + j] - lo) * sc)) | 0; d[i2] = d[i2 + 1] = d[i2 + 2] = q; d[i2 + 3] = 255; } ctx.putImageData(im, 0, y0); } }).then(function () { return cv; });
+    }).catch(function () { return cv; });
+  }
   function enhanceCanvas(cv) {
     try {
       var w = cv.width, h = cv.height, ctx = cv.getContext('2d'), im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h, lum = new Uint8Array(n), i, j;
@@ -311,8 +359,10 @@
   function webAvail() { return !window.liDesk && !!(window.liPP && window.WebAssembly); }
   function whyMsg(e) { var m = e && (e.message || e.name) ? String(e.message || e.name) : String(e || ''); return m.replace(/\s+/g, ' ').slice(0, 160); }
   // The slower built-in reader (Tesseract) is used only when the person says so explicitly; it is never a silent substitute.
+  // __liAsk(title, body, yesLabel, noLabel): the buttons were empty because no labels were passed
+  function askYN(t, b, y, n) { return window.__liAsk(t, b, y || TT('نعم', 'Yes'), n || TT('لا', 'No')); }
   function askFallback(reasonAr, reasonEn) {
-    var ask = window.__liAsk ? window.__liAsk(TT('القارئ الأدق غير متاح', 'The accurate reader is not available'), TT('قارئ الصفحات الأدق (PaddleOCR) لن يُستخدم: ' + reasonAr + '. هل تريد المتابعة بالقارئ الاحتياطي؟ هو أبطأ كثيرًا وأقل دقة.', 'The accurate page reader (PaddleOCR) will not be used: ' + reasonEn + '. Continue with the backup reader? It is much slower and less accurate.')) : Promise.resolve(false);
+    var ask = window.__liAsk ? askYN(TT('القارئ الأدق غير متاح', 'The accurate reader is not available'), TT('قارئ الصفحات الأدق (PaddleOCR) لن يُستخدم: ' + reasonAr + '. هل تريد المتابعة بالقارئ الاحتياطي؟ هو أبطأ كثيرًا وأقل دقة.', 'The accurate page reader (PaddleOCR) will not be used: ' + reasonEn + '. Continue with the backup reader? It is much slower and less accurate.')) : Promise.resolve(false);
     return ask.then(function (yes) { if (!yes) { var e = new Error('cancel'); e.liAsked = true; throw e; } return false; });
   }
   function webGate(onP, noAsk) {
@@ -321,7 +371,7 @@
     if (off) { window.liOcrWhy = TT('قراءة النص بالنموذج الدقيق مغلقة في الإعدادات', 'Accurate text reading is switched off in Settings'); return noAsk ? Promise.resolve(false) : askFallback('أُوقفت من الإعدادات', 'it is switched off in Settings'); }
     return window.liPP.have().then(function (h) {
       if (h) return window.liPP.prep().then(function () { return true; });
-      var ask = window.__liAsk ? window.__liAsk(TT('قراءة أدق للنص', 'More accurate text reading'), TT('لقراءة الصفحات الممسوحة بدقة أعلى يلزم تنزيل نموذج صغير (نحو 44 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟', 'To read scanned pages accurately a small model (about 44 MB) must be downloaded once, then it works offline. Download it now?')) : Promise.resolve(false);
+      var ask = window.__liAsk ? askYN(TT('قراءة أدق للنص', 'More accurate text reading'), TT('لقراءة الصفحات الممسوحة بدقة أعلى يلزم تنزيل نموذج صغير (نحو 44 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟', 'To read scanned pages accurately a small model (about 44 MB) must be downloaded once, then it works offline. Download it now?')) : Promise.resolve(false);
       return ask.then(function (yes) {
         if (!yes) { window.liOcrWhy = TT('لم يُنزَّل نموذج القراءة', 'The reading model was not downloaded'); return noAsk ? false : askFallback('لم تنزّل النموذج', 'the model was not downloaded'); }
         if (onP) onP(1, TT('جارٍ تنزيل نموذج القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
@@ -345,7 +395,7 @@
       if (!st || !st.win || !st.ram) return false;
       if (st.have) return true;
       var small = (st.needMB || 0) <= 150; // PaddleOCR (about 50 MB): downloaded without asking, once
-      var ask = small ? Promise.resolve(true) : window.__liAsk ? window.__liAsk(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 50 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 50 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
+      var ask = small ? Promise.resolve(true) : window.__liAsk ? askYN(TT('قراءة أدق بالذكاء الاصطناعي', 'More accurate reading with local AI'), TT('لقراءة النص من الصور والملفات الممسوحة بدقة أعلى يلزم تنزيل موديل صغير (نحو 50 ميجا) مرة واحدة، ثم يعمل دون إنترنت. هل تريد تنزيله الآن؟ إن رفضت يُستخدم القارئ السريع الحالي.', 'Reading scanned pages and photos much more accurately needs a one-time download of a small model (about 50 MB). After that it works offline. Download it now? If you decline, the current fast reader is used.'), TT('تنزيل', 'Download'), TT('لا، استخدم السريع', 'No, use the fast reader')) : Promise.resolve(false);
       return ask.then(function (yes) {
         if (!yes) return false;
         if (onP) onP(1, TT('جارٍ تنزيل موديل القراءة (مرة واحدة)…', 'Downloading the reading model (one time)…'));
@@ -356,21 +406,26 @@
   }
   // Lines of a scanned page with their place on it (fractions of the page), for the text layer of a PDF opened as it is.
   // Uses the same local reader and the same page clean-up as the conversion. Returns null when no reader is available.
-  var linesGate = null;
+  var linesGate = null, linesFailAt = 0;
   window.liOcrLines = function (cv) {
-    if (!linesGate) linesGate = aiGate(null, true).catch(function (e) { window.liOcrWhy = whyMsg(e); return false; });
+    // A failed attempt (model not ready, temporary error) must not disable the reader for good: the gate is dropped and tried again,
+    // at most once every 15 seconds so a missing model is not hammered page after page.
+    if (!linesGate) {
+      if (linesFailAt && Date.now() - linesFailAt < 15000) return Promise.resolve(null);
+      linesGate = aiGate(null, true).catch(function (e) { window.liOcrWhy = whyMsg(e); return false; }).then(function (ok) { if (!ok) { linesFailAt = Date.now(); linesGate = null; } else linesFailAt = 0; return ok; });
+    }
     return linesGate.then(function (ok) {
       if (!ok) return null;
       var load = window.liArFix ? window.liArFix.load() : Promise.resolve();
-      return load.then(function () {
-        var job = webAvail() ? window.liPP.lines(scaleCv(enhanceCanvas(cv), 1700), 'auto')
-          : window.liDesk.ocrLines(canvasPng(enhanceCanvas(cv), 2400), 'auto').then(function (r) { if (!r || r.kind !== 'ok' || !r.text) return null; try { return JSON.parse(r.text); } catch (e) { return null; } });
+      return load.then(function () { return enhanceAsync(cv); }).then(function (ecv) {
+        var job = webAvail() ? window.liPP.lines(scaleCv(ecv, 1700), 'auto')
+          : window.liDesk.ocrLines(canvasPng(ecv, 2400), 'auto').then(function (r) { if (!r || r.kind !== 'ok' || !r.text) return null; try { return JSON.parse(r.text); } catch (e) { return null; } });
         return job.then(function (r) {
           if (!r || !r.rows || !r.w) return null;
           return { script: r.script, rows: r.rows.map(function (x) { var b = x.b, t = window.liArFix && r.script === 'arabic' ? window.liArFix.fix(x.t) : x.t; return { t: t, x: b[0] / r.w, y: b[1] / r.h, w: (b[2] - b[0]) / r.w, h: (b[3] - b[1]) / r.h }; }) };
         });
       });
-    }).catch(function (e) { window.liOcrWhy = whyMsg(e); try { console.error('[li-ocr] ' + window.liOcrWhy); } catch (x) {} return null; });
+    }).catch(function (e) { window.liOcrWhy = whyMsg(e); try { console.error('[li-ocr] ' + window.liOcrWhy); } catch (x) {} linesFailAt = Date.now(); linesGate = null; return null; });
   };
   // The model answers in Markdown (# headings, paragraphs, sometimes an HTML table) -> paragraphs [{t, big}]
   function mdParas(md) {
@@ -394,13 +449,21 @@
     return c.toDataURL('image/png');
   }
   // pages: array of {canvas()} producers. Returns built structure. onP(pct,label)
+  // Time left from the page times of this run. The first page is never counted (it includes the engine's cold start and compilation),
+  // nothing is shown before 4 warmed-up pages, and the middle value of the last 8 is used so one slow page does not swing the estimate.
+  function etaText(durs, pend) {
+    var d = durs.slice(1); if (d.length < 4 || pend <= 0) return '';
+    d = d.slice(-8).sort(function (a, b) { return a - b; });
+    var med = d[Math.floor(d.length / 2)], left = Math.max(1, Math.round(med * pend / 60000));
+    return ' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left');
+  }
   function ocrRun(count, getCanvas, onP, cx) {
     var t0 = Date.now(), all = [], worker = null, langs = 'ara+eng+fra+spa+ita+ind', done = 0, useAI = false;
     // Android: a live notification keeps the app working while the screen is off or another app is open
     var onP0 = onP, kaT = 0, N0 = window.LiNative, kaOn = false;
     onP = function (p, l) { try { if (N0 && N0.keepAlive && Date.now() - kaT > 1500) { kaT = Date.now(); kaOn = true; N0.keepAlive(true, TT('جارٍ تحويل الكتاب', 'Converting the book') + ' · ' + (p || 0) + '%', String(l || '').replace(/ · .*$/, ''), p || 0); } } catch (e) {} if (onP0) onP0(p, l); };
     var kaOff = function () { if (kaOn && N0 && N0.keepAlive) { kaOn = false; try { N0.keepAlive(false, '', '', 0); } catch (e) {} } };
-    var durs = [], pend = count, eta = function () { var d = durs.length > 3 ? durs.slice(1) : durs; if (d.length < 2 || pend <= 0) return ''; d = d.slice(-6).slice().sort(function (a, b) { return a - b; }); var med = d[Math.floor(d.length / 2)], left = Math.max(1, Math.round(med * pend / 60000)); return ' · ' + TT('متبقي نحو ' + left + ' دقيقة', '~' + left + ' min left'); };
+    var durs = [], pend = count, eta = function () { return etaText(durs, pend); };
     var label = function (i) { return TT('جارٍ قراءة النص من الصفحة ' + i + ' من ' + count, 'Reading text from page ' + i + ' of ' + count) + eta(); };
     var ensureWorker = function () { return worker ? Promise.resolve() : makeWorker(langs).then(function (w) { worker = w; }); };
     var tessPage = function (i, cv) {
@@ -426,16 +489,22 @@
       if (saved[i]) { all.push(saved[i]); done++; pend = Math.max(0, pend - 1); return step(i + 1); }
       var tPage = Date.now(), pendLeft = 0; for (var q = i; q <= count; q++) if (!saved[q]) pendLeft++; pend = pendLeft;
       if (onP) onP(Math.round((i - 1) / count * 95), label(i));
+      var blankPg = false;
       return getCanvas(i).then(function (cv) {
+        return isBlankCanvas(cv).then(function (bl) { if (bl) { blankPg = true; cv.width = cv.height = 1; all.push([]); done++; return null; } return cv; });
+      }).then(function (cv) {
+        if (!cv) return;
         if (!useAI) return tessPage(i, cv);
         if (webAvail()) {
-          var c2 = scaleCv(enhanceCanvas(cv), 1700);
+          return enhanceAsync(cv).then(function (ecv) {
+          var c2 = scaleCv(ecv, 1700);
           var once = function () { return window.liPP.page(c2, 'auto'); };
           return once().catch(function () { return once(); }).then(function (md) { if (c2 !== cv) c2.width = c2.height = 1; cv.width = cv.height = 1; return { kind: 'ok', text: md }; }, function (e) { return { kind: 'err', why: whyMsg(e) }; }).then(handleAi(i));
+          });
         }
         var png = canvasPng(enhanceCanvas(cv), 2400); cv.width = cv.height = 1;
         return window.liDesk.ocrPage(png).then(handleAi(i));
-      }).then(function () { durs.push(Date.now() - tPage); keep(i); return step(i + 1); });
+      }).then(function () { if (!blankPg) durs.push(Date.now() - tPage); keep(i); return step(i + 1); });
     };
     var handleAi = function (i) {
       return function (r) {
@@ -612,5 +681,5 @@
     return bookPage(title, author, rtl, parts, 'PDF');
   }
 
-  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.imagesToHtml = imagesToHtml; F._ocr = { mdParas: mdParas, cleanCanvas: cleanCanvas, pageParas: pageParas, ocrBuild: ocrBuild }; F.IMG = /\.(jpe?g|png|webp|bmp)$/i; F.EXT2 = /\.(docx)$/i;
+  F.docxToHtml = docxToHtml; F.pdfToHtml = pdfToHtml; F.imagesToHtml = imagesToHtml; F.isBlank = isBlankCanvas; F._eta = etaText; F._ocr = { mdParas: mdParas, cleanCanvas: cleanCanvas, pageParas: pageParas, ocrBuild: ocrBuild }; F.IMG = /\.(jpe?g|png|webp|bmp)$/i; F.EXT2 = /\.(docx)$/i;
 })();
